@@ -1,0 +1,38 @@
+{
+    "manifest_version": 3,
+    "name": "UI Inventory MVP",
+    "version": "0.1.0",
+    "description": "Guided UI audit recorder and inventory generator.",
+    "permissions": [
+        "storage",
+        "tabs",
+        "activeTab"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "action": {
+        "default_title": "UI Inventory",
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "serviceWorker.js",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "contentScript.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": {
+        "16": "icons/icon-16.png",
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png"
+    }
+}

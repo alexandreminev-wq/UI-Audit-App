@@ -1,0 +1,13 @@
+{
+  "name": "ui-inventory-mvp",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:ext": "npm --workspace apps/extension run dev",
+    "build:ext": "npm --workspace apps/extension run build",
+    "dev:viewer": "npm --workspace apps/viewer run dev"
+  }
+}
