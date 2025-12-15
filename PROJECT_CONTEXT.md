@@ -82,4 +82,3 @@ Milestone 1: Hover highlighter + click-to-select element
 - Be explicit about tradeoffs
 - Stop and ask if something is ambiguous
 - Protect the existing scaffold at all costs
-- Look at CLAUDE_CODE_INSTRUCTIONS.md for methodology

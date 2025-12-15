@@ -138,3 +138,33 @@ A task is done when:
 ## Short reminder
 This is an MVP built **to learn**, not to be perfect.
 Favor shipping, inspecting real usage, and iterating.
+
+## Current focus (Milestone 1 override)
+- Only hover highlight + click-to-select
+- Stay in hover mode after selection
+- No screenshots, no persistence, no IndexedDB work yet
+- Do not implement capture/grouping rules until Milestone 2+
+
+---
+
+## Generated files rule (VERY IMPORTANT)
+- NEVER edit files in apps/**/dist/** (build output is minified and auto-generated).
+- Always make changes in apps/extension/src/** instead.
+- If you need to verify output, describe what to look for in dist, but do not modify it.
+- Do not reformat files unless explicitly asked. Keep existing style.
+- Prefer minimal diffs: change only the lines required for the feature.
+
+---
+
+## Testing notes
+- After reloading the extension, refresh the target webpage tab before testing (content scripts won’t exist on already-open pages).
+
+## Workflow rule
+- Always stop after planning unless I explicitly say “apply the changes”.
+- Do not run build commands unless I explicitly ask.
+
+---
+
+## Source of truth for progress
+- Read docs/STATUS.md for “what’s done” and “what’s next”.
+- Do not treat CLAUDE.md as a changelog.
