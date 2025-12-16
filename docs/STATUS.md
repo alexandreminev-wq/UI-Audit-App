@@ -1,36 +1,42 @@
 # Project Status
 
-## Canon version
-Milestones/specs are based on **Milestone 1 v2.2**.
+## Current Milestone
+**Milestone 1 v2.2: COMPLETE** ✅ (Tagged: `milestone-1-complete`)
 
-## What “done” means for Milestone 1 v2.2
-A capture is considered valid when:
-- It belongs to a session (`sessionId`)
-- It includes schema stamping (`captureSchemaVersion: 2`)
-- It includes conditions + intent anchors (best-effort)
-- Styles are stored as primitives (raw + canonical where required)
-- Screenshot is stored as a Blob in IDB and referenced by `screenshotBlobId`
-- No dedupe/signature keys exist in the extension
+## Milestone 1 v2.2 - Completion Summary
+All core requirements achieved:
 
-## Current progress
-- Hover highlight ✅
-- Click-to-capture ✅
-- IndexedDB persistence ✅/⬜ (depends on current repo state)
-- Schema v2.2 fields ⬜
-- Sessions store + sessionId enforcement ⬜
-- Style primitives v2 ⬜
-- OffscreenCanvas screenshot pipeline ⬜
-- blobs store + screenshotBlobId ⬜
+### Completed Features
+- ✅ Hover highlight overlay with click-to-capture
+- ✅ Session tracking (`sessionId` on every capture)
+- ✅ Schema versioning (`captureSchemaVersion: 2`, `stylePrimitiveVersion: 1`)
+- ✅ IndexedDB storage (3 stores: `captures`, `sessions`, `blobs`)
+- ✅ Capture conditions (viewport, DPR, visualViewportScale, timestamp)
+- ✅ Element intent anchors (accessibleName, inputType, href, disabled, checked)
+- ✅ Style primitives v2 (per-side padding, raw + RGBA colors, shadow presence/layers)
+- ✅ OffscreenCanvas screenshot pipeline (capture → crop → encode → blob store)
+- ✅ Screenshot blob storage with `screenshotBlobId` references
+- ✅ Popup UI displays captures with screenshot previews
+- ✅ Session persistence across service worker restarts
+- ✅ Pages visited tracking per session
+- ✅ Overlay hidden during screenshot capture (clean images)
+- ✅ Fixed ArrayBuffer serialization for chrome.runtime.sendMessage
+- ✅ Fixed popup state management with proper tab routing
 
-## Next implementation sequence (recommended)
-1) Types: CaptureRecord v2.2 + SessionRecord + BlobRecord
-2) IDB schema: add `sessions` + `blobs`, ensure `captures` shape tolerant
-3) Session writing: create/activate session, attach `sessionId` to captures
-4) Capture builder: conditions + intent anchors
-5) Style primitives extraction: raw + canonical RGBA + shadow presence/layers
-6) Screenshot pipeline: viewport capture → offscreen crop/encode → blob store → reference id
-7) Popup/Debug UI: render v2.2 fields safely (tolerate missing fields)
+### Known Limitations (Acceptable for MVP)
+- `browserZoom` remains null (flaky detection, not critical)
+- Hotkey capture not implemented (optional feature)
+- No dedupe/signature keys in extension (deferred to Milestone 2 viewer)
 
-## Known risks
-- browserZoom is flaky; treat as optional and do not depend on it
-- Backward compatibility: old capture rows may lack new fields; UI must tolerate undefined
+## What's Next: Milestone 2 - Viewer Gallery
+Focus shifts to building a proper viewer application that:
+- Reads captures, sessions, and blobs from IndexedDB
+- Computes signatures and normalization (viewer-side, not extension)
+- Groups variants and shows occurrences
+- Provides detail view with all metadata
+
+## Technical Notes
+- Extension follows MV3 architecture (service worker, offscreen document, content script)
+- Message passing pattern established for cross-context communication
+- ArrayBuffer data converted to Arrays for chrome.runtime.sendMessage compatibility
+- Backward compatibility: old captures tolerate missing v2.2 fields
