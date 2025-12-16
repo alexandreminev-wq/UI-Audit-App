@@ -10,14 +10,13 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, "popup.html"),
-        serviceWorker: resolve(__dirname, "src/background/serviceWorker.ts"),
-        contentScript: resolve(__dirname, "src/content/contentScript.ts")
+        offscreen: resolve(__dirname, "offscreen.html"),
+        serviceWorker: resolve(__dirname, "src/background/serviceWorker.ts")
       },
       output: {
         entryFileNames: (chunk) => {
           // Force MV3-friendly names expected by manifest.json
           if (chunk.name === "serviceWorker") return "serviceWorker.js";
-          if (chunk.name === "contentScript") return "contentScript.js";
           return "[name].js";
         },
         chunkFileNames: "chunks/[name]-[hash].js",

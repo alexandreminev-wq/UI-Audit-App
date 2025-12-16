@@ -1,84 +1,36 @@
-# Project Context — UI Inventory App (MVP)
+# UI Inventory App — Project Context (Canon)
 
-## What this project is
-A Chrome Manifest V3 extension (with a future web viewer) that lets product designers run a guided UI audit on a live website or web app and generates a grouped visual inventory of UI elements (buttons, inputs, text, etc.).
+## What we are building
+A Chrome Extension (MV3) that supports **guided UI capture**:
+- user selects elements on real web pages
+- extension captures structured evidence (DOM/intent + style primitives + screenshot)
+- later, a Viewer groups/normalizes what was captured
 
-Target users:
-- General product designers
-- Contractors, agencies, small in-house teams
-- Legacy / messy SaaS products
+## What we are NOT claiming (yet)
+We are not claiming complete coverage of a UI.
+Wording should remain:
+> guided capture + automatic grouping of what you captured
 
-This is an MVP focused on speed, clarity, and explainable output.
+## Current milestone
+Milestone 1 v2.2 — Capture pipeline v2.2
 
----
+Key decisions:
+- **Sessions exist in Milestone 1**: every capture has `sessionId`; a `sessions` store exists
+- **Versioning exists now**: `captureSchemaVersion: 2` (optional `stylePrimitiveVersion: 1`)
+- **No dedupe/signature keys in extension**
+- **Screenshots are processed using OffscreenCanvas (Option A)**
+- IndexedDB stores are split:
+  - `sessions`, `captures`, `blobs`
+- browserZoom is best-effort and optional; expect null frequently
 
-## Current status (IMPORTANT)
-### Milestone 0 — COMPLETE
-- Chrome extension scaffold works
-- Vite + React + TypeScript
-- Manifest V3
-- Popup UI renders correctly
-- Popup → Service Worker → Content Script messaging works
-- Build outputs correct files in `apps/extension/dist`
-- `popup.html` lives at project root (`apps/extension/popup.html`)
-- `popup.html` imports `/src/ui/popup/popup.tsx`
-- `dist/` is ignored by git
-- Project is committed and tagged as `milestone-0`
+## Data stored per capture (v2.2 summary)
+- conditions: viewport, DPR, visualViewportScale, browserZoom?, themeHint?, timestamp
+- element core: tagName, role?, intent anchors (best-effort)
+- style primitives: spacing per-side, colors raw + canonical RGBA, shadows raw + presence/layers
+- screenshot: blob ref via screenshotBlobId
 
----
-
-## Tech stack (locked for MVP)
-- Package manager: npm (workspaces)
-- Chrome Extension: Manifest V3
-- Language: TypeScript
-- UI: React (Vite)
-- Storage (for now): local / IndexedDB
-- No backend yet
-- No auth yet
-
----
-
-## Extension architecture (do not break)
-- Popup UI: user controls only
-- Service Worker: orchestration, screenshots, persistence
-- Content Script: DOM inspection, highlighting, style extraction
-
-Rules:
-- Content scripts do NOT call DOM-unsafe Chrome APIs
-- Service worker does NOT touch the DOM
-- All communication via `chrome.runtime.sendMessage`
-
----
-
-## Coding style & working rules
-- Small, incremental changes only
-- No refactors unless explicitly requested
-- Avoid “magic” abstractions
-- Prefer explainable, debuggable logic
-- If a change affects build config, manifest, or messaging → explain first
-
----
-
-## Explicit non-goals (MVP)
-- No automatic crawling
-- No framework-specific component detection
-- No AI redesigns
-- No design system scoring
-- No Figma reconstruction yet
-
----
-
-## Next milestone
-Milestone 1: Hover highlighter + click-to-select element
-- Visual overlay on hover
-- Click selects target
-- No screenshots yet
-- No persistence yet
-
----
-
-## How I want help
-- Act like a careful engineering partner
-- Be explicit about tradeoffs
-- Stop and ask if something is ambiguous
-- Protect the existing scaffold at all costs
+## What comes next (Milestone 2)
+Viewer reads sessions/captures/blobs and computes:
+- normalization versioning
+- signatures and grouping
+- variant gallery + occurrences list

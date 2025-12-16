@@ -1,7 +1,108 @@
-import { generateCaptureId, type CaptureRecord } from "../types/capture";
-import { extractComputedStyles } from "./extractComputedStyles";
+import { generateCaptureId, type CaptureConditions, type ElementIntent, type ThemeHint } from "../types/capture";
+import { extractComputedStyles, extractStylePrimitives } from "./extractComputedStyles";
 
 console.log("[UI Inventory] Content script loaded on:", location.href);
+
+// ─────────────────────────────────────────────────────────────
+// v2.2 Capture helpers
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Extract capture conditions (viewport, DPR, theme, etc.)
+ */
+function extractConditions(): CaptureConditions {
+    const themeHint: ThemeHint = (() => {
+        try {
+            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                return "dark";
+            }
+            if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+                return "light";
+            }
+            return "unknown";
+        } catch {
+            return "unknown";
+        }
+    })();
+
+    const visualViewportScale = (() => {
+        try {
+            return window.visualViewport?.scale ?? null;
+        } catch {
+            return null;
+        }
+    })();
+
+    return {
+        viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+        },
+        devicePixelRatio: window.devicePixelRatio,
+        visualViewportScale,
+        browserZoom: null, // best-effort; leave null for now (flaky)
+        timestamp: Date.now(),
+        themeHint,
+    };
+}
+
+/**
+ * Extract element intent anchors (best-effort)
+ */
+function extractIntent(element: Element): ElementIntent {
+    const intent: ElementIntent = {};
+
+    // accessibleName (best-effort)
+    const ariaLabel = element.getAttribute("aria-label");
+    const alt = element.getAttribute("alt");
+    const title = element.getAttribute("title");
+    const innerText = (element.textContent || "").trim().slice(0, 100);
+
+    if (ariaLabel) {
+        intent.accessibleName = ariaLabel;
+    } else if (alt) {
+        intent.accessibleName = alt;
+    } else if (title) {
+        intent.accessibleName = title;
+    } else if (innerText) {
+        intent.accessibleName = innerText;
+    }
+
+    // inputType
+    if (element instanceof HTMLInputElement) {
+        intent.inputType = element.type || null;
+    }
+
+    // href
+    if (element instanceof HTMLAnchorElement && element.href) {
+        intent.href = element.href;
+    }
+
+    // disabled
+    const disabled = (element as any).disabled;
+    if (disabled !== undefined) {
+        intent.disabled = Boolean(disabled);
+    }
+
+    // ariaDisabled
+    const ariaDisabled = element.getAttribute("aria-disabled");
+    if (ariaDisabled !== null) {
+        intent.ariaDisabled = ariaDisabled === "true";
+    }
+
+    // checked (for checkbox/radio)
+    if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+        intent.checked = element.checked;
+    }
+
+    // ariaChecked
+    const ariaChecked = element.getAttribute("aria-checked");
+    if (ariaChecked !== null) {
+        intent.ariaChecked = ariaChecked === "true";
+    }
+
+    return intent;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Hover overlay state
@@ -67,7 +168,7 @@ function onMouseMove(e: MouseEvent) {
     });
 }
 
-function onClickSelect(e: MouseEvent) {
+async function onClickSelect(e: MouseEvent) {
     if (!isHoverModeActive) return;
 
     // Block the page interaction (Option A)
@@ -84,18 +185,31 @@ function onClickSelect(e: MouseEvent) {
 
     const rect = target.getBoundingClientRect();
     const textPreview = ((target.textContent || "").trim()).slice(0, 120);
+    const createdAt = Date.now();
 
-    // Build full CaptureRecord
-    const record: CaptureRecord = {
+    // Extract v2.2 fields
+    const conditions = extractConditions();
+    const intent = extractIntent(target);
+    const primitives = extractStylePrimitives(target);
+
+    // Build capture record (v1 structure with v2.2 fields added)
+    // Service worker will transform this to full CaptureRecordV2
+    const record: any = {
         id: generateCaptureId(),
-        createdAt: Date.now(),
+        createdAt,
         url: location.href,
+
+        // v2.2: conditions
+        conditions,
+
         element: {
             tagName: target.tagName,
             id: (target as HTMLElement).id || null,
             classList: Array.from(target.classList || []),
             role: target.getAttribute("role"),
             textPreview,
+
+            // v1 attributes (kept for backward compatibility)
             attributes: {
                 ariaLabel: target.getAttribute("aria-label") || undefined,
                 ariaLabelledBy: target.getAttribute("aria-labelledby") || undefined,
@@ -105,13 +219,19 @@ function onClickSelect(e: MouseEvent) {
                 ariaDisabled: target.getAttribute("aria-disabled") || undefined,
                 ariaCurrent: target.getAttribute("aria-current") || undefined,
             },
+
+            // v2.2: intent anchors
+            intent,
         },
+
         boundingBox: {
             left: rect.left,
             top: rect.top,
             width: rect.width,
             height: rect.height,
         },
+
+        // v1 viewport (kept for backward compatibility)
         viewport: {
             width: window.innerWidth,
             height: window.innerHeight,
@@ -119,12 +239,33 @@ function onClickSelect(e: MouseEvent) {
             scrollY: window.scrollY,
             devicePixelRatio: window.devicePixelRatio,
         },
+
         styles: {
+            // v2.2: structured primitives (canonical path)
+            primitives,
+            // v1: flat computed map (kept temporarily for backward compat with old UI)
             computed: extractComputedStyles(target),
         },
     };
 
+    // Hide overlay before screenshot to avoid capturing it
+    const wasOverlayVisible = overlayDiv && overlayDiv.style.display !== "none";
+    if (overlayDiv) {
+        overlayDiv.style.display = "none";
+    }
+
+    // Wait for browser to render the hidden overlay (one frame)
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    // Send capture message to service worker
     chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record });
+
+    // Restore overlay after a short delay (allows screenshot to complete)
+    setTimeout(() => {
+        if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
+            overlayDiv.style.display = "block";
+        }
+    }, 100);
 }
 
 
@@ -195,11 +336,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         } else {
             stopHoverMode();
         }
-        // ✅ respond so SW doesn’t warn “message port closed”
+        // ✅ respond so SW doesn't warn "message port closed"
         sendResponse({ ok: true });
         return; // important: end handler for this message
     }
 
+    if (msg?.type === "AUDIT/GET_ENABLED") {
+        // Authoritative state: return actual hover mode status
+        sendResponse({ ok: true, enabled: isHoverModeActive });
+        return true;
+    }
 
     if (msg?.type === "AUDIT/PING") {
         console.log("[UI Inventory] CS ping received ✅");

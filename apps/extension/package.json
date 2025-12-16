@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.content.config.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "postbuild": "node scripts/copy-to-dist.mjs"

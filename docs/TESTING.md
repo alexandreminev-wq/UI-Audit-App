@@ -1,13 +1,56 @@
-# Testing Checklists
+# Testing Checklist — Milestone 1 v2.2
 
-## Milestone 1 regression checklist
-- Start audit mode -> hover outline appears
-- Click-to-select blocks page action and stays in hover mode
-- Close/reopen popup -> shows Stop Audit Mode if enabled
-- Close/reopen popup -> shows Last Selected element
-- Navigate to another page -> hover mode resumes (if enabled)
+## Manual smoke tests (developer)
+### A) Session creation
+- Start audit mode
+- Confirm a `sessions` record is created
+- Confirm every capture has a non-empty `sessionId`
 
-## Milestone 2 checklist (to be filled)
-- Capture record created on click-to-capture
-- Record includes bounding box + computed style subset
-- Records persist in IndexedDB and can be listed
+### B) Capture schema stamping
+- Confirm every new capture includes:
+  - `captureSchemaVersion: 2`
+  - optional `stylePrimitiveVersion: 1`
+- Confirm UI tolerates old rows missing v2.2 fields
+
+### C) Conditions (best-effort)
+- Confirm capture includes:
+  - viewport width/height
+  - devicePixelRatio
+  - visualViewportScale (if available)
+  - browserZoom best-effort/optional; expect null
+  - timestamp uses createdAt
+- Confirm nothing depends on browserZoom
+
+### D) Intent anchors (best-effort)
+- Capture:
+  - button with accessible label
+  - input type text
+  - checkbox (checked state)
+  - link (href)
+- Confirm fields are populated where relevant and absent otherwise
+
+### E) Style primitives
+- Confirm per-side padding exists
+- Confirm color fields store:
+  - raw string
+  - rgba canonical (or null if not parseable)
+- Confirm shadow fields store:
+  - raw string
+  - presence and (optional) layer count
+
+### F) Screenshots (OffscreenCanvas)
+- Capture an element with a visible bounding box
+- Confirm:
+  - a blob is written to `blobs` store
+  - capture includes `screenshotBlobId` + metadata
+  - image looks correctly cropped (not full viewport unless intended)
+
+### G) Backward compatibility
+- With old captures in DB:
+  - open popup/debug UI
+  - confirm it renders without crashes
+  - confirm v2.2 fields show as “missing” rather than breaking
+
+## Optional tests
+- Large viewport: verify dimension cap/compression
+- Dark mode page: confirm themeHint best-effort
