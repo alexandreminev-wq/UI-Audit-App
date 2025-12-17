@@ -52,6 +52,8 @@ function ViewerApp() {
     const [captures, setCaptures] = useState<CaptureListItem[]>([]);
     const blobUrlCacheRef = useRef<Map<string, string>>(new Map());
     const capturesRequestIdRef = useRef(0); // guards against stale capture list responses
+    const [missingBlobIds, setMissingBlobIds] = useState<Set<string>>(new Set());
+    const loggedMissingBlobIdsRef = useRef<Set<string>>(new Set());
 
     // Viewer-side filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -472,7 +474,7 @@ function ViewerApp() {
                 blobId,
             });
 
-            if (resp?.ok && resp.arrayBuffer) {
+            if (resp?.ok && resp.arrayBuffer && resp.arrayBuffer.length > 0) {
                 // Convert Array back to Uint8Array, then to Blob
                 // (ArrayBuffers don't survive chrome.runtime.sendMessage)
                 const uint8Array = new Uint8Array(resp.arrayBuffer);
@@ -483,9 +485,21 @@ function ViewerApp() {
                 blobUrlCacheRef.current.set(blobId, url);
 
                 return url;
+            } else {
+                // Missing blob: !ok OR empty arrayBuffer
+                setMissingBlobIds((prev) => (prev.has(blobId) ? prev : new Set(prev).add(blobId)));
+                if (!loggedMissingBlobIdsRef.current.has(blobId)) {
+                    loggedMissingBlobIdsRef.current.add(blobId);
+                    console.warn("[VIEWER] Missing blob:", blobId);
+                }
             }
         } catch (err) {
-            console.error("[VIEWER] Failed to load blob:", blobId, err);
+            // Treat errors as missing blobs
+            setMissingBlobIds((prev) => (prev.has(blobId) ? prev : new Set(prev).add(blobId)));
+            if (!loggedMissingBlobIdsRef.current.has(blobId)) {
+                loggedMissingBlobIdsRef.current.add(blobId);
+                console.warn("[VIEWER] Failed to load blob:", blobId, err);
+            }
         }
 
         return null;
@@ -657,6 +671,7 @@ function ViewerApp() {
                                     setCompareBId(null);
                                 }}
                                 getBlobUrl={getBlobUrl}
+                                missingBlobIds={missingBlobIds}
                             />
                         )}
 
@@ -859,6 +874,7 @@ function ViewerApp() {
                                             onSetCompareB={setCompareBId}
                                             isCompareA={capture.id === compareAId}
                                             isCompareB={capture.id === compareBId}
+                                            missingBlobIds={missingBlobIds}
                                         />
                                     );
                                 })}
@@ -882,6 +898,7 @@ function ViewerApp() {
                                         items={group.items}
                                         getBlobUrl={getBlobUrl}
                                         onSelect={setSelectedGroupKey}
+                                        missingBlobIds={missingBlobIds}
                                     />
                                 ))}
                             </div>
@@ -948,6 +965,7 @@ function ViewerApp() {
                                                     onSetCompareB={setCompareBId}
                                                     isCompareA={capture.id === compareAId}
                                                     isCompareB={capture.id === compareBId}
+                                                    missingBlobIds={missingBlobIds}
                                                 />
                                             );
                                         })}
@@ -975,6 +993,7 @@ interface ComparePanelProps {
     onClearB: () => void;
     onClearCompare: () => void;
     getBlobUrl: (blobId: string, mimeType: string) => Promise<string | null>;
+    missingBlobIds: Set<string>;
 }
 
 function ComparePanel({
@@ -986,6 +1005,7 @@ function ComparePanel({
     onClearB,
     onClearCompare,
     getBlobUrl,
+    missingBlobIds,
 }: ComparePanelProps) {
     const [screenshotAUrl, setScreenshotAUrl] = useState<string | null>(null);
     const [screenshotBUrl, setScreenshotBUrl] = useState<string | null>(null);
@@ -1120,7 +1140,41 @@ function ComparePanel({
                             <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
                                 Screenshot A
                             </div>
-                            {screenshotAUrl ? (
+                            {!compareARecord?.screenshot?.screenshotBlobId ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 100,
+                                        border: "1px solid #ddd",
+                                        borderRadius: 4,
+                                        background: "#f5f5f5",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        color: "#999",
+                                    }}
+                                >
+                                    No screenshot
+                                </div>
+                            ) : missingBlobIds.has(compareARecord.screenshot.screenshotBlobId) ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 100,
+                                        border: "1px solid #ddd",
+                                        borderRadius: 4,
+                                        background: "#fff3cd",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        color: "#856404",
+                                    }}
+                                >
+                                    Missing blob
+                                </div>
+                            ) : screenshotAUrl ? (
                                 <img
                                     src={screenshotAUrl}
                                     alt="Screenshot A"
@@ -1148,7 +1202,7 @@ function ComparePanel({
                                         color: "#999",
                                     }}
                                 >
-                                    No screenshot
+                                    Loading...
                                 </div>
                             )}
                         </div>
@@ -1156,7 +1210,41 @@ function ComparePanel({
                             <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
                                 Screenshot B
                             </div>
-                            {screenshotBUrl ? (
+                            {!compareBRecord?.screenshot?.screenshotBlobId ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 100,
+                                        border: "1px solid #ddd",
+                                        borderRadius: 4,
+                                        background: "#f5f5f5",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        color: "#999",
+                                    }}
+                                >
+                                    No screenshot
+                                </div>
+                            ) : missingBlobIds.has(compareBRecord.screenshot.screenshotBlobId) ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 100,
+                                        border: "1px solid #ddd",
+                                        borderRadius: 4,
+                                        background: "#fff3cd",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        color: "#856404",
+                                    }}
+                                >
+                                    Missing blob
+                                </div>
+                            ) : screenshotBUrl ? (
                                 <img
                                     src={screenshotBUrl}
                                     alt="Screenshot B"
@@ -1184,7 +1272,7 @@ function ComparePanel({
                                         color: "#999",
                                     }}
                                 >
-                                    No screenshot
+                                    Loading...
                                 </div>
                             )}
                         </div>
@@ -1265,10 +1353,12 @@ interface GroupCardProps {
     items: CaptureListItem[];
     getBlobUrl: (blobId: string, mimeType: string) => Promise<string | null>;
     onSelect: (groupKey: string) => void;
+    missingBlobIds: Set<string>;
 }
 
-function GroupCard({ groupKey, count, items, getBlobUrl, onSelect }: GroupCardProps) {
+function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobIds }: GroupCardProps) {
     const [thumbnailUrls, setThumbnailUrls] = useState<(string | null)[]>([]);
+    const [thumbnailBlobIds, setThumbnailBlobIds] = useState<(string | null)[]>([]);
 
     // Parse groupKey: "typeKey::nameKey"
     const [typeKey, nameKey] = groupKey.split("::");
@@ -1276,28 +1366,38 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect }: GroupCardPr
 
     // Load up to 3 thumbnails
     useEffect(() => {
+        let cancelled = false;
         setThumbnailUrls([]); // Clear old thumbnails to avoid flicker
+        setThumbnailBlobIds([]);
         const loadThumbnails = async () => {
             const urls: (string | null)[] = [];
+            const blobIds: (string | null)[] = [];
             const itemsWithScreenshots = items.filter((item) => item.screenshot?.screenshotBlobId);
             const thumbnailItems = itemsWithScreenshots.slice(0, 3);
 
             for (const item of thumbnailItems) {
                 if (item.screenshot?.screenshotBlobId) {
+                    blobIds.push(item.screenshot.screenshotBlobId);
                     const url = await getBlobUrl(
                         item.screenshot.screenshotBlobId,
                         item.screenshot.mimeType
                     );
                     urls.push(url);
                 } else {
+                    blobIds.push(null);
                     urls.push(null);
                 }
             }
 
+            if (cancelled) return;
+            setThumbnailBlobIds(blobIds);
             setThumbnailUrls(urls);
         };
 
         loadThumbnails();
+        return () => {
+            cancelled = true;
+        };
     }, [items, getBlobUrl]);
 
     return (
@@ -1330,39 +1430,76 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect }: GroupCardPr
 
             {/* Thumbnails */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {thumbnailUrls.map((url, idx) => (
-                    <div key={idx} style={{ flex: "1 1 calc(33.333% - 8px)", minWidth: 60 }}>
-                        {url ? (
-                            <img
-                                src={url}
-                                alt={`Thumbnail ${idx + 1}`}
-                                style={{
-                                    width: "100%",
-                                    height: 60,
-                                    objectFit: "cover",
-                                    borderRadius: 4,
-                                    background: "#f5f5f5",
-                                }}
-                            />
-                        ) : (
-                            <div
-                                style={{
-                                    width: "100%",
-                                    height: 60,
-                                    background: "#f5f5f5",
-                                    borderRadius: 4,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    color: "#ccc",
-                                    fontSize: 10,
-                                }}
-                            >
-                                No img
-                            </div>
-                        )}
-                    </div>
-                ))}
+                {thumbnailUrls.map((url, idx) => {
+                    const blobId = thumbnailBlobIds[idx];
+                    const isMissing = blobId && missingBlobIds.has(blobId);
+
+                    return (
+                        <div key={idx} style={{ flex: "1 1 calc(33.333% - 8px)", minWidth: 60 }}>
+                            {!blobId ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 60,
+                                        background: "#f5f5f5",
+                                        borderRadius: 4,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "#ccc",
+                                        fontSize: 10,
+                                    }}
+                                >
+                                    No screenshot
+                                </div>
+                            ) : isMissing ? (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 60,
+                                        background: "#fff3cd",
+                                        borderRadius: 4,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "#856404",
+                                        fontSize: 10,
+                                    }}
+                                >
+                                    Missing blob
+                                </div>
+                            ) : url ? (
+                                <img
+                                    src={url}
+                                    alt={`Thumbnail ${idx + 1}`}
+                                    style={{
+                                        width: "100%",
+                                        height: 60,
+                                        objectFit: "cover",
+                                        borderRadius: 4,
+                                        background: "#f5f5f5",
+                                    }}
+                                />
+                            ) : (
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        height: 60,
+                                        background: "#f5f5f5",
+                                        borderRadius: 4,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "#ccc",
+                                        fontSize: 10,
+                                    }}
+                                >
+                                    Loading...
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -1382,18 +1519,16 @@ interface CaptureCardProps {
     onSetCompareB: (id: string) => void;
     isCompareA: boolean;
     isCompareB: boolean;
+    missingBlobIds: Set<string>;
 }
 
-function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCompareA, onSetCompareB, isCompareA, isCompareB }: CaptureCardProps) {
+function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCompareA, onSetCompareB, isCompareA, isCompareB, missingBlobIds }: CaptureCardProps) {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
     useEffect(() => {
+        setThumbnailUrl(null);
         if (capture.screenshot?.screenshotBlobId) {
-            getBlobUrl(capture.screenshot.screenshotBlobId, capture.screenshot.mimeType).then(
-                (url) => {
-                    if (url) setThumbnailUrl(url);
-                }
-            );
+            getBlobUrl(capture.screenshot.screenshotBlobId, capture.screenshot.mimeType).then(setThumbnailUrl);
         }
     }, [capture.screenshot?.screenshotBlobId, capture.screenshot?.mimeType, getBlobUrl]);
 
@@ -1407,7 +1542,42 @@ function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCo
             }}
         >
             {/* Thumbnail */}
-            {thumbnailUrl ? (
+            {!capture.screenshot?.screenshotBlobId ? (
+                <div
+                    style={{
+                        width: "100%",
+                        height: 120,
+                        background: "#f5f5f5",
+                        borderRadius: 4,
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#999",
+                        fontSize: 12,
+                    }}
+                >
+                    No screenshot
+                </div>
+            ) : missingBlobIds.has(capture.screenshot.screenshotBlobId) ? (
+                <div
+                    style={{
+                        width: "100%",
+                        height: 120,
+                        background: "#fff3cd",
+                        borderRadius: 4,
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#856404",
+                        fontSize: 12,
+                        fontWeight: 600,
+                    }}
+                >
+                    Missing blob
+                </div>
+            ) : thumbnailUrl ? (
                 <img
                     src={thumbnailUrl}
                     alt="Screenshot"
@@ -1435,7 +1605,7 @@ function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCo
                         fontSize: 12,
                     }}
                 >
-                    No screenshot
+                    Loading...
                 </div>
             )}
 
