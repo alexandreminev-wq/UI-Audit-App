@@ -1,35 +1,48 @@
-# Computed Style Keys (MVP)
+# Project Status
 
-Purpose:
-- Keep capture payload small, stable, and explainable
-- Enable grouping/variants later without dumping full getComputedStyle output
+## Current Milestone
+**Milestone 2 v2.2: IN PROGRESS** 🟡
 
-## v1 STYLE_KEYS
-Typography:
-- fontFamily, fontSize, fontWeight, lineHeight, letterSpacing
-- textTransform, textDecorationLine, textAlign, whiteSpace
+Milestone 1 v2.2 remains ✅ COMPLETE (Tagged: `milestone-1-complete`)
 
-Color/surface:
-- color, backgroundColor, opacity
+---
 
-Spacing:
-- paddingTop, paddingRight, paddingBottom, paddingLeft
-- marginTop, marginRight, marginBottom, marginLeft
+## Milestone 2 v2.2 - Progress Summary
 
-Border/shape:
-- borderTopWidth, borderTopStyle, borderTopColor
-- borderTopLeftRadius, borderTopRightRadius, borderBottomRightRadius, borderBottomLeftRadius
+### Completed so far
+- ✅ Viewer entrypoint (viewer.html) built into dist via Vite
+- ✅ Service Worker “data API” for viewer:
+  - list sessions
+  - list captures by session
+  - fetch a capture by id
+  - fetch blobs by id (existing AUDIT/GET_BLOB)
+- ✅ Viewer UI:
+  - sessions list (select session)
+  - capture grid with screenshot thumbnails
+  - viewer-side filters (search, screenshot-only, tag/type)
+- ✅ Naive grouping:
+  - grouped/ungrouped toggle
+  - group cards with count + thumbnails
+  - group detail view showing occurrences
+- ✅ Compare:
+  - select any two captures (A/B)
+  - show screenshots side-by-side
+  - show primitives diff (only differing fields)
+- ✅ Export:
+  - JSON export (no embedded screenshot bytes; computed styles omitted)
+  - CSV export (flat subset + screenshotBlobId references)
 
-Focus ring:
-- outlineStyle, outlineWidth, outlineColor
+### Known limitations (acceptable right now)
+- Grouping heuristic is intentionally naive (tagName + normalized accessibleName)
+- No deep-link routing (viewer state is in-memory)
+- Export is “MVP-grade” (CSV is a subset; JSON is capture-focused)
+- browserZoom still frequently null (by design / best-effort)
 
-Elevation:
-- boxShadow
+---
 
-Layout essentials:
-- display, position, alignItems, justifyContent, gap, zIndex
-- overflow, textOverflow
-
-## Notes
-- We intentionally avoid pseudo-states (:hover/:focus) in MVP.
-- We intentionally avoid full computed style dumps.
+## Technical Notes (still true)
+- MV3 architecture: service worker + offscreen document + content script + UI pages
+- UI contexts (popup/viewer) do NOT access IndexedDB directly
+- All data access goes through SW message passing
+- Binary over sendMessage must be serialized (number[]), not ArrayBuffer
+- Backward compatibility: old captures tolerate missing v2.2 fields

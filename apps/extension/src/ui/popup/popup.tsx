@@ -13,6 +13,10 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
 
 async function getActiveTabId(): Promise<number | null> {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    // Don't return tab ID for extension pages (viewer, popup, etc.)
+    if (tab?.url?.startsWith("chrome-extension://")) {
+        return null;
+    }
     return tab?.id ?? null;
 }
 
@@ -215,6 +219,11 @@ function PopupApp() {
         }
     }
 
+    const openViewer = () => {
+        const viewerUrl = chrome.runtime.getURL("viewer.html");
+        chrome.tabs.create({ url: viewerUrl });
+    };
+
     return (
         <div style={{ width: 280, padding: 12, fontFamily: "system-ui" }}>
             <h3 style={{ margin: "0 0 8px" }}>UI Inventory</h3>
@@ -225,6 +234,10 @@ function PopupApp() {
 
             <button onClick={capture} style={{ width: "100%" }} disabled={!enabled}>
                 Capture (Milestone 0 Ping)
+            </button>
+
+            <button onClick={openViewer} style={{ width: "100%", marginTop: 8 }}>
+                Open Viewer
             </button>
 
             <div style={{ marginTop: 8, display: "flex", gap: 4 }}>

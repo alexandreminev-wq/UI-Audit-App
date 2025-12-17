@@ -29,11 +29,16 @@ All core requirements achieved:
 - No dedupe/signature keys in extension (deferred to Milestone 2 viewer)
 
 ## What's Next: Milestone 2 - Viewer Gallery
-Focus shifts to building a proper viewer application that:
-- Reads captures, sessions, and blobs from IndexedDB
-- Computes signatures and normalization (viewer-side, not extension)
-- Groups variants and shows occurrences
-- Provides detail view with all metadata
+Focus shifts to building a proper viewer application (extension page / web app) that:
+- Reads sessions, captures, and blobs **only via Service Worker message API**
+  - Viewer/popup/content scripts do NOT access IndexedDB directly
+- Lists sessions and supports session detail view
+- Lists captures with filters + search
+- Shows screenshot thumbnails via `blobId` lookups
+- Computes viewer-side signatures + grouping (naive heuristic)
+- Provides compare view (screenshot + primitives diff)
+- Exports JSON + CSV (blob IDs referenced, no image embedding)
+
 
 ## Technical Notes
 - Extension follows MV3 architecture (service worker, offscreen document, content script)

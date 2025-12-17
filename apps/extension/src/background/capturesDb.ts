@@ -184,6 +184,74 @@ export async function listRecentCapturesByHost(host: string, limit = 10): Promis
 }
 
 /**
+ * Get a single capture record by ID
+ * Fails gracefully - returns null on error
+ */
+export async function getCapture(captureId: string): Promise<CaptureRecord | CaptureRecordV2 | null> {
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_CAPTURES, "readonly");
+        const store = tx.objectStore(STORE_CAPTURES);
+
+        return new Promise((resolve, reject) => {
+            const request = store.get(captureId);
+
+            request.onsuccess = () => {
+                resolve(request.result || null);
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.warn("[capturesDb] Failed to get capture (non-fatal):", err);
+        return null;
+    }
+}
+
+/**
+ * List recent captures filtered by sessionId
+ * Returns newest first (by createdAt desc)
+ * NOTE: We scan instead of adding a bySessionId index to avoid DB version bump
+ * This is acceptable for MVP viewer with typical session sizes (<1000 captures)
+ * Fails gracefully - returns [] on error
+ */
+export async function listCapturesBySession(sessionId: string, limit = 200): Promise<(CaptureRecord | CaptureRecordV2)[]> {
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_CAPTURES, "readonly");
+        const store = tx.objectStore(STORE_CAPTURES);
+        const index = store.index("byCreatedAt");
+
+        const results: (CaptureRecord | CaptureRecordV2)[] = [];
+
+        return new Promise((resolve, reject) => {
+            const request = index.openCursor(null, "prev"); // descending order
+
+            request.onsuccess = () => {
+                const cursor = request.result;
+                if (cursor && results.length < limit) {
+                    const record = cursor.value;
+
+                    // Filter by sessionId
+                    if (record.sessionId === sessionId) {
+                        results.push(record);
+                    }
+
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.warn("[capturesDb] Failed to list captures by session (non-fatal):", err);
+        return [];
+    }
+}
+
+/**
  * Clear all captures from IndexedDB
  * Fails gracefully - logs warning but doesn't throw
  */

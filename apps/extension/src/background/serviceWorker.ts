@@ -1,4 +1,16 @@
-import { saveCapture, listRecentCaptures, listRecentCapturesByHost, clearAllCaptures, saveSession, getSession, saveBlob, getBlob } from "./capturesDb";
+import {
+    saveCapture,
+    listRecentCaptures,
+    listRecentCapturesByHost,
+    clearAllCaptures,
+    saveSession,
+    getSession,
+    listSessions,
+    saveBlob,
+    getBlob,
+    getCapture,
+    listCapturesBySession,
+} from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
 
@@ -647,6 +659,97 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 height: blobRecord.height,
                 arrayBuffer: byteArray, // Send as Array, not ArrayBuffer
             });
+        })();
+
+        return true; // async response
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Milestone 2: Viewer message handlers
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "VIEWER/LIST_SESSIONS") {
+        (async () => {
+            const limit = msg.limit || 50;
+            console.log("[UI Inventory] VIEWER/LIST_SESSIONS request, limit:", limit);
+
+            const sessions = await listSessions(limit);
+            sendResponse({ ok: true, sessions });
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "VIEWER/GET_SESSION") {
+        (async () => {
+            const sessionId = msg.sessionId;
+            console.log("[UI Inventory] VIEWER/GET_SESSION request for:", sessionId);
+
+            if (!sessionId || typeof sessionId !== "string") {
+                sendResponse({ ok: false, error: "Invalid sessionId" });
+                return;
+            }
+
+            const session = await getSession(sessionId);
+            if (!session) {
+                sendResponse({ ok: false, error: "Session not found" });
+                return;
+            }
+
+            sendResponse({ ok: true, session });
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "VIEWER/LIST_CAPTURES") {
+        (async () => {
+            const sessionId = msg.sessionId;
+            const limit = msg.limit || 200;
+            console.log("[UI Inventory] VIEWER/LIST_CAPTURES request for session:", sessionId, "limit:", limit);
+
+            if (!sessionId || typeof sessionId !== "string") {
+                sendResponse({ ok: false, error: "Invalid sessionId" });
+                return;
+            }
+
+            const captures = await listCapturesBySession(sessionId, limit);
+
+            // Transform to lightweight list items
+            const listItems = captures.map((capture) => ({
+                id: capture.id,
+                sessionId: capture.sessionId,
+                createdAt: capture.createdAt ?? (capture as any).conditions?.timestamp ?? null,
+                url: capture.url ?? (capture as any).page?.url ?? "",
+                tagName: capture.element?.tagName || null,
+                role: capture.element?.role || null,
+                accessibleName: capture.element?.intent?.accessibleName || null,
+                screenshot: capture.screenshot || null,
+            }));
+
+            sendResponse({ ok: true, captures: listItems });
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "VIEWER/GET_CAPTURE") {
+        (async () => {
+            const captureId = msg.captureId;
+            console.log("[UI Inventory] VIEWER/GET_CAPTURE request for:", captureId);
+
+            if (!captureId || typeof captureId !== "string") {
+                sendResponse({ ok: false, error: "Invalid captureId" });
+                return;
+            }
+
+            const capture = await getCapture(captureId);
+            if (!capture) {
+                sendResponse({ ok: false, error: "Capture not found" });
+                return;
+            }
+
+            sendResponse({ ok: true, capture });
         })();
 
         return true; // async response

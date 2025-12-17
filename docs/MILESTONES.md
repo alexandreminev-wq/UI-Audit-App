@@ -63,26 +63,60 @@
 
 ---
 
-## Milestone 2 — Viewer gallery v2.2
-**Goal:** Viewer owns normalization/signatures + variant grouping.
+## Milestone 2 — Viewer gallery v2.2 🟡 IN PROGRESS
+**Goal:** Viewer owns grouping/compare/export and any “analysis” (extension only captures + stores).
 
-- Read `sessions` + `captures` + screenshot blobs
-- Compute signatures in viewer (no precomputed keys from extension)
-- Variant gallery + detail view
-- Occurrences list with screenshots
-- Viewer-side normalization versioning (rules evolve)
+### 2.0 Viewer entrypoint + build ✅
+- ✅ viewer.html entrypoint built by Vite into dist/
+- ✅ Viewer runs as an extension page (no server required)
+
+### 2.1 Service worker becomes the Viewer data API ✅
+- ✅ Message endpoints for viewer reads (list sessions, list captures for session, fetch single capture)
+- ✅ Viewer fetches screenshot blobs via SW (no IndexedDB access in UI contexts)
+
+### 2.2 Sessions list + session detail ✅
+- ✅ List sessions
+- ✅ Select a session and load its captures
+
+### 2.3 Captures gallery + thumbnails ✅
+- ✅ Grid view of captures
+- ✅ Thumbnails fetched via blobId + mimeType
+- ✅ Viewer-side filters:
+  - ✅ search (name/url/tag/role)
+  - ✅ has screenshot only
+  - ✅ tag/type dropdown
+
+### 2.4 Naive grouping + occurrences ✅
+- ✅ Toggle: Ungrouped / Grouped
+- ✅ Grouping heuristic v0:
+  - tagName + normalized accessibleName
+- ✅ Group cards show count + up to 3 thumbnails
+- ✅ Group detail view shows occurrences (capture cards)
+
+### 2.5 Compare two captures ✅
+- ✅ “Set A / Set B” compare controls on capture cards
+- ✅ Compare panel:
+  - screenshots side-by-side
+  - primitives diff (only fields that differ)
+
+### 2.6 Export ✅
+- ✅ Export JSON (no embedded screenshot bytes; computed styles omitted)
+- ✅ Export CSV (flat subset of primitives + screenshotBlobId ref)
+- ⬜ Optional: export includes session metadata + pages visited as separate file/section (polish)
+
+### 2.x Remaining / stretch (still Milestone 2, if needed)
+- ⬜ Better grouping heuristics (role + intent anchors + primitives)
+- ⬜ Simple “cluster detail” route/deep-linking (optional)
+- ⬜ Performance pass for large sessions (virtualize lists)
 
 ---
 
-## Milestone 3 — Export & polish v2.2
-- Export JSON/CSV/HTML including:
-  - sessions + pages visited breadcrumb
-  - conditions, intent anchors
-  - raw + canonical primitives
-  - screenshot refs (blob IDs), not data URLs
-- Tagging + notes
-- Possible duplicates (viewer-driven)
-- Performance pass
+## Milestone 3 — Polish & richer export v2.2
+- ⬜ Export HTML report
+- ⬜ Tagging + notes in viewer
+- ⬜ “Possible duplicates” review UX (viewer-driven)
+- ⬜ Performance pass + caching strategy refinements
+- ⬜ Viewer-side normalization versioning surfaced in UI (“ruleset vX”)
 
 ---
 
