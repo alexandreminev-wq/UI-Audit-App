@@ -259,6 +259,23 @@ async function fetchCaptureRecord(captureId: string | null): Promise<any | null>
     }
 }
 
+// Compute variant key from primitives (for within-group variant detection)
+function computeVariantKey(capture: CaptureListItem): string {
+    const prims = capture.primitivesSummary;
+    if (!prims) return "v::unknown";
+
+    const pt = bucketPadding(prims.paddingTop);
+    const pr = bucketPadding(prims.paddingRight);
+    const pb = bucketPadding(prims.paddingBottom);
+    const pl = bucketPadding(prims.paddingLeft);
+    const bg = bucketRgba(prims.backgroundColorRgba);
+    const bd = bucketRgba(prims.borderColorRgba);
+    const c = bucketRgba(prims.colorRgba);
+    const sh = bucketShadow(prims.shadowPresence, prims.shadowLayerCount);
+
+    return `v::p${pt}-${pr}-${pb}-${pl}::bg${bg}::bd${bd}::c${c}::sh${sh}`;
+}
+
 // Shared export runner for both JSON and CSV exports
 async function runExport(opts: {
     capturesToExport: CaptureListItem[];
@@ -308,6 +325,7 @@ function ViewerApp() {
     // View mode: "ungrouped" | "grouped"
     const [viewMode, setViewMode] = useState<"ungrouped" | "grouped">("ungrouped");
     const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+    const [selectedVariantKey, setSelectedVariantKey] = useState<string | null>(null);
     const [groupingMode, setGroupingMode] = useState<GroupingMode>("nameOnly");
 
     // Compare mode
@@ -445,8 +463,14 @@ function ViewerApp() {
     useEffect(() => {
         if (viewMode === "grouped") {
             setSelectedGroupKey(null);
+            setSelectedVariantKey(null);
         }
     }, [searchQuery, hasScreenshotOnly, selectedTagName, viewMode]);
+
+    // Reset variant selection when group or grouping mode changes
+    useEffect(() => {
+        setSelectedVariantKey(null);
+    }, [selectedGroupKey, groupingMode]);
 
     // Fetch full record when compareAId changes
     useEffect(() => {
@@ -1283,6 +1307,32 @@ function ViewerApp() {
                             const selectedGroup = groups.find((g) => g.key === selectedGroupKey);
                             if (!selectedGroup) return null;
 
+                            // Build variants map
+                            const variantsMap = new Map<string, CaptureListItem[]>();
+                            selectedGroup.items.forEach((capture) => {
+                                const variantKey = computeVariantKey(capture);
+                                if (!variantsMap.has(variantKey)) {
+                                    variantsMap.set(variantKey, []);
+                                }
+                                variantsMap.get(variantKey)!.push(capture);
+                            });
+
+                            const variants = Array.from(variantsMap.entries()).map(([key, items], index) => ({
+                                key,
+                                items,
+                                count: items.length,
+                                index: index + 1,
+                            }));
+
+                            // Filter items by selected variant
+                            const displayedItems = selectedVariantKey
+                                ? selectedGroup.items.filter((c) => computeVariantKey(c) === selectedVariantKey)
+                                : selectedGroup.items;
+
+                            // Build variant key -> index map for badges
+                            const variantIndexMap = new Map<string, number>();
+                            variants.forEach((v) => variantIndexMap.set(v.key, v.index));
+
                             return (
                                 <>
                                     <button
@@ -1299,6 +1349,61 @@ function ViewerApp() {
                                     >
                                         ← Back to groups
                                     </button>
+
+                                    {/* Variants UI */}
+                                    {variants.length > 1 && (
+                                        <div style={{ marginBottom: 16 }}>
+                                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                                                Variants: {variants.length}
+                                            </div>
+                                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                                {selectedVariantKey && (
+                                                    <button
+                                                        onClick={() => setSelectedVariantKey(null)}
+                                                        style={{
+                                                            padding: "6px 12px",
+                                                            fontSize: 12,
+                                                            border: "1px solid #ddd",
+                                                            borderRadius: 4,
+                                                            background: "white",
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        All variants
+                                                    </button>
+                                                )}
+                                                {variants.map((variant) => (
+                                                    <button
+                                                        key={variant.key}
+                                                        onClick={() =>
+                                                            setSelectedVariantKey(
+                                                                selectedVariantKey === variant.key
+                                                                    ? null
+                                                                    : variant.key
+                                                            )
+                                                        }
+                                                        style={{
+                                                            padding: "6px 12px",
+                                                            fontSize: 12,
+                                                            border:
+                                                                selectedVariantKey === variant.key
+                                                                    ? "2px solid #2196f3"
+                                                                    : "1px solid #ddd",
+                                                            borderRadius: 4,
+                                                            background:
+                                                                selectedVariantKey === variant.key
+                                                                    ? "#e3f2fd"
+                                                                    : "white",
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        Variant {variant.index} ({variant.count})
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div
                                         style={{
                                             display: "grid",
@@ -1306,21 +1411,43 @@ function ViewerApp() {
                                             gap: 16,
                                         }}
                                     >
-                                        {selectedGroup.items.map((capture) => {
+                                        {displayedItems.map((capture) => {
+                                            const variantKey = computeVariantKey(capture);
+                                            const variantIndex = variantIndexMap.get(variantKey);
+
                                             return (
-                                                <CaptureCard
-                                                    key={capture.id}
-                                                    capture={capture}
-                                                    displayName={getCaptureDisplayName(capture)}
-                                                    time={getCaptureTime(capture)}
-                                                    hostname={getCaptureHostname(capture)}
-                                                    getBlobUrl={getBlobUrl}
-                                                    onSetCompareA={setCompareAId}
-                                                    onSetCompareB={setCompareBId}
-                                                    isCompareA={capture.id === compareAId}
-                                                    isCompareB={capture.id === compareBId}
-                                                    missingBlobIds={missingBlobIds}
-                                                />
+                                                <div key={capture.id} style={{ position: "relative" }}>
+                                                    {variants.length > 1 && variantIndex && (
+                                                        <div
+                                                            style={{
+                                                                position: "absolute",
+                                                                top: 8,
+                                                                right: 8,
+                                                                padding: "2px 6px",
+                                                                fontSize: 10,
+                                                                fontWeight: 600,
+                                                                background: "rgba(33, 150, 243, 0.9)",
+                                                                color: "white",
+                                                                borderRadius: 3,
+                                                                zIndex: 1,
+                                                            }}
+                                                        >
+                                                            V{variantIndex}
+                                                        </div>
+                                                    )}
+                                                    <CaptureCard
+                                                        capture={capture}
+                                                        displayName={getCaptureDisplayName(capture)}
+                                                        time={getCaptureTime(capture)}
+                                                        hostname={getCaptureHostname(capture)}
+                                                        getBlobUrl={getBlobUrl}
+                                                        onSetCompareA={setCompareAId}
+                                                        onSetCompareB={setCompareBId}
+                                                        isCompareA={capture.id === compareAId}
+                                                        isCompareB={capture.id === compareBId}
+                                                        missingBlobIds={missingBlobIds}
+                                                    />
+                                                </div>
                                             );
                                         })}
                                     </div>
