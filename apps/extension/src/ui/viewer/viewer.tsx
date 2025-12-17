@@ -22,6 +22,7 @@ interface CaptureListItem {
     tagName: string | null;
     role: string | null;
     accessibleName: string | null;
+    selector?: string | null;
     screenshot: {
         screenshotBlobId: string;
         mimeType: string;
@@ -129,6 +130,162 @@ function bucketShadow(presence: string | undefined, layerCount: number | undefin
 }
 
 // ─────────────────────────────────────────────────────────────
+// Group Explanation
+// ─────────────────────────────────────────────────────────────
+
+type GroupExplanation = {
+    tag?: string;
+    role?: string | null;
+    name?: string;
+    primitives?: {
+        padding?: string;   // e.g. "pt8 pr12 pb8 pl12"
+        colors?: string;    // e.g. "bg240,240,240,1 bdnone c0,0,0,1"
+        shadow?: string;    // e.g. "shsome-2"
+    } | null;
+};
+
+// Parse group key into human-readable explanation
+function explainGroupKey(groupKey: string): GroupExplanation {
+    const parts = groupKey.split("::");
+
+    // parts[0] = tag
+    // parts[1] = role (if 3+ parts) or name (if 2 parts)
+    // parts[2] = name (if 3+ parts)
+    // parts[3+] = primitive tokens (if present)
+
+    if (parts.length === 2) {
+        // nameOnly: "tag::name"
+        return {
+            tag: parts[0],
+            name: parts[1] || "(no name)",
+            primitives: null,
+        };
+    } else if (parts.length === 3) {
+        // namePlusType: "tag::role::name"
+        return {
+            tag: parts[0],
+            role: parts[1] === "norole" ? null : parts[1],
+            name: parts[2] || "(no name)",
+            primitives: null,
+        };
+    } else if (parts.length > 3) {
+        // nameTypePrimitives: "tag::role::name::primitives..."
+        const primitiveTokens = parts.slice(3);
+
+        // Parse primitive tokens
+        const paddingTokens: string[] = [];
+        const colorTokens: string[] = [];
+        const shadowTokens: string[] = [];
+
+        primitiveTokens.forEach((token) => {
+            if (token.startsWith("p")) {
+                // padding: "p8-12-8-12" -> extract pt/pr/pb/pl
+                const match = token.match(/^p([\d]+)-([\d]+)-([\d]+)-([\d]+)$/);
+                if (match) {
+                    paddingTokens.push(`pt${match[1]} pr${match[2]} pb${match[3]} pl${match[4]}`);
+                }
+            } else if (token.startsWith("bg")) {
+                colorTokens.push(token);
+            } else if (token.startsWith("bd")) {
+                colorTokens.push(token);
+            } else if (token === "cnone" || /^c\d/.test(token)) {
+                colorTokens.push(token);
+            } else if (token.startsWith("sh")) {
+                shadowTokens.push(token);
+            }
+        });
+
+        return {
+            tag: parts[0],
+            role: parts[1] === "norole" ? null : parts[1],
+            name: parts[2] || "(no name)",
+            primitives: {
+                padding: paddingTokens.length > 0 ? paddingTokens.join(" ") : undefined,
+                colors: colorTokens.length > 0 ? colorTokens.join(" ") : undefined,
+                shadow: shadowTokens.length > 0 ? shadowTokens.join(" ") : undefined,
+            },
+        };
+    } else {
+        // Fallback: just tag
+        return {
+            tag: parts[0] || "unknown",
+            primitives: null,
+        };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Capture Display Helpers
+// ─────────────────────────────────────────────────────────────
+
+// Get display name for a capture (used in both ungrouped and group detail views)
+function getCaptureDisplayName(capture: CaptureListItem): string {
+    return capture.accessibleName || capture.selector || "(no name)";
+}
+
+// Get hostname from capture URL (used in both ungrouped and group detail views)
+function getCaptureHostname(capture: CaptureListItem): string {
+    try {
+        return new URL(capture.url).hostname;
+    } catch {
+        return "(unknown)";
+    }
+}
+
+// Get formatted time for a capture (used in both ungrouped and group detail views)
+function getCaptureTime(capture: CaptureListItem): string {
+    return capture.createdAt ? new Date(capture.createdAt).toLocaleString() : "";
+}
+
+// Fetch full capture record by ID (used for compare A/B)
+async function fetchCaptureRecord(captureId: string | null): Promise<any | null> {
+    if (!captureId) return null;
+
+    try {
+        const resp = await sendMessageAsync<{ type: string; captureId: string }, any>({
+            type: "VIEWER/GET_CAPTURE",
+            captureId: captureId,
+        });
+
+        if (resp?.ok && resp.capture) {
+            return resp.capture;
+        } else {
+            console.error("[VIEWER] Failed to fetch capture:", captureId, resp);
+            return null;
+        }
+    } catch (err) {
+        console.error("[VIEWER] Error fetching capture:", captureId, err);
+        return null;
+    }
+}
+
+// Shared export runner for both JSON and CSV exports
+async function runExport(opts: {
+    capturesToExport: CaptureListItem[];
+    fetchFullCaptures: (captures: CaptureListItem[]) => Promise<any[]>;
+    onProgress: (current: number, total: number) => void;
+    buildOutput: (fullRecords: any[]) => { blob: Blob; filename: string };
+    batchSize?: number;
+}): Promise<{ blob: Blob; filename: string }> {
+    const { capturesToExport, fetchFullCaptures, onProgress, buildOutput, batchSize = 50 } = opts;
+
+    const total = capturesToExport.length;
+    onProgress(0, total);
+
+    const fullRecords = [];
+    for (let i = 0; i < total; i += batchSize) {
+        const batch = capturesToExport.slice(i, i + batchSize);
+        const batchRecords = await fetchFullCaptures(batch);
+        fullRecords.push(...batchRecords);
+
+        onProgress(Math.min(i + batchSize, total), total);
+        await new Promise((r) => setTimeout(r, 0));
+    }
+
+    return buildOutput(fullRecords);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main Viewer Component
 // ─────────────────────────────────────────────────────────────
 
@@ -138,6 +295,8 @@ function ViewerApp() {
     const [captures, setCaptures] = useState<CaptureListItem[]>([]);
     const blobUrlCacheRef = useRef<Map<string, string>>(new Map());
     const capturesRequestIdRef = useRef(0); // guards against stale capture list responses
+    const compareARequestIdRef = useRef(0); // guards against stale compare A fetch responses
+    const compareBRequestIdRef = useRef(0); // guards against stale compare B fetch responses
     const [missingBlobIds, setMissingBlobIds] = useState<Set<string>>(new Set());
     const loggedMissingBlobIdsRef = useRef<Set<string>>(new Set());
 
@@ -292,26 +451,18 @@ function ViewerApp() {
     // Fetch full record when compareAId changes
     useEffect(() => {
         if (!compareAId) {
+            compareARequestIdRef.current++;
             setCompareARecord(null);
             return;
         }
 
-        (async () => {
-            try {
-                const resp = await sendMessageAsync<{ type: string; captureId: string }, any>({
-                    type: "VIEWER/GET_CAPTURE",
-                    captureId: compareAId,
-                });
+        const reqId = ++compareARequestIdRef.current;
 
-                if (resp?.ok && resp.capture) {
-                    setCompareARecord(resp.capture);
-                } else {
-                    setCompareARecord(null);
-                    console.error("[VIEWER] Failed to fetch capture A:", resp);
-                }
-            } catch (err) {
-                setCompareARecord(null);
-                console.error("[VIEWER] Error fetching capture A:", err);
+        (async () => {
+            const record = await fetchCaptureRecord(compareAId);
+            // Only update if this is still the most recent request
+            if (reqId === compareARequestIdRef.current) {
+                setCompareARecord(record);
             }
         })();
     }, [compareAId]);
@@ -319,26 +470,18 @@ function ViewerApp() {
     // Fetch full record when compareBId changes
     useEffect(() => {
         if (!compareBId) {
+            compareBRequestIdRef.current++;
             setCompareBRecord(null);
             return;
         }
 
-        (async () => {
-            try {
-                const resp = await sendMessageAsync<{ type: string; captureId: string }, any>({
-                    type: "VIEWER/GET_CAPTURE",
-                    captureId: compareBId,
-                });
+        const reqId = ++compareBRequestIdRef.current;
 
-                if (resp?.ok && resp.capture) {
-                    setCompareBRecord(resp.capture);
-                } else {
-                    setCompareBRecord(null);
-                    console.error("[VIEWER] Failed to fetch capture B:", resp);
-                }
-            } catch (err) {
-                setCompareBRecord(null);
-                console.error("[VIEWER] Error fetching capture B:", err);
+        (async () => {
+            const record = await fetchCaptureRecord(compareBId);
+            // Only update if this is still the most recent request
+            if (reqId === compareBRequestIdRef.current) {
+                setCompareBRecord(record);
             }
         })();
     }, [compareBId]);
@@ -351,6 +494,7 @@ function ViewerApp() {
                 const query = searchQuery.toLowerCase();
                 const haystack = [
                     capture.accessibleName || "",
+                    capture.selector || "",
                     capture.url || "",
                     capture.tagName || "",
                     capture.role || "",
@@ -424,7 +568,12 @@ function ViewerApp() {
 
         // Convert to array and sort by count descending
         return Array.from(groupMap.entries())
-            .map(([key, items]) => ({ key, items, count: items.length }))
+            .map(([key, items]) => ({
+                key,
+                items,
+                count: items.length,
+                explanation: explainGroupKey(key),
+            }))
             .sort((a, b) => b.count - a.count);
     }, [filteredCaptures, groupingMode, computeGroupKey]);
 
@@ -446,6 +595,7 @@ function ViewerApp() {
     // Helper to fetch full capture records
     const fetchFullCaptures = useCallback(async (captureList: CaptureListItem[]): Promise<any[]> => {
         const fullRecords: any[] = [];
+        let counter = 0;
         for (const capture of captureList) {
             try {
                 const resp = await sendMessageAsync<{ type: string; captureId: string }, any>({
@@ -457,6 +607,11 @@ function ViewerApp() {
                 }
             } catch (err) {
                 console.error("[VIEWER] Failed to fetch capture for export:", capture.id, err);
+            }
+            counter++;
+            // Yield every 10 captures to keep UI responsive
+            if (counter % 10 === 0) {
+                await new Promise((r) => setTimeout(r, 0));
             }
         }
         return fullRecords;
@@ -474,45 +629,40 @@ function ViewerApp() {
         }
         try {
             const capturesToExport = getCapturesToExport();
-            const total = capturesToExport.length;
-            const BATCH_SIZE = 50;
 
-            setExportProgress({ current: 0, total });
+            const { blob, filename } = await runExport({
+                capturesToExport,
+                fetchFullCaptures,
+                onProgress: (current, total) => setExportProgress({ current, total }),
+                buildOutput: (fullRecords) => {
+                    // Remove computed styles to keep file size down
+                    const cleanedRecords = fullRecords.map((record) => {
+                        const cleaned = { ...record };
+                        if (cleaned.styles?.computed) {
+                            delete cleaned.styles.computed;
+                        }
+                        return cleaned;
+                    });
 
-            const fullRecords = [];
-            for (let i = 0; i < total; i += BATCH_SIZE) {
-                const batch = capturesToExport.slice(i, i + BATCH_SIZE);
-                const batchRecords = await fetchFullCaptures(batch);
-                fullRecords.push(...batchRecords);
+                    const session = sessions.find((s) => s.id === selectedSessionId) ?? null;
+                    const exportData = {
+                        exportedAt: new Date().toISOString(),
+                        session: session,
+                        captures: cleanedRecords,
+                    };
 
-                setExportProgress({ current: Math.min(i + BATCH_SIZE, total), total });
-                await new Promise((r) => setTimeout(r, 0));
-            }
-
-            // Remove computed styles and screenshot bytes to keep file size down
-            const cleanedRecords = fullRecords.map((record) => {
-                const cleaned = { ...record };
-                if (cleaned.styles?.computed) {
-                    delete cleaned.styles.computed;
-                }
-                return cleaned;
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                        type: "application/json",
+                    });
+                    const filename = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.json`;
+                    return { blob, filename };
+                },
             });
 
-            const session = sessions.find((s) => s.id === selectedSessionId) ?? null;
-
-            const exportData = {
-                exportedAt: new Date().toISOString(),
-                session: session,
-                captures: cleanedRecords,
-            };
-
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-                type: "application/json",
-            });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.json`;
+            a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
 
@@ -551,90 +701,85 @@ function ViewerApp() {
         }
         try {
             const capturesToExport = getCapturesToExport();
-            const total = capturesToExport.length;
-            const BATCH_SIZE = 50;
 
-            setExportProgress({ current: 0, total });
+            const { blob, filename } = await runExport({
+                capturesToExport,
+                fetchFullCaptures,
+                onProgress: (current, total) => setExportProgress({ current, total }),
+                buildOutput: (fullRecords) => {
+                    // Helper to escape CSV values
+                    const escapeCsv = (val: any): string => {
+                        if (val === null || val === undefined) return "";
+                        const str = String(val);
+                        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+                            return `"${str.replace(/"/g, '""')}"`;
+                        }
+                        return str;
+                    };
 
-            const fullRecords = [];
-            for (let i = 0; i < total; i += BATCH_SIZE) {
-                const batch = capturesToExport.slice(i, i + BATCH_SIZE);
-                const batchRecords = await fetchFullCaptures(batch);
-                fullRecords.push(...batchRecords);
+                    // CSV header
+                    const headers = [
+                        "sessionId",
+                        "captureId",
+                        "createdAt",
+                        "url",
+                        "tagName",
+                        "role",
+                        "accessibleName",
+                        "screenshotBlobId",
+                        "paddingTop",
+                        "paddingRight",
+                        "paddingBottom",
+                        "paddingLeft",
+                        "backgroundColorRgba",
+                        "colorRgba",
+                        "borderColorRgba",
+                        "shadowPresence",
+                        "shadowLayerCount",
+                    ];
 
-                setExportProgress({ current: Math.min(i + BATCH_SIZE, total), total });
-                await new Promise((r) => setTimeout(r, 0));
-            }
+                    const rows = fullRecords.map((record) => {
+                        const prims = record.styles?.primitives || {};
+                        // Format rgba objects as strings for CSV
+                        const formatRgba = (rgba: any) => {
+                            if (!rgba) return "";
+                            if (typeof rgba === "object" && "r" in rgba) {
+                                return `${rgba.r},${rgba.g},${rgba.b},${rgba.a}`;
+                            }
+                            return String(rgba);
+                        };
+                        return [
+                            record.sessionId,
+                            record.id,
+                            record.createdAt ?? record.conditions?.timestamp ?? "",
+                            record.url ?? record.page?.url ?? "",
+                            record.element?.tagName,
+                            record.element?.role,
+                            record.element?.intent?.accessibleName,
+                            record.screenshot?.screenshotBlobId || "",
+                            prims.spacing?.paddingTop,
+                            prims.spacing?.paddingRight,
+                            prims.spacing?.paddingBottom,
+                            prims.spacing?.paddingLeft,
+                            formatRgba(prims.backgroundColor?.rgba),
+                            formatRgba(prims.color?.rgba),
+                            formatRgba(prims.borderColor?.rgba),
+                            prims.shadow?.shadowPresence,
+                            prims.shadow?.shadowLayerCount,
+                        ].map(escapeCsv);
+                    });
 
-            // Helper to escape CSV values
-            const escapeCsv = (val: any): string => {
-                if (val === null || val === undefined) return "";
-                const str = String(val);
-                if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
-
-            // CSV header
-            const headers = [
-                "sessionId",
-                "captureId",
-                "createdAt",
-                "url",
-                "tagName",
-                "role",
-                "accessibleName",
-                "screenshotBlobId",
-                "paddingTop",
-                "paddingRight",
-                "paddingBottom",
-                "paddingLeft",
-                "backgroundColorRgba",
-                "colorRgba",
-                "borderColorRgba",
-                "shadowPresence",
-                "shadowLayerCount",
-            ];
-
-            const rows = fullRecords.map((record) => {
-                const prims = record.styles?.primitives || {};
-                // Format rgba objects as strings for CSV
-                const formatRgba = (rgba: any) => {
-                    if (!rgba) return "";
-                    if (typeof rgba === "object" && "r" in rgba) {
-                        return `${rgba.r},${rgba.g},${rgba.b},${rgba.a}`;
-                    }
-                    return String(rgba);
-                };
-                return [
-                    record.sessionId,
-                    record.id,
-                    record.createdAt ?? record.conditions?.timestamp ?? "",
-                    record.url ?? record.page?.url ?? "",
-                    record.element?.tagName,
-                    record.element?.role,
-                    record.element?.intent?.accessibleName,
-                    record.screenshot?.screenshotBlobId || "",
-                    prims.spacing?.paddingTop,
-                    prims.spacing?.paddingRight,
-                    prims.spacing?.paddingBottom,
-                    prims.spacing?.paddingLeft,
-                    formatRgba(prims.backgroundColor?.rgba),
-                    formatRgba(prims.color?.rgba),
-                    formatRgba(prims.borderColor?.rgba),
-                    prims.shadow?.shadowPresence,
-                    prims.shadow?.shadowLayerCount,
-                ].map(escapeCsv);
+                    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+                    const blob = new Blob([csvContent], { type: "text/csv" });
+                    const filename = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.csv`;
+                    return { blob, filename };
+                },
             });
 
-            const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-            const blob = new Blob([csvContent], { type: "text/csv" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.csv`;
+            a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
 
@@ -1090,33 +1235,13 @@ function ViewerApp() {
                                 }}
                             >
                                 {filteredCaptures.map((capture) => {
-                                    const displayName =
-                                        capture.accessibleName ||
-                                        (capture.tagName && capture.role
-                                            ? `<${capture.tagName}> [${capture.role}]`
-                                            : capture.tagName
-                                            ? `<${capture.tagName}>`
-                                            : "Element");
-
-                                    const time = capture.createdAt
-                                        ? new Date(capture.createdAt).toLocaleTimeString()
-                                        : "Unknown time";
-
-                                    const hostname = (() => {
-                                        try {
-                                            return new URL(capture.url).hostname;
-                                        } catch {
-                                            return capture.url;
-                                        }
-                                    })();
-
                                     return (
                                         <CaptureCard
                                             key={capture.id}
                                             capture={capture}
-                                            displayName={displayName}
-                                            time={time}
-                                            hostname={hostname}
+                                            displayName={getCaptureDisplayName(capture)}
+                                            time={getCaptureTime(capture)}
+                                            hostname={getCaptureHostname(capture)}
                                             getBlobUrl={getBlobUrl}
                                             onSetCompareA={setCompareAId}
                                             onSetCompareB={setCompareBId}
@@ -1144,6 +1269,7 @@ function ViewerApp() {
                                         groupKey={group.key}
                                         count={group.count}
                                         items={group.items}
+                                        explanation={group.explanation}
                                         getBlobUrl={getBlobUrl}
                                         onSelect={setSelectedGroupKey}
                                         missingBlobIds={missingBlobIds}
@@ -1181,33 +1307,13 @@ function ViewerApp() {
                                         }}
                                     >
                                         {selectedGroup.items.map((capture) => {
-                                            const displayName =
-                                                capture.accessibleName ||
-                                                (capture.tagName && capture.role
-                                                    ? `<${capture.tagName}> [${capture.role}]`
-                                                    : capture.tagName
-                                                    ? `<${capture.tagName}>`
-                                                    : "Element");
-
-                                            const time = capture.createdAt
-                                                ? new Date(capture.createdAt).toLocaleTimeString()
-                                                : "Unknown time";
-
-                                            const hostname = (() => {
-                                                try {
-                                                    return new URL(capture.url).hostname;
-                                                } catch {
-                                                    return capture.url;
-                                                }
-                                            })();
-
                                             return (
                                                 <CaptureCard
                                                     key={capture.id}
                                                     capture={capture}
-                                                    displayName={displayName}
-                                                    time={time}
-                                                    hostname={hostname}
+                                                    displayName={getCaptureDisplayName(capture)}
+                                                    time={getCaptureTime(capture)}
+                                                    hostname={getCaptureHostname(capture)}
                                                     getBlobUrl={getBlobUrl}
                                                     onSetCompareA={setCompareAId}
                                                     onSetCompareB={setCompareBId}
@@ -1600,12 +1706,13 @@ interface GroupCardProps {
     groupKey: string;
     count: number;
     items: CaptureListItem[];
+    explanation: GroupExplanation;
     getBlobUrl: (blobId: string, mimeType: string) => Promise<string | null>;
     onSelect: (groupKey: string) => void;
     missingBlobIds: Set<string>;
 }
 
-function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobIds }: GroupCardProps) {
+function GroupCard({ groupKey, count, items, explanation, getBlobUrl, onSelect, missingBlobIds }: GroupCardProps) {
     const [thumbnailUrls, setThumbnailUrls] = useState<(string | null)[]>([]);
     const [thumbnailBlobIds, setThumbnailBlobIds] = useState<(string | null)[]>([]);
 
@@ -1621,11 +1728,17 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobId
             // namePlusType: "tag::role::name"
             const roleKey = parts[1];
             const nameKey = parts[2];
+            if (roleKey === "norole") {
+                return nameKey ? `<${typeKey}> ${nameKey}` : `<${typeKey}> (no name)`;
+            }
             return nameKey ? `<${typeKey}> [${roleKey}] ${nameKey}` : `<${typeKey}> [${roleKey}] (no name)`;
         } else if (parts.length > 3) {
             // nameTypePrimitives: "tag::role::name::primitives..."
             const roleKey = parts[1];
             const nameKey = parts[2];
+            if (roleKey === "norole") {
+                return nameKey ? `<${typeKey}> ${nameKey}` : `<${typeKey}> (no name)`;
+            }
             return nameKey ? `<${typeKey}> [${roleKey}] ${nameKey}` : `<${typeKey}> [${roleKey}] (no name)`;
         } else {
             return `<${typeKey}>`;
@@ -1668,6 +1781,31 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobId
         };
     }, [items, getBlobUrl]);
 
+    // Build tooltip for "Why grouped?" affordance
+    const whyTooltip = (() => {
+        const parts: string[] = [];
+        if (explanation.tag) parts.push(`tag=${explanation.tag}`);
+        if (explanation.role) parts.push(`role=${explanation.role}`);
+        if (explanation.name) parts.push(`name=${explanation.name}`);
+
+        const baseLine = parts.join(", ");
+
+        if (!baseLine) return "No explanation available";
+
+        if (explanation.primitives) {
+            const primParts: string[] = [];
+            if (explanation.primitives.padding) primParts.push(`padding: ${explanation.primitives.padding}`);
+            if (explanation.primitives.colors) primParts.push(`colors: ${explanation.primitives.colors}`);
+            if (explanation.primitives.shadow) primParts.push(`shadow: ${explanation.primitives.shadow}`);
+
+            if (primParts.length > 0) {
+                return `${baseLine}\n${primParts.join("\n")}`;
+            }
+        }
+
+        return baseLine;
+    })();
+
     return (
         <div
             onClick={() => onSelect(groupKey)}
@@ -1679,19 +1817,34 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobId
                 cursor: "pointer",
             }}
         >
-            {/* Label and count */}
-            <div
-                style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    marginBottom: 8,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}
-                title={displayLabel}
-            >
-                {displayLabel}
+            {/* Label and Why? affordance */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <div
+                    style={{
+                        fontWeight: 600,
+                        fontSize: 14,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        flex: 1,
+                    }}
+                    title={displayLabel}
+                >
+                    {displayLabel}
+                </div>
+                <span
+                    style={{
+                        fontSize: 11,
+                        color: "#0066cc",
+                        cursor: "help",
+                        userSelect: "none",
+                        flexShrink: 0,
+                    }}
+                    title={whyTooltip}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    Why?
+                </span>
             </div>
             <div style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>
                 {count} occurrence{count !== 1 ? "s" : ""}
