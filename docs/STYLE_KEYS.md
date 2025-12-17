@@ -1,48 +1,39 @@
-# Project Status
+# STYLE_KEYS — v2.2
 
-## Current Milestone
-**Milestone 2 v2.2: IN PROGRESS** 🟡
+This document defines the **minimal style evidence** we extract/store for MVP.
+Goal: capture enough signal to support viewer-side grouping, comparison, and later normalization.
 
-Milestone 1 v2.2 remains ✅ COMPLETE (Tagged: `milestone-1-complete`)
+## Principles
+- Prefer **normalized primitives** over raw shorthand strings (e.g., per-side padding).
+- Store both:
+  - **raw computed value** (for debugging)
+  - **canonical form** (for grouping stability)
+- Keep the list minimal; expand only when we have a viewer use-case.
 
----
+## Spacing
+Stored as strings (computed style values), per-side:
+- `paddingTop`
+- `paddingRight`
+- `paddingBottom`
+- `paddingLeft`
 
-## Milestone 2 v2.2 - Progress Summary
+## Color primitives
+For each color-like property we store:
+- `raw` (computed style string as-is)
+- `rgba` (canonical RGBA if parseable)
 
-### Completed so far
-- ✅ Viewer entrypoint (viewer.html) built into dist via Vite
-- ✅ Service Worker “data API” for viewer:
-  - list sessions
-  - list captures by session
-  - fetch a capture by id
-  - fetch blobs by id (existing AUDIT/GET_BLOB)
-- ✅ Viewer UI:
-  - sessions list (select session)
-  - capture grid with screenshot thumbnails
-  - viewer-side filters (search, screenshot-only, tag/type)
-- ✅ Naive grouping:
-  - grouped/ungrouped toggle
-  - group cards with count + thumbnails
-  - group detail view showing occurrences
-- ✅ Compare:
-  - select any two captures (A/B)
-  - show screenshots side-by-side
-  - show primitives diff (only differing fields)
-- ✅ Export:
-  - JSON export (no embedded screenshot bytes; computed styles omitted)
-  - CSV export (flat subset + screenshotBlobId references)
+Minimum set:
+- `backgroundColor`
+- `color`
+- `borderColor` (optional depending on component type)
 
-### Known limitations (acceptable right now)
-- Grouping heuristic is intentionally naive (tagName + normalized accessibleName)
-- No deep-link routing (viewer state is in-memory)
-- Export is “MVP-grade” (CSV is a subset; JSON is capture-focused)
-- browserZoom still frequently null (by design / best-effort)
+## Shadow primitives
+- `boxShadowRaw` (computed string)
+- `shadowPresence`: `"none" | "some"`
+- `shadowLayerCount` (optional)
 
----
-
-## Technical Notes (still true)
-- MV3 architecture: service worker + offscreen document + content script + UI pages
-- UI contexts (popup/viewer) do NOT access IndexedDB directly
-- All data access goes through SW message passing
-- Binary over sendMessage must be serialized (number[]), not ArrayBuffer
-- Backward compatibility: old captures tolerate missing v2.2 fields
+## Notes
+- These keys are stored in `styles.primitives` and versioned via `stylePrimitiveVersion: 1`.
+- Viewer may compute additional derived fields (group keys, variant buckets), but these are **not stored back** into capture records in v2.2.
+- Padding values are stored as computed style strings (typically `px`), not numeric tokens.
+- See `CAPTURE_RECORD.md` for the canonical schema (`styles.primitives`).

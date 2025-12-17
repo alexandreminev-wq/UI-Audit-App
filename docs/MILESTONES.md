@@ -1,126 +1,138 @@
-# Milestones (Canon) — v2.2
+# MILESTONES
 
-## Milestone 1 — Capture pipeline v2.2 ✅ COMPLETE
-**Goal:** Comparable captures across sessions, with explicit versioning + durable screenshots.
-**Status:** Complete (Tagged: `milestone-1-complete`)
+_Last updated: 2025-12-17 (Europe/Madrid)_
 
-### 1.0 Session & versioning foundations ✅
-- ✅ Every capture has a required `sessionId`
-- ✅ Extension writes a session record to `sessions` store
-- ✅ Capture schema stamping:
+This file is the canonical milestone plan for the **UI Inventory App**. Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
+
+---
+
+## Guiding principles (canon)
+
+- We are building **guided capture + automatic grouping of what you captured**.
+- We are **not** claiming complete UI coverage.
+- **Service worker is the only IndexedDB accessor**.
+- Popup + Viewer use **message passing only**.
+- Screenshot bytes must survive MV3 messaging:
+  - Transfer as `number[]` and reconstruct in the viewer.
+- Keep capture schema versioned:
   - `captureSchemaVersion: 2`
   - `stylePrimitiveVersion: 1`
-- ✅ Session persistence across service worker restarts
-
-### 1.1 Inspect & click-to-capture ✅
-- ✅ Hover highlight overlay
-- ✅ Click-to-capture (audit mode)
-- ✅ Overlay hidden during screenshot (clean captures)
-- ⬜ Hotkey capture (optional, deferred)
-
-### 1.2 Capture record schema v2.2 ✅
-- ✅ `conditions` per capture:
-  - ✅ `viewport: { width, height }`
-  - ✅ `devicePixelRatio`
-  - ✅ `visualViewportScale` (best-effort)
-  - 🟡 `browserZoom` (null - flaky detection, acceptable)
-  - ✅ `timestamp` (uses `createdAt`)
-  - ✅ `themeHint` (dark/light/unknown)
-- ✅ `element.intent` anchors (best-effort):
-  - ✅ `accessibleName`
-  - ✅ `inputType`
-  - ✅ `href`
-  - ✅ `disabled`, `ariaDisabled`
-  - ✅ `checked`, `ariaChecked` (when relevant)
-  - ✅ `tagName`, `role`
-
-### 1.3 Style primitives v2 ✅
-- ✅ Spacing: per-side padding (paddingTop, paddingRight, paddingBottom, paddingLeft)
-- ✅ Colors: store raw + canonical RGBA (backgroundColor, color, borderColor)
-- ✅ Shadows: store raw + derived presence/layer count
-- ✅ No dedupe keys, no bucketing, no signatures in extension (deferred to viewer)
-
-### 1.4 Storage v2.2 ✅
-- ✅ IndexedDB stores:
-  - ✅ `sessions` — session records
-  - ✅ `captures` — structured JSON capture records
-  - ✅ `blobs` — `{ id, mimeType, width, height, blob, createdAt }`
-- ✅ Capture references screenshots via `screenshotBlobId`
-- ✅ Schema evolution: additive fields optional, old rows readable
-- ✅ Message passing for blob retrieval (MV3-safe cross-context access)
-
-### 1.5 Screenshots (OffscreenCanvas) ✅
-- ✅ Take viewport screenshot + crop target rect
-- ✅ Crop/encode/compress using OffscreenCanvas execution context
-- ✅ Store output as blob in `blobs` store
-- ✅ Capture stores `screenshotBlobId` and metadata (width, height, mimeType)
-- ✅ Popup displays screenshot previews
-- ✅ ArrayBuffer serialization fixed for chrome.runtime.sendMessage
-
-### 1.6 Coverage tracking ✅
-- ✅ Track pages visited during audit (URL list per session via tabs.onUpdated)
-- ⬜ Coverage primitive (auto completeness) deferred to later milestone
 
 ---
 
-## Milestone 2 — Viewer gallery v2.2 🟡 IN PROGRESS
-**Goal:** Viewer owns grouping/compare/export and any “analysis” (extension only captures + stores).
+## Milestone 1 v2.2 — Extension capture + evidence + storage (✅ Complete)
 
-### 2.0 Viewer entrypoint + build ✅
-- ✅ viewer.html entrypoint built by Vite into dist/
-- ✅ Viewer runs as an extension page (no server required)
+### Goal
+Enable guided element capture on real pages and store trustworthy evidence in IndexedDB via the MV3 service worker.
 
-### 2.1 Service worker becomes the Viewer data API ✅
-- ✅ Message endpoints for viewer reads (list sessions, list captures for session, fetch single capture)
-- ✅ Viewer fetches screenshot blobs via SW (no IndexedDB access in UI contexts)
+### Scope
+- Element selection UX (click-to-select)
+- Element locator strategy + intent anchors
+- Capture “conditions” so evidence is comparable:
+  - viewport `{ width, height }`
+  - devicePixelRatio
+  - browser zoom (best-effort)
+  - theme hint (light/dark/unknown)
+  - timestamp
+- Store normalized style primitives:
+  - per-side padding (and similar per-side fields as needed)
+  - canonical RGBA color fields + raw strings
+  - shadow raw + simplified derived fields (presence/count)
+- Screenshot capture and blob storage (reference by id)
+- Sessions concept:
+  - each capture has `sessionId`
+  - sessions are listable
 
-### 2.2 Sessions list + session detail ✅
-- ✅ List sessions
-- ✅ Select a session and load its captures
+### Acceptance criteria
+- Captures persist reliably and are retrievable by session.
+- Screenshots are retrievable by blob id.
+- Version fields exist on capture records.
+- Viewer/popup never access IndexedDB directly (enforced by architecture).
 
-### 2.3 Captures gallery + thumbnails ✅
-- ✅ Grid view of captures
-- ✅ Thumbnails fetched via blobId + mimeType
-- ✅ Viewer-side filters:
-  - ✅ search (name/url/tag/role)
-  - ✅ has screenshot only
-  - ✅ tag/type dropdown
+---
 
-### 2.4 Naive grouping + occurrences ✅
-- ✅ Toggle: Ungrouped / Grouped
-- ✅ Grouping heuristic v0:
-  - tagName + normalized accessibleName
-- ✅ Group cards show count + up to 3 thumbnails
-- ✅ Group detail view shows occurrences (capture cards)
+## Milestone 2 v2.2 — Viewer gallery + naive clustering (✅ Complete)
 
-### 2.5 Compare two captures ✅
-- ✅ “Set A / Set B” compare controls on capture cards
-- ✅ Compare panel:
+### Goal
+Move analysis out of the extension into the viewer. The extension only captures and stores.
+
+### Scope
+#### Viewer foundations
+- Build viewer via Vite into `dist/viewer.html`
+- Popup “Open Viewer” opens viewer via `chrome.runtime.getURL("viewer.html")`
+- Viewer reads data only via SW messages:
+  - `VIEWER/LIST_SESSIONS`
+  - `VIEWER/LIST_CAPTURES`
+  - `VIEWER/GET_CAPTURE`
+  - `AUDIT/GET_BLOB`
+
+#### Gallery + filters
+- Sessions list + open session
+- Capture gallery with thumbnails
+- Filters that combine:
+  - substring search (accessible name)
+  - has screenshot
+  - tag/type filter
+
+#### Naive grouping
+- Toggle grouped/ungrouped
+- Grouping heuristic:
+  - `tagName + unicode-safe normalized accessibleName`
+- Group detail (occurrences + count)
+
+#### Compare + export
+- Compare A/B:
   - screenshots side-by-side
-  - primitives diff (only fields that differ)
+  - primitives diff showing differing paths only
+- Export:
+  - JSON (no embedded bytes; strip `styles.computed`)
+  - CSV (stable schema mapping)
 
-### 2.6 Export ✅
-- ✅ Export JSON (no embedded screenshot bytes; computed styles omitted)
-- ✅ Export CSV (flat subset of primitives + screenshotBlobId ref)
-- ⬜ Optional: export includes session metadata + pages visited as separate file/section (polish)
+#### Stability + polish
+- Loading/error states with Retry
+- Empty states (“No captures…”, “No results…” + clear filters)
+- Missing screenshot UX (“No screenshot” vs “Missing blob”)
+- Stale request protection for rapid session switching
+- Blob URL caching + cleanup
+- Export progress + batching/yielding
+- Type/tag chip on capture cards
+- Group label tooltip
+- Keyboard focus-visible styling
 
-### 2.x Remaining / stretch (still Milestone 2, if needed)
-- ⬜ Better grouping heuristics (role + intent anchors + primitives)
-- ⬜ Simple “cluster detail” route/deep-linking (optional)
-- ⬜ Performance pass for large sessions (virtualize lists)
+### Acceptance criteria
+- All viewer features work without direct IndexedDB access.
+- Grouping + compare are stable across session switching.
+- Export completes and remains responsive on large sessions.
 
 ---
 
-## Milestone 3 — Polish & richer export v2.2
-- ⬜ Export HTML report
-- ⬜ Tagging + notes in viewer
-- ⬜ “Possible duplicates” review UX (viewer-driven)
-- ⬜ Performance pass + caching strategy refinements
-- ⬜ Viewer-side normalization versioning surfaced in UI (“ruleset vX”)
+## Milestone 3 — Viewer-side clustering improvements (⏳ Next)
 
----
+### Goal
+Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while preserving:
+- no dedupe/signature keys stored in capture payload
+- analysis remains viewer-side
+- performance remains acceptable for large sessions
 
-## Milestone 4 — Hosted MVP
-- Supabase auth + projects
-- Upload screenshots
-- Share link
+### Proposed scope (plan-level; finalize during Milestone 3 planning)
+
+#### 3.1 Improved similarity heuristics (viewer-only)
+- Extend grouping keys with additional signals (still explainable):
+  - role-ish/type hints (if present)
+  - primitives buckets (spacing, typography, background/text/border colors, shadow presence)
+  - size buckets (optional)
+- Configurable “strictness” presets:
+  - **Name-only** (current)
+  - **Name + type**
+  - **Name + type + primitives buckets** (new)
+
+#### 3.2 Variant detection within a group
+- Within a group, compute and surface “variant clusters”:
+  - e.g., same label but different background color or padding
+- Provide a lightweight “Why grouped?” explanation:
+  - show which signals matched for the group key
+
+#### 3.3 Large session performance (only if needed)
+- Virtualization or pagination for capture grids
+- Avoid fetching thumbnails eagerly for off-screen items (if virtualization added)
+- Keep grouping computa

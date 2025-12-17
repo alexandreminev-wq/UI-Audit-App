@@ -1,6 +1,8 @@
-# UI Inventory App — Claude Working Agreement (Canon)
+# UI Inventory App — Claude Working Agreement (Canon) — v2.2
 
-This repo contains a **Chrome Extension (MV3)** that captures UI evidence (DOM + style primitives + screenshots) into IndexedDB, plus a **Viewer** (later milestone) that groups/normalizes what was captured.
+This repo contains:
+- a **Chrome Extension (MV3)** that captures UI evidence (DOM/intent + style primitives + screenshot refs) into IndexedDB
+- a **Viewer** (packaged web app) that browses, groups, compares, and exports what was captured
 
 ## Product wording (avoid expectation drift)
 This product provides **guided capture + automatic grouping of what you captured**.
@@ -9,29 +11,33 @@ It does NOT promise complete coverage unless/when a coverage primitive exists.
 ---
 
 ## Current focus
-We are implementing **Milestone 1 v2.2** (Capture pipeline v2.2).
+**Milestone 3 planning and implementation (next).**
 
-Milestone 1 v2.2 adds:
-- **Sessions** (every capture belongs to a session)
-- **Capture schema versioning** (`captureSchemaVersion`)
-- **Style primitives v2** (raw + canonical)
-- **Screenshots via OffscreenCanvas** (MV3-friendly)
-- **IndexedDB store split**: `sessions`, `captures`, `blobs`
+Completed:
+- ✅ Milestone 1 v2.2 — capture pipeline + evidence + storage
+- ✅ Milestone 2 v2.2 — viewer gallery + naive grouping + compare/export + polish
+
+Milestone 3 will improve **viewer-side analysis/clustering** without moving complexity back into the extension.
 
 ---
 
 ## Hard rules (do not violate)
-### 1) No grouping/dedupe/signature keys computed in the extension
-Do NOT compute any:
+
+### 1) Service worker is the only IndexedDB accessor
+- Viewer and popup must **never** read/write IndexedDB directly.
+- All access is via SW message handlers (e.g. `VIEWER/*`, `AUDIT/GET_BLOB`).
+
+### 2) No grouping/dedupe/signature keys computed in the extension
+Do NOT compute or store in capture payload:
 - signature keys
 - near keys
 - buckets (padding buckets, color buckets, etc.)
 - “helpful” pre-grouping metadata
 
 The extension stores **raw evidence + simple primitives only**.
-The viewer (Milestone 2) owns normalization + signatures.
+Grouping, clustering, and any signatures are **viewer-side only**.
 
-### 2) Capture record must be self-describing
+### 3) Capture record must be self-describing
 Each capture must include:
 - `captureSchemaVersion: 2`
 - optional `stylePrimitiveVersion: 1`
@@ -39,7 +45,7 @@ Each capture must include:
 
 This prevents “mystery meat” old rows later.
 
-### 3) browserZoom is optional + flaky
+### 4) browserZoom is optional + flaky
 Capture it best-effort if available, but:
 - treat it as optional (`null` often)
 - do not make logic depend on it
@@ -48,29 +54,46 @@ Prefer storing:
 - `devicePixelRatio`
 - viewport dims
 
-### 4) Screenshots are stored as Blobs (not data URLs)
+### 5) Screenshots are stored as Blobs (not data URLs)
 - Store image blobs in `blobs` store
-- Reference from capture by `screenshotBlobId`
+- Reference from capture via screenshot blob id (often `capture.screenshot.screenshotBlobId`)
 This allows re-encoding later without rewriting capture records.
+
+### 6) MV3 messaging binary constraint (important)
+- Do not attempt to pass ArrayBuffers directly through message APIs.
+- Blob bytes are transferred as `number[]` and reconstructed in the Viewer.
 
 ---
 
 ## Folder map (high level)
-- `apps/extension/*` — Chrome extension (MV3)
-- `apps/viewer/*` (or similar) — viewer app (later milestone)
+- `apps/extension/*` — Chrome extension (MV3, incl. viewer page packaged in build output)
 - `docs/*` — canonical specs
-- `.claude/commands/*` — reusable ClaudeCode prompts
+- `.claude/commands/*` — reusable Claude Code prompts
 
 ---
 
 ## How to work (small, incremental steps)
-- Make one change per step (types → capture builder → IDB schema → UI)
-- Keep backward compatibility where possible:
-  - old captures may be missing v2 fields
-  - UI should tolerate `undefined` fields
-- Prefer additive schema evolution over destructive migrations.
+- Make one change per step.
+- Keep backward compatibility:
+  - old captures may be missing fields
+  - UI must tolerate `undefined` fields
+- Prefer additive evolution over destructive migrations.
+
+---
+
+## Claude Code workflow rules (operational guardrails)
+- Small incremental diffs only.
+- Only apply changes when explicitly told **“apply changes”**.
+- When applying changes:
+  - **edit files in-place**
+  - **show a unified diff after edits** for review
+  - do not rewrite large sections unnecessarily
+- 🚨 If a change is risky/large:
+  - commit first (checkpoint) or create a backup
+  - remove/ignore `.bak` files before committing
+- Never edit `apps/**/dist/**`
 
 ---
 
 ## Milestones
-See `docs/MILESTONES.md` for the full map.
+See `docs/MILESTONES.md` for the full map and acceptance criteria.

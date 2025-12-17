@@ -1,7 +1,11 @@
 # Capture Record (Schema) — v2.2
 
-This defines what the extension stores in IndexedDB (captures store).
-Viewer normalization/signatures come later and are NOT computed in the extension.
+This defines what the extension stores in IndexedDB (`captures` store).
+
+Notes:
+- Viewer-side analysis exists as of **Milestone 2** (gallery, naive grouping, compare, export).
+- Stronger normalization/signatures may come later, but are **NOT computed in the extension** in v2.2.
+- Any viewer-derived grouping keys/signatures are **viewer-only** and must not be persisted back into capture records for v2.2.
 
 ## Versioning
 - `captureSchemaVersion: 2` — identifies capture shape
@@ -17,7 +21,11 @@ export interface CaptureConditions {
   devicePixelRatio: number;
   visualViewportScale?: number | null; // best-effort
   browserZoom?: number | null; // best-effort + flaky
-  timestamp: string; // ISO string (use createdAt)
+  /**
+   * Optional. If present, should match `createdAt`.
+   * In v2.2, `createdAt` is the canonical timestamp for the capture.
+   */
+  timestamp?: string;
   themeHint?: ThemeHint; // best-effort
 }
 
@@ -86,7 +94,7 @@ export interface CaptureRecordV2 {
   stylePrimitiveVersion?: 1;
 
   url: string;
-  createdAt: string; // ISO
+  createdAt: string; // ISO (canonical timestamp)
   conditions: CaptureConditions;
 
   element: ElementCore;
@@ -96,5 +104,10 @@ export interface CaptureRecordV2 {
     // optional: rawComputed subset if you keep it; avoid giant dumps in MVP
   };
 
+  /**
+   * Optional screenshot evidence.
+   * - undefined/null: no screenshot captured or stored for this capture.
+   * - If screenshotBlobId exists but the blob record is missing: viewer should show "Missing blob".
+   */
   screenshot?: CaptureScreenshotRef | null;
 }
