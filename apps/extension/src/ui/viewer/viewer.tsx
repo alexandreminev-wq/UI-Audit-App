@@ -339,6 +339,7 @@ function ViewerApp() {
     const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "success" | "error">("idle");
     const [exportMessage, setExportMessage] = useState<string | null>(null);
     const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+    const [includeViewerDerived, setIncludeViewerDerived] = useState(false);
     const exportResetTimerRef = useRef<number | null>(null);
 
     // Loading and error states
@@ -703,12 +704,32 @@ function ViewerApp() {
                 fetchFullCaptures,
                 onProgress: (current, total) => setExportProgress({ current, total }),
                 buildOutput: (fullRecords) => {
+                    // Build map from capture ID to CaptureListItem for derived fields
+                    const captureMap = new Map<string, CaptureListItem>();
+                    capturesToExport.forEach((item) => captureMap.set(item.id, item));
+
                     // Remove computed styles to keep file size down
                     const cleanedRecords = fullRecords.map((record) => {
                         const cleaned = { ...record };
                         if (cleaned.styles?.computed) {
                             delete cleaned.styles.computed;
                         }
+
+                        // Add viewer-derived grouping fields if enabled
+                        if (includeViewerDerived) {
+                            const captureItem = captureMap.get(record.id);
+                            if (captureItem) {
+                                const groupKey = computeGroupKey(captureItem, groupingMode);
+                                const variantKey = computeVariantKey(captureItem);
+                                cleaned.viewerDerived = {
+                                    groupingMode,
+                                    groupKey,
+                                    variantKey,
+                                    signatureVersion: 1,
+                                };
+                            }
+                        }
+
                         return cleaned;
                     });
 
@@ -755,7 +776,7 @@ function ViewerApp() {
         } finally {
             setIsExporting(false);
         }
-    }, [getCapturesToExport, fetchFullCaptures, selectedSessionId, sessions]);
+    }, [getCapturesToExport, fetchFullCaptures, selectedSessionId, sessions, includeViewerDerived, groupingMode, computeGroupKey]);
 
     // Export as CSV
     const handleExportCSV = useCallback(async () => {
@@ -775,6 +796,10 @@ function ViewerApp() {
                 fetchFullCaptures,
                 onProgress: (current, total) => setExportProgress({ current, total }),
                 buildOutput: (fullRecords) => {
+                    // Build map from capture ID to CaptureListItem for derived fields
+                    const captureMap = new Map<string, CaptureListItem>();
+                    capturesToExport.forEach((item) => captureMap.set(item.id, item));
+
                     // Helper to escape CSV values
                     const escapeCsv = (val: any): string => {
                         if (val === null || val === undefined) return "";
@@ -806,6 +831,16 @@ function ViewerApp() {
                         "shadowLayerCount",
                     ];
 
+                    // Add viewer-derived headers if enabled
+                    if (includeViewerDerived) {
+                        headers.push(
+                            "viewer_grouping_mode",
+                            "viewer_group_key",
+                            "viewer_variant_key",
+                            "viewer_signature_version"
+                        );
+                    }
+
                     const rows = fullRecords.map((record) => {
                         const prims = record.styles?.primitives || {};
                         // Format rgba objects as strings for CSV
@@ -816,7 +851,7 @@ function ViewerApp() {
                             }
                             return String(rgba);
                         };
-                        return [
+                        const baseFields = [
                             record.sessionId,
                             record.id,
                             record.createdAt ?? record.conditions?.timestamp ?? "",
@@ -834,7 +869,27 @@ function ViewerApp() {
                             formatRgba(prims.borderColor?.rgba),
                             prims.shadow?.shadowPresence,
                             prims.shadow?.shadowLayerCount,
-                        ].map(escapeCsv);
+                        ];
+
+                        // Add viewer-derived fields if enabled
+                        if (includeViewerDerived) {
+                            const captureItem = captureMap.get(record.id);
+                            if (captureItem) {
+                                const groupKey = computeGroupKey(captureItem, groupingMode);
+                                const variantKey = computeVariantKey(captureItem);
+                                baseFields.push(
+                                    groupingMode,
+                                    groupKey,
+                                    variantKey,
+                                    "1"
+                                );
+                            } else {
+                                // Missing capture item: add empty values to keep row length consistent
+                                baseFields.push("", "", "", "");
+                            }
+                        }
+
+                        return baseFields.map(escapeCsv);
                     });
 
                     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -872,7 +927,7 @@ function ViewerApp() {
         } finally {
             setIsExporting(false);
         }
-    }, [getCapturesToExport, fetchFullCaptures, selectedSessionId]);
+    }, [getCapturesToExport, fetchFullCaptures, selectedSessionId, includeViewerDerived, groupingMode, computeGroupKey]);
 
     // Helper to get or fetch blob URL
     const getBlobUrl = useCallback(async (blobId: string, mimeType: string): Promise<string | null> => {
@@ -1182,7 +1237,24 @@ function ViewerApp() {
                                             : exportMessage}
                                     </span>
                                 )}
-                                <span style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>Export:</span>
+                                <label
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        fontSize: 12,
+                                        cursor: "pointer",
+                                    }}
+                                    title="Adds group/variant keys to exports. Not saved to captures."
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={includeViewerDerived}
+                                        onChange={(e) => setIncludeViewerDerived(e.target.checked)}
+                                    />
+                                    Include viewer-derived grouping fields
+                                </label>
+                                <span style={{ fontSize: 13, fontWeight: 600, marginLeft: 4, marginRight: 4 }}>Export:</span>
                                 <button
                                     onClick={handleExportJSON}
                                     disabled={isExporting}
