@@ -10,7 +10,7 @@ This document tracks what is **done**, what is **in progress**, and what is **ne
 
 - **Milestone 1 v2.2:** ✅ Complete
 - **Milestone 2 v2.2:** ✅ Complete
-- **Milestone 3:** ⏳ Planning next
+- **Milestone 3:** ✅ Complete (2025-12-17)
 
 ---
 
@@ -108,24 +108,70 @@ A Viewer web app (built with Vite into `dist/viewer.html`) provides browsing, gr
 
 ---
 
-## Milestone 3 — Viewer-side Clustering Improvements — ⏳ Planning
+## Milestone 3 — Explainable Clustering + Variant Detection — ✅ Complete (2025-12-17)
 
-### Goal (draft)
-Improve viewer-side clustering beyond naive grouping while preserving the architecture rule:
-- **No dedupe/signature keys stored in the extension**
-- Analysis remains **viewer-side**
+### Summary
+Enhanced viewer-side grouping with multiple modes, primitives-based bucketing, explainability tooltips, and within-group variant detection. All analysis remains viewer-side with no persistence.
 
-### Likely scope candidates (to decide in planning)
-- Better similarity heuristics using primitives (spacing/colors/typography/shadow presence)
-- Optional viewer-side “signature” computation (computed on demand, not stored by extension)
-- Large-session performance improvements (virtualization/pagination) if needed
-- Grouping label/readability rules and compare workflow polish
+### What's complete
 
-### Not in scope (recommended defer)
-- Deep-linking/router
-- Dark mode
-- Full UI redesign (do after Milestone 3 functionality is feature-frozen)
+#### Grouping modes
+- Three grouping presets (viewer dropdown):
+  - **Tag + Name:** `tagName::normalizedName` (default, fast)
+  - **Tag + Role + Name:** `tagName::role::normalizedName`
+  - **Tag + Role + Name + Primitives:** includes bucketed padding/colors/shadow
+- Primitives bucketing helpers:
+  - Padding: rounded to nearest 4px
+  - Colors (RGB): 16-step buckets (0,16,32...240), alpha to 0.1 precision
+  - Shadow: presence + layer count
 
-### Next steps
-- Define Milestone 3 success criteria + slice plan
-- Implement smallest first slice and keep changes incremental
+#### Explainable "Why grouped?" affordance
+- Each group card shows a "Why?" tooltip
+- Tooltip displays:
+  - Base grouping: tag, role (if not "norole"), name
+  - Primitives breakdown (if primitives mode):
+    - Padding: `pt8 pr12 pb8 pl12`
+    - Colors: `bg240,240,240,1 bdnone c0,0,0,1`
+    - Shadow: `shsome-2`
+
+#### Variant detection within groups
+- Group detail view computes variants using primitives bucketing
+- Shows "Variants: N" count
+- Variant filter chips (only shown when N > 1):
+  - "Variant 1 (5)", "Variant 2 (3)", etc.
+  - Click to filter group items by variant
+  - "All variants" chip to clear filter
+- Each capture card shows "V{index}" badge when multiple variants exist
+- Variants sorted by count DESC, then key ASC (stable ordering)
+- Memoized computation (no rebuild on every render)
+
+#### Export enhancement (optional)
+- Checkbox: "Include viewer-derived grouping fields"
+- When enabled, JSON export adds `viewerDerived` to each capture:
+  ```json
+  {
+    "groupingMode": "nameTypePrimitives",
+    "groupKey": "button::norole::submit::p8-12-8-12::bg...",
+    "variantKey": "v::p8-12-8-12::bg240,240,240,1::...",
+    "signatureVersion": 1
+  }
+  ```
+- When enabled, CSV export appends 4 columns:
+  - `viewer_grouping_mode`
+  - `viewer_group_key`
+  - `viewer_variant_key`
+  - `viewer_signature_version`
+- Fields matched by capture ID (handles failed fetches correctly)
+- **Export-only:** not persisted to IndexedDB
+
+### Architecture preserved
+- No signature keys or bucketing metadata stored in extension
+- All grouping/variant computation happens in viewer on demand
+- Service worker and capture pipeline unchanged
+
+### Acceptance checks
+- Grouping modes switch without errors; primitives mode includes bucketed values in group keys
+- "Why?" tooltips show accurate grouping criteria
+- Variant detection shows correct counts and filtering works
+- Export with derived fields produces valid JSON/CSV with matching IDs
+- Export without checkbox remains identical to Milestone 2 output

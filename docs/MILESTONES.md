@@ -106,7 +106,7 @@ Move analysis out of the extension into the viewer. The extension only captures 
 
 ---
 
-## Milestone 3 — Viewer-side clustering improvements (⏳ Next)
+## Milestone 3 — Explainable clustering + variant detection (✅ Complete)
 
 ### Goal
 Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while preserving:
@@ -114,25 +114,43 @@ Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while pre
 - analysis remains viewer-side
 - performance remains acceptable for large sessions
 
-### Proposed scope (plan-level; finalize during Milestone 3 planning)
+### Scope
 
-#### 3.1 Improved similarity heuristics (viewer-only)
-- Extend grouping keys with additional signals (still explainable):
-  - role-ish/type hints (if present)
-  - primitives buckets (spacing, typography, background/text/border colors, shadow presence)
-  - size buckets (optional)
-- Configurable “strictness” presets:
-  - **Name-only** (current)
-  - **Name + type**
-  - **Name + type + primitives buckets** (new)
+#### 3.1 Grouping modes with primitives bucketing (✅ Complete)
+- Three configurable grouping presets:
+  - **Tag + Name:** `tagName::normalizedName` (fast, default)
+  - **Tag + Role + Name:** `tagName::role::normalizedName`
+  - **Tag + Role + Name + Primitives:** includes bucketed padding/colors/shadow
+- Primitives bucketing functions:
+  - Padding: rounded to nearest 4px
+  - Colors: 16-step RGB buckets (0,16,32...240), alpha to 0.1 precision
+  - Shadow: presence + layer count
+- Viewer dropdown to switch modes without page reload
 
-#### 3.2 Variant detection within a group
-- Within a group, compute and surface “variant clusters”:
-  - e.g., same label but different background color or padding
-- Provide a lightweight “Why grouped?” explanation:
-  - show which signals matched for the group key
+#### 3.2 Explainable "Why grouped?" tooltips (✅ Complete)
+- Each group card shows a "Why?" affordance with tooltip
+- Tooltip content shows:
+  - Base grouping fields: tag, role (when not "norole"), name
+  - Primitives breakdown (when primitives mode enabled):
+    - Padding values (pt/pr/pb/pl)
+    - Color tokens (bg/bd/c)
+    - Shadow token
+- Helps users understand grouping decisions
 
-#### 3.3 Large session performance (only if needed)
-- Virtualization or pagination for capture grids
-- Avoid fetching thumbnails eagerly for off-screen items (if virtualization added)
-- Keep grouping computa
+#### 3.3 Variant detection within groups (✅ Complete)
+- Group detail view computes variant clusters using primitives bucketing
+- UI shows:
+  - "Variants: N" count
+  - Variant filter chips (only when N > 1)
+  - "V{index}" badge on each capture card
+- Variants sorted deterministically (count DESC, then key ASC)
+- Click chip to filter group items by variant
+- Memoized computation (avoids rebuild on every render)
+
+#### 3.4 Export enhancement (optional) (✅ Complete)
+- Checkbox: "Include viewer-derived grouping fields"
+- When enabled:
+  - JSON adds `viewerDerived` object to each capture
+  - CSV appends 4 columns: `viewer_grouping_mode`, `viewer_group_key`, `viewer_variant_key`, `viewer_signature_version`
+- Fields matched by capture ID (handles partial export failures)
+- **Export-only:** not persisted to IndexedDB

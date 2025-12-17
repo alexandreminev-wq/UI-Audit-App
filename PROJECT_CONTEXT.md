@@ -99,26 +99,48 @@ Versioning is present:
 
 ---
 
-## Viewer (Milestone 2 v2.2 — COMPLETE)
+## Viewer (Milestone 2 v2.2 + Milestone 3 — COMPLETE)
 
 ### Core UI
 - Sessions list (left sidebar)
 - Capture gallery (main pane)
 - Thumbnails (via blob fetch)
 - Filters (combine correctly):
-  - substring search on accessible name
+  - substring search on accessible name + selector
   - has screenshot toggle
   - tag/type filter dropdown
 
-### Grouping (naive clustering)
+### Grouping (Milestone 3 — explainable clustering)
 Viewer-side grouping only (no stored signatures/dedupe keys in capture).
-- Group key:
-  - `tagName` + `normalizeAccessibleName(accessibleName)`
-- Group view shows:
-  - group label
-  - count of occurrences
-  - representative thumbnails
-- Group detail shows occurrences using same capture cards.
+
+**Grouping modes** (dropdown selection):
+- **Tag + Name:** `tagName::normalizedName` (default, fast)
+- **Tag + Role + Name:** `tagName::role::normalizedName`
+- **Tag + Role + Name + Primitives:** includes bucketed padding/colors/shadow
+
+**Primitives bucketing:**
+- Padding: rounded to nearest 4px
+- Colors (RGB): 16-step buckets (0,16,32...240), alpha to 0.1 precision
+- Shadow: presence + layer count
+
+**Group cards show:**
+- Group label with tooltip (for truncated text)
+- Count of occurrences
+- Representative thumbnails
+- **"Why?" tooltip** showing grouping criteria:
+  - Base fields: tag, role (when not "norole"), name
+  - Primitives breakdown (when primitives mode): padding, colors, shadow tokens
+
+**Group detail view:**
+- Shows all captures in the group
+- **Variant detection:**
+  - Computes variants using primitives bucketing
+  - Shows "Variants: N" count
+  - Variant filter chips (only when N > 1): "Variant 1 (5)", "Variant 2 (3)", etc.
+  - Click chip to filter by variant; "All variants" chip to clear
+  - Each capture card shows "V{index}" badge when multiple variants exist
+  - Variants sorted deterministically (count DESC, then key ASC)
+  - Memoized computation (no rebuild on every render)
 
 ### Compare A/B
 - Select two captures (A/B) from the gallery.
@@ -127,17 +149,25 @@ Viewer-side grouping only (no stored signatures/dedupe keys in capture).
   - primitives diff: only differing paths are displayed
 
 ### Export
-- JSON export:
+- **JSON export:**
   - exports session + captures
   - **does not embed image bytes**
   - uses screenshot blob id references
   - strips `styles.computed` from JSON payload
-- CSV export:
+- **CSV export:**
   - flattened rows with stable schema mapping
-- Export UX:
+- **Export UX:**
   - status: exporting / success / error
-  - **progress**: “Exporting X / Y…”
+  - **progress**: "Exporting X / Y…"
   - batching + yielding to keep UI responsive
+- **Optional viewer-derived fields (Milestone 3):**
+  - Checkbox: "Include viewer-derived grouping fields"
+  - When enabled, JSON adds `viewerDerived` object to each capture:
+    - `groupingMode`, `groupKey`, `variantKey`, `signatureVersion: 1`
+  - When enabled, CSV appends 4 columns:
+    - `viewer_grouping_mode`, `viewer_group_key`, `viewer_variant_key`, `viewer_signature_version`
+  - Fields matched by capture ID (handles partial export failures)
+  - **Export-only:** not persisted to IndexedDB
 
 ### Resilience + polish
 - Loading + error states for sessions/captures with Retry
@@ -182,16 +212,20 @@ Typical anchors include:
 ### Milestone 2 v2.2 — COMPLETE
 - Viewer gallery + naive grouping + compare + export + polish
 
----
-
-## Milestone 3 (next planning target)
-Milestone 3 should build on the viewer to improve **analysis/clustering** and scaling without moving complexity back into the extension.
-Likely themes (subject to planning):
-- Better similarity heuristics beyond `tagName + accessibleName`
-  - incorporate primitives buckets (spacing, colors, typography, shadow presence)
-- Optional “viewer-side signatures” (computed in viewer, not stored by extension)
-- Large-session performance (virtualization / pagination) if needed
-- Workflow polish around groups/compare for variant detection
+### Milestone 3 — COMPLETE (2025-12-17)
+- **Explainable clustering:**
+  - Three grouping modes: Tag+Name, Tag+Role+Name, Tag+Role+Name+Primitives
+  - Primitives bucketing (padding, colors, shadow)
+  - "Why grouped?" tooltips showing grouping criteria
+- **Variant detection:**
+  - Within-group variant clusters using primitives
+  - Variant filter chips + V{index} badges
+  - Deterministic ordering (count DESC, key ASC)
+  - Memoized computation
+- **Export enhancement:**
+  - Optional viewer-derived fields (groupKey, variantKey, etc.)
+  - JSON `viewerDerived` object, CSV appended columns
+  - Export-only (not persisted)
 
 ---
 
