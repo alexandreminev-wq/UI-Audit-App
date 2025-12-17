@@ -601,6 +601,50 @@ function ViewerApp() {
             .sort((a, b) => b.count - a.count);
     }, [filteredCaptures, groupingMode, computeGroupKey]);
 
+    // Memoized selected group (for group detail view)
+    const selectedGroup = useMemo(() => {
+        if (!selectedGroupKey) return null;
+        return groups.find((g) => g.key === selectedGroupKey) ?? null;
+    }, [selectedGroupKey, groups]);
+
+    // Memoized variant model (for group detail view)
+    const variantModel = useMemo(() => {
+        if (!selectedGroup) return null;
+
+        const captureVariantCache = new Map<string, string>();
+        const variantsMap = new Map<string, CaptureListItem[]>();
+
+        selectedGroup.items.forEach((capture) => {
+            const variantKey = computeVariantKey(capture);
+            captureVariantCache.set(capture.id, variantKey);
+
+            if (!variantsMap.has(variantKey)) {
+                variantsMap.set(variantKey, []);
+            }
+            variantsMap.get(variantKey)!.push(capture);
+        });
+
+        const variants = Array.from(variantsMap.entries())
+            .map(([key, items]) => ({
+                key,
+                items,
+                count: items.length,
+            }))
+            .sort((a, b) => {
+                if (a.count !== b.count) return b.count - a.count;
+                return a.key.localeCompare(b.key);
+            })
+            .map((v, index) => ({
+                ...v,
+                index: index + 1,
+            }));
+
+        const variantIndexMap = new Map<string, number>();
+        variants.forEach((v) => variantIndexMap.set(v.key, v.index));
+
+        return { captureVariantCache, variants, variantIndexMap };
+    }, [selectedGroupKey, selectedGroup?.items]);
+
     // Helper to determine which captures to export
     const getCapturesToExport = useCallback((): CaptureListItem[] => {
         if (viewMode === "ungrouped") {
@@ -1303,35 +1347,14 @@ function ViewerApp() {
                         )}
 
                         {/* Group detail view */}
-                        {filteredCaptures.length > 0 && viewMode === "grouped" && selectedGroupKey && (() => {
-                            const selectedGroup = groups.find((g) => g.key === selectedGroupKey);
-                            if (!selectedGroup) return null;
+                        {filteredCaptures.length > 0 && viewMode === "grouped" && selectedGroupKey && selectedGroup && (() => {
+                            if (!variantModel) return null;
+                            const { captureVariantCache, variants, variantIndexMap } = variantModel;
 
-                            // Build variants map
-                            const variantsMap = new Map<string, CaptureListItem[]>();
-                            selectedGroup.items.forEach((capture) => {
-                                const variantKey = computeVariantKey(capture);
-                                if (!variantsMap.has(variantKey)) {
-                                    variantsMap.set(variantKey, []);
-                                }
-                                variantsMap.get(variantKey)!.push(capture);
-                            });
-
-                            const variants = Array.from(variantsMap.entries()).map(([key, items], index) => ({
-                                key,
-                                items,
-                                count: items.length,
-                                index: index + 1,
-                            }));
-
-                            // Filter items by selected variant
+                            // Filter items by selected variant (use cache)
                             const displayedItems = selectedVariantKey
-                                ? selectedGroup.items.filter((c) => computeVariantKey(c) === selectedVariantKey)
+                                ? selectedGroup.items.filter((c) => captureVariantCache.get(c.id) === selectedVariantKey)
                                 : selectedGroup.items;
-
-                            // Build variant key -> index map for badges
-                            const variantIndexMap = new Map<string, number>();
-                            variants.forEach((v) => variantIndexMap.set(v.key, v.index));
 
                             return (
                                 <>
@@ -1351,11 +1374,11 @@ function ViewerApp() {
                                     </button>
 
                                     {/* Variants UI */}
-                                    {variants.length > 1 && (
-                                        <div style={{ marginBottom: 16 }}>
-                                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-                                                Variants: {variants.length}
-                                            </div>
+                                    <div style={{ marginBottom: 16 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                                            Variants: {variants.length}
+                                        </div>
+                                        {variants.length > 1 && (
                                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                                 {selectedVariantKey && (
                                                     <button
@@ -1401,8 +1424,8 @@ function ViewerApp() {
                                                     </button>
                                                 ))}
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
 
                                     <div
                                         style={{
@@ -1412,7 +1435,7 @@ function ViewerApp() {
                                         }}
                                     >
                                         {displayedItems.map((capture) => {
-                                            const variantKey = computeVariantKey(capture);
+                                            const variantKey = captureVariantCache.get(capture.id)!;
                                             const variantIndex = variantIndexMap.get(variantKey);
 
                                             return (
