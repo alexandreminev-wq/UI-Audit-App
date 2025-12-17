@@ -716,16 +716,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const captures = await listCapturesBySession(sessionId, limit);
 
             // Transform to lightweight list items
-            const listItems = captures.map((capture) => ({
-                id: capture.id,
-                sessionId: capture.sessionId,
-                createdAt: capture.createdAt ?? (capture as any).conditions?.timestamp ?? null,
-                url: capture.url ?? (capture as any).page?.url ?? "",
-                tagName: capture.element?.tagName || null,
-                role: capture.element?.role || null,
-                accessibleName: capture.element?.intent?.accessibleName || null,
-                screenshot: capture.screenshot || null,
-            }));
+            const listItems = captures.map((capture) => {
+                // Convert createdAt to epoch ms
+                let createdAtMs: number | null = null;
+                if (typeof capture.createdAt === "string") {
+                    createdAtMs = Date.parse(capture.createdAt);
+                    if (isNaN(createdAtMs)) createdAtMs = null;
+                } else if (typeof capture.createdAt === "number") {
+                    createdAtMs = capture.createdAt;
+                } else if ((capture as any).conditions?.timestamp) {
+                    createdAtMs = Date.parse((capture as any).conditions.timestamp);
+                    if (isNaN(createdAtMs)) createdAtMs = null;
+                }
+
+                return {
+                    id: capture.id,
+                    sessionId: (capture as any).sessionId || capture.id.split("-")[0], // fallback for old records
+                    createdAt: createdAtMs,
+                    url: capture.url ?? (capture as any).page?.url ?? "",
+                    tagName: capture.element?.tagName || null,
+                    role: capture.element?.role || null,
+                    accessibleName: (capture.element as any)?.intent?.accessibleName || null,
+                    screenshot: (capture as any).screenshot || null,
+                    primitivesSummary: capture.styles?.primitives ? {
+                        paddingTop: capture.styles.primitives.spacing?.paddingTop,
+                        paddingRight: capture.styles.primitives.spacing?.paddingRight,
+                        paddingBottom: capture.styles.primitives.spacing?.paddingBottom,
+                        paddingLeft: capture.styles.primitives.spacing?.paddingLeft,
+                        backgroundColorRgba: capture.styles.primitives.backgroundColor?.rgba ?? null,
+                        borderColorRgba: capture.styles.primitives.borderColor?.rgba ?? null,
+                        colorRgba: capture.styles.primitives.color?.rgba ?? null,
+                        shadowPresence: capture.styles.primitives.shadow?.shadowPresence,
+                        shadowLayerCount: capture.styles.primitives.shadow?.shadowLayerCount,
+                    } : undefined,
+                };
+            });
 
             sendResponse({ ok: true, captures: listItems });
         })();

@@ -5,6 +5,8 @@ import ReactDOM from "react-dom/client";
 // Types
 // ─────────────────────────────────────────────────────────────
 
+type GroupingMode = "nameOnly" | "namePlusType" | "nameTypePrimitives";
+
 interface SessionRecord {
     id: string;
     createdAt: number;
@@ -26,6 +28,17 @@ interface CaptureListItem {
         width: number;
         height: number;
     } | null;
+    primitivesSummary?: {
+        paddingTop?: string;
+        paddingRight?: string;
+        paddingBottom?: string;
+        paddingLeft?: string;
+        backgroundColorRgba?: { r: number; g: number; b: number; a: number } | null;
+        borderColorRgba?: { r: number; g: number; b: number; a: number } | null;
+        colorRgba?: { r: number; g: number; b: number; a: number } | null;
+        shadowPresence?: string;
+        shadowLayerCount?: number;
+    };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +53,79 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
             else resolve(resp as R);
         });
     });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Grouping Helpers
+// ─────────────────────────────────────────────────────────────
+
+// Normalize accessible name for grouping (top-level to avoid closure deps)
+function normalizeAccessibleName(name: string | null): string {
+    if (!name) return "";
+    // Lowercase, trim, collapse multiple spaces, remove surrounding punctuation
+    return name
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/^[^\p{L}\p{N}\s]+|[^\p{L}\p{N}\s]+$/gu, "");
+}
+
+// Parse "10px" -> 10, round to nearest 4
+function bucketPadding(value: string | undefined): string {
+    if (!value) return "0";
+    if (value === "0") return "0"; // Accept "0" without "px"
+    const match = value.match(/^([\d.]+)px$/);
+    if (!match) return "0";
+    const px = parseFloat(match[1]);
+    return String(Math.round(px / 4) * 4);
+}
+
+// Round RGB to 16-step buckets (0,16,32...240), alpha to 0.1
+// Supports rgba object {r,g,b,a}, "rgba(r,g,b,a)", and "r,g,b,a" formats
+function bucketRgba(value: { r: number; g: number; b: number; a: number } | string | null | undefined): string {
+    if (!value) return "none";
+
+    // Handle object format (primary)
+    if (typeof value === "object" && "r" in value) {
+        const rb = Math.min(240, Math.round(value.r / 16) * 16);
+        const gb = Math.min(240, Math.round(value.g / 16) * 16);
+        const bb = Math.min(240, Math.round(value.b / 16) * 16);
+        const ab = Math.round(value.a * 10) / 10;
+        return `${rb},${gb},${bb},${ab}`;
+    }
+
+    // Handle string formats (legacy)
+    if (typeof value === "string") {
+        // Try "rgba(r,g,b,a)" or "rgb(r,g,b)" format first
+        let match = value.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
+        if (match) {
+            const [, r, g, b, a] = match;
+            const rb = Math.min(240, Math.round(parseInt(r) / 16) * 16);
+            const gb = Math.min(240, Math.round(parseInt(g) / 16) * 16);
+            const bb = Math.min(240, Math.round(parseInt(b) / 16) * 16);
+            const ab = a ? Math.round(parseFloat(a) * 10) / 10 : 1;
+            return `${rb},${gb},${bb},${ab}`;
+        }
+
+        // Try "r,g,b,a" format
+        match = value.match(/^(\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?$/);
+        if (match) {
+            const [, r, g, b, a] = match;
+            const rb = Math.min(240, Math.round(parseInt(r) / 16) * 16);
+            const gb = Math.min(240, Math.round(parseInt(g) / 16) * 16);
+            const bb = Math.min(240, Math.round(parseInt(b) / 16) * 16);
+            const ab = a ? Math.round(parseFloat(a) * 10) / 10 : 1;
+            return `${rb},${gb},${bb},${ab}`;
+        }
+    }
+
+    return "none";
+}
+
+// Shadow: presence + layerCount
+function bucketShadow(presence: string | undefined, layerCount: number | undefined): string {
+    if (!presence || presence === "none") return "noshadow";
+    return `${presence}-${layerCount ?? 0}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -63,6 +149,7 @@ function ViewerApp() {
     // View mode: "ungrouped" | "grouped"
     const [viewMode, setViewMode] = useState<"ungrouped" | "grouped">("ungrouped");
     const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+    const [groupingMode, setGroupingMode] = useState<GroupingMode>("nameOnly");
 
     // Compare mode
     const [compareAId, setCompareAId] = useState<string | null>(null);
@@ -291,25 +378,43 @@ function ViewerApp() {
         return Array.from(new Set(captures.map((c) => c.tagName).filter(Boolean))).sort();
     }, [captures]);
 
-    // Normalize accessible name for grouping
-    const normalizeAccessibleName = (name: string | null): string => {
-        if (!name) return "";
-        // Lowercase, trim, collapse multiple spaces, remove surrounding punctuation
-        return name
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, " ")
-            .replace(/^[^\p{L}\p{N}\s]+|[^\p{L}\p{N}\s]+$/gu, "");
-    };
+    // Compute group key based on grouping mode
+    const computeGroupKey = useCallback((capture: CaptureListItem, mode: GroupingMode): string => {
+        const typeKey = capture.tagName ?? "unknown";
+        const nameKey = normalizeAccessibleName(capture.accessibleName);
+        const roleKey = capture.role ?? "norole";
+
+        switch (mode) {
+            case "nameOnly":
+                // Tag + Name (default)
+                return `${typeKey}::${nameKey}`;
+            case "namePlusType":
+                // Tag + Role + Name
+                return `${typeKey}::${roleKey}::${nameKey}`;
+            case "nameTypePrimitives": {
+                // Tag + Role + Name + Primitives
+                const prims = capture.primitivesSummary;
+                const pt = bucketPadding(prims?.paddingTop);
+                const pr = bucketPadding(prims?.paddingRight);
+                const pb = bucketPadding(prims?.paddingBottom);
+                const pl = bucketPadding(prims?.paddingLeft);
+                const bg = bucketRgba(prims?.backgroundColorRgba);
+                const border = bucketRgba(prims?.borderColorRgba);
+                const color = bucketRgba(prims?.colorRgba);
+                const shadow = bucketShadow(prims?.shadowPresence, prims?.shadowLayerCount);
+                return `${typeKey}::${roleKey}::${nameKey}::p${pt}-${pr}-${pb}-${pl}::bg${bg}::bd${border}::c${color}::sh${shadow}`;
+            }
+            default:
+                return `${typeKey}::${nameKey}`;
+        }
+    }, []);
 
     // Compute groups from filtered captures
     const groups = useMemo(() => {
         const groupMap = new Map<string, CaptureListItem[]>();
 
         filteredCaptures.forEach((capture) => {
-            const typeKey = capture.tagName ?? "unknown";
-            const nameKey = normalizeAccessibleName(capture.accessibleName);
-            const groupKey = `${typeKey}::${nameKey}`;
+            const groupKey = computeGroupKey(capture, groupingMode);
 
             if (!groupMap.has(groupKey)) {
                 groupMap.set(groupKey, []);
@@ -321,7 +426,7 @@ function ViewerApp() {
         return Array.from(groupMap.entries())
             .map(([key, items]) => ({ key, items, count: items.length }))
             .sort((a, b) => b.count - a.count);
-    }, [filteredCaptures]);
+    }, [filteredCaptures, groupingMode, computeGroupKey]);
 
     // Helper to determine which captures to export
     const getCapturesToExport = useCallback((): CaptureListItem[] => {
@@ -494,6 +599,14 @@ function ViewerApp() {
 
             const rows = fullRecords.map((record) => {
                 const prims = record.styles?.primitives || {};
+                // Format rgba objects as strings for CSV
+                const formatRgba = (rgba: any) => {
+                    if (!rgba) return "";
+                    if (typeof rgba === "object" && "r" in rgba) {
+                        return `${rgba.r},${rgba.g},${rgba.b},${rgba.a}`;
+                    }
+                    return String(rgba);
+                };
                 return [
                     record.sessionId,
                     record.id,
@@ -507,9 +620,9 @@ function ViewerApp() {
                     prims.spacing?.paddingRight,
                     prims.spacing?.paddingBottom,
                     prims.spacing?.paddingLeft,
-                    prims.colors?.backgroundColorRgba,
-                    prims.colors?.colorRgba,
-                    prims.colors?.borderColorRgba,
+                    formatRgba(prims.backgroundColor?.rgba),
+                    formatRgba(prims.color?.rgba),
+                    formatRgba(prims.borderColor?.rgba),
                     prims.shadow?.shadowPresence,
                     prims.shadow?.shadowLayerCount,
                 ].map(escapeCsv);
@@ -811,6 +924,30 @@ function ViewerApp() {
                                 >
                                     Grouped
                                 </button>
+                                {viewMode === "grouped" && (
+                                    <>
+                                        <span style={{ fontSize: 13, color: "#666", marginLeft: 8 }}>by</span>
+                                        <select
+                                            value={groupingMode}
+                                            onChange={(e) => {
+                                                setGroupingMode(e.target.value as GroupingMode);
+                                                setSelectedGroupKey(null);
+                                            }}
+                                            style={{
+                                                padding: "6px 8px",
+                                                fontSize: 13,
+                                                border: "1px solid #ddd",
+                                                borderRadius: 4,
+                                                background: "white",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <option value="nameOnly">Tag + Name</option>
+                                            <option value="namePlusType">Tag + Role + Name</option>
+                                            <option value="nameTypePrimitives">Tag + Role + Name + Primitives</option>
+                                        </select>
+                                    </>
+                                )}
                             </div>
 
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1472,9 +1609,28 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobId
     const [thumbnailUrls, setThumbnailUrls] = useState<(string | null)[]>([]);
     const [thumbnailBlobIds, setThumbnailBlobIds] = useState<(string | null)[]>([]);
 
-    // Parse groupKey: "typeKey::nameKey"
-    const [typeKey, nameKey] = groupKey.split("::");
-    const displayLabel = nameKey ? `<${typeKey}> ${nameKey}` : `<${typeKey}> (no name)`;
+    // Parse groupKey: supports "tag::name", "tag::role::name", or "tag::role::name::primitives..."
+    const parts = groupKey.split("::");
+    const typeKey = parts[0] || "unknown";
+    const displayLabel = (() => {
+        if (parts.length === 2) {
+            // nameOnly: "tag::name"
+            const nameKey = parts[1];
+            return nameKey ? `<${typeKey}> ${nameKey}` : `<${typeKey}> (no name)`;
+        } else if (parts.length === 3) {
+            // namePlusType: "tag::role::name"
+            const roleKey = parts[1];
+            const nameKey = parts[2];
+            return nameKey ? `<${typeKey}> [${roleKey}] ${nameKey}` : `<${typeKey}> [${roleKey}] (no name)`;
+        } else if (parts.length > 3) {
+            // nameTypePrimitives: "tag::role::name::primitives..."
+            const roleKey = parts[1];
+            const nameKey = parts[2];
+            return nameKey ? `<${typeKey}> [${roleKey}] ${nameKey}` : `<${typeKey}> [${roleKey}] (no name)`;
+        } else {
+            return `<${typeKey}>`;
+        }
+    })();
 
     // Load up to 3 thumbnails
     useEffect(() => {
