@@ -7,37 +7,42 @@
 All core requirements achieved:
 
 ### Completed Features
-- ✅ Hover highlight overlay with click-to-capture
-- ✅ Session tracking (`sessionId` on every capture)
-- ✅ Schema versioning (`captureSchemaVersion: 2`, `stylePrimitiveVersion: 1`)
-- ✅ IndexedDB storage (3 stores: `captures`, `sessions`, `blobs`)
-- ✅ Capture conditions (viewport, DPR, visualViewportScale, timestamp)
-- ✅ Element intent anchors (accessibleName, inputType, href, disabled, checked)
-- ✅ Style primitives v2 (per-side padding, raw + RGBA colors, shadow presence/layers)
-- ✅ OffscreenCanvas screenshot pipeline (capture → crop → encode → blob store)
-- ✅ Screenshot blob storage with `screenshotBlobId` references
-- ✅ Popup UI displays captures with screenshot previews
-- ✅ Session persistence across service worker restarts
-- ✅ Pages visited tracking per session
-- ✅ Overlay hidden during screenshot capture (clean images)
-- ✅ Fixed ArrayBuffer serialization for chrome.runtime.sendMessage
-- ✅ Fixed popup state management with proper tab routing
+## Milestone 2 v2.2 — Viewer gallery + naive clustering (Complete) — 2025-12-17
+
+### What’s complete
+- Viewer builds via Vite into `dist/` and is opened from popup via `chrome.runtime.getURL("viewer.html")`.
+- Viewer uses message passing only; service worker remains the only IndexedDB accessor.
+- Sessions list + session selection + captures gallery + thumbnails (blob fetch via `AUDIT/GET_BLOB` returning `{ ok: true, arrayBuffer: number[] }`).
+- Filters: search (substring), has-screenshot toggle, tag/type dropdown. Filters combine correctly.
+- Grouped/ungrouped toggle with naive grouping: `tagName + unicode-safe normalized accessibleName`.
+- Group detail view with occurrences count.
+- Compare A/B: side-by-side screenshots + primitives diff showing only differing paths.
+- Export JSON + CSV:
+  - no embedded image bytes (uses `screenshotBlobId` refs)
+  - strips `styles.computed` from JSON
+- Stability/perf improvements:
+  - stale request protection for capture loads
+  - blob URL caching + cleanup
+  - missing blob handling UI (“No screenshot” vs “Missing blob”) with deduped logging
+  - export progress + batching/yielding to keep UI responsive
+- UX polish:
+  - loading/error states with Retry
+  - empty states (“No captures in this session yet”, “No captures match your filters” + Clear filters)
+  - type/tag chip on capture cards
+  - group label tooltip
+  - focus-visible keyboard styling
+
+### Acceptance checks (smoke)
+- Sessions load (and error banner + Retry works if SW fails).
+- Selecting sessions loads captures without stale overwrites when switching quickly.
+- Missing screenshots show “No screenshot”; missing blob records show “Missing blob”.
+- Export shows progress, completes, and UI remains responsive for large sessions.
+
 
 ### Known Limitations (Acceptable for MVP)
 - `browserZoom` remains null (flaky detection, not critical)
 - Hotkey capture not implemented (optional feature)
 - No dedupe/signature keys in extension (deferred to Milestone 2 viewer)
-
-## What's Next: Milestone 2 - Viewer Gallery
-Focus shifts to building a proper viewer application (extension page / web app) that:
-- Reads sessions, captures, and blobs **only via Service Worker message API**
-  - Viewer/popup/content scripts do NOT access IndexedDB directly
-- Lists sessions and supports session detail view
-- Lists captures with filters + search
-- Shows screenshot thumbnails via `blobId` lookups
-- Computes viewer-side signatures + grouping (naive heuristic)
-- Provides compare view (screenshot + primitives diff)
-- Exports JSON + CSV (blob IDs referenced, no image embedding)
 
 
 ## Technical Notes

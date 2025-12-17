@@ -72,6 +72,10 @@ function ViewerApp() {
 
     // Export state
     const [isExporting, setIsExporting] = useState(false);
+    const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "success" | "error">("idle");
+    const [exportMessage, setExportMessage] = useState<string | null>(null);
+    const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
+    const exportResetTimerRef = useRef<number | null>(null);
 
     // Loading and error states
     const [isLoadingSessions, setIsLoadingSessions] = useState(true);
@@ -120,6 +124,15 @@ function ViewerApp() {
     useEffect(() => {
         loadSessions();
     }, [loadSessions]);
+
+    // Cleanup export timer on unmount
+    useEffect(() => {
+        return () => {
+            if (exportResetTimerRef.current !== null) {
+                clearTimeout(exportResetTimerRef.current);
+            }
+        };
+    }, []);
 
     // Load captures when session changes
     const loadCaptures = useCallback(async (sessionId: string) => {
@@ -347,9 +360,29 @@ function ViewerApp() {
     // Export as JSON
     const handleExportJSON = useCallback(async () => {
         setIsExporting(true);
+        setExportStatus("exporting");
+        setExportMessage("Exporting...");
+        setExportProgress(null);
+        if (exportResetTimerRef.current !== null) {
+            clearTimeout(exportResetTimerRef.current);
+            exportResetTimerRef.current = null;
+        }
         try {
             const capturesToExport = getCapturesToExport();
-            const fullRecords = await fetchFullCaptures(capturesToExport);
+            const total = capturesToExport.length;
+            const BATCH_SIZE = 50;
+
+            setExportProgress({ current: 0, total });
+
+            const fullRecords = [];
+            for (let i = 0; i < total; i += BATCH_SIZE) {
+                const batch = capturesToExport.slice(i, i + BATCH_SIZE);
+                const batchRecords = await fetchFullCaptures(batch);
+                fullRecords.push(...batchRecords);
+
+                setExportProgress({ current: Math.min(i + BATCH_SIZE, total), total });
+                await new Promise((r) => setTimeout(r, 0));
+            }
 
             // Remove computed styles and screenshot bytes to keep file size down
             const cleanedRecords = fullRecords.map((record) => {
@@ -377,8 +410,25 @@ function ViewerApp() {
             a.download = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.json`;
             a.click();
             URL.revokeObjectURL(url);
+
+            setExportProgress(null);
+            setExportStatus("success");
+            setExportMessage("Export complete");
+            exportResetTimerRef.current = window.setTimeout(() => {
+                setExportStatus("idle");
+                setExportMessage(null);
+                exportResetTimerRef.current = null;
+            }, 2500);
         } catch (err) {
             console.error("[VIEWER] Export JSON failed:", err);
+            setExportProgress(null);
+            setExportStatus("error");
+            setExportMessage("Export failed");
+            exportResetTimerRef.current = window.setTimeout(() => {
+                setExportStatus("idle");
+                setExportMessage(null);
+                exportResetTimerRef.current = null;
+            }, 4000);
         } finally {
             setIsExporting(false);
         }
@@ -387,9 +437,29 @@ function ViewerApp() {
     // Export as CSV
     const handleExportCSV = useCallback(async () => {
         setIsExporting(true);
+        setExportStatus("exporting");
+        setExportMessage("Exporting...");
+        setExportProgress(null);
+        if (exportResetTimerRef.current !== null) {
+            clearTimeout(exportResetTimerRef.current);
+            exportResetTimerRef.current = null;
+        }
         try {
             const capturesToExport = getCapturesToExport();
-            const fullRecords = await fetchFullCaptures(capturesToExport);
+            const total = capturesToExport.length;
+            const BATCH_SIZE = 50;
+
+            setExportProgress({ current: 0, total });
+
+            const fullRecords = [];
+            for (let i = 0; i < total; i += BATCH_SIZE) {
+                const batch = capturesToExport.slice(i, i + BATCH_SIZE);
+                const batchRecords = await fetchFullCaptures(batch);
+                fullRecords.push(...batchRecords);
+
+                setExportProgress({ current: Math.min(i + BATCH_SIZE, total), total });
+                await new Promise((r) => setTimeout(r, 0));
+            }
 
             // Helper to escape CSV values
             const escapeCsv = (val: any): string => {
@@ -454,8 +524,25 @@ function ViewerApp() {
             a.download = `captures-${selectedSessionId?.slice(0, 8)}-${Date.now()}.csv`;
             a.click();
             URL.revokeObjectURL(url);
+
+            setExportProgress(null);
+            setExportStatus("success");
+            setExportMessage("Export complete");
+            exportResetTimerRef.current = window.setTimeout(() => {
+                setExportStatus("idle");
+                setExportMessage(null);
+                exportResetTimerRef.current = null;
+            }, 2500);
         } catch (err) {
             console.error("[VIEWER] Export CSV failed:", err);
+            setExportProgress(null);
+            setExportStatus("error");
+            setExportMessage("Export failed");
+            exportResetTimerRef.current = window.setTimeout(() => {
+                setExportStatus("idle");
+                setExportMessage(null);
+                exportResetTimerRef.current = null;
+            }, 4000);
         } finally {
             setIsExporting(false);
         }
@@ -506,8 +593,19 @@ function ViewerApp() {
     }, []);
 
     return (
-        <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui" }}>
-            {/* Sessions column */}
+        <>
+            <style>{`
+                button:focus-visible,
+                a:focus-visible,
+                input:focus-visible,
+                select:focus-visible {
+                    outline: 2px solid #2196f3;
+                    outline-offset: 2px;
+                    border-radius: 4px;
+                }
+            `}</style>
+            <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui" }}>
+                {/* Sessions column */}
             <div
                 style={{
                     width: 300,
@@ -716,9 +814,22 @@ function ViewerApp() {
                             </div>
 
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                {isExporting && (
-                                    <span style={{ fontSize: 12, color: "#666", fontStyle: "italic" }}>
-                                        Exporting...
+                                {(exportMessage || exportProgress) && (
+                                    <span
+                                        style={{
+                                            fontSize: 12,
+                                            fontStyle: "italic",
+                                            color:
+                                                exportStatus === "error"
+                                                    ? "#d32f2f"
+                                                    : exportStatus === "success"
+                                                    ? "#388e3c"
+                                                    : "#666",
+                                        }}
+                                    >
+                                        {exportProgress
+                                            ? `Exporting ${exportProgress.current} / ${exportProgress.total}...`
+                                            : exportMessage}
                                     </span>
                                 )}
                                 <span style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>Export:</span>
@@ -977,6 +1088,7 @@ function ViewerApp() {
                 )}
             </div>
         </div>
+        </>
     );
 }
 
@@ -1421,6 +1533,7 @@ function GroupCard({ groupKey, count, items, getBlobUrl, onSelect, missingBlobId
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                 }}
+                title={displayLabel}
             >
                 {displayLabel}
             </div>
@@ -1625,6 +1738,19 @@ function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCo
             >
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {displayName}
+                </span>
+                <span
+                    style={{
+                        background: "#f5f5f5",
+                        color: "#666",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        border: "1px solid #ddd",
+                    }}
+                >
+                    {(capture.tagName ?? "UNKNOWN").toUpperCase()}
                 </span>
                 {isCompareA && (
                     <span
