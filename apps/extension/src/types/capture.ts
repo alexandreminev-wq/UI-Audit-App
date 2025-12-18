@@ -128,6 +128,21 @@ export interface CaptureScreenshotRef {
   height: number;
 }
 
+/**
+ * Landmark role types (Milestone 4)
+ */
+export type LandmarkRole =
+  | "banner"
+  | "navigation"
+  | "main"
+  | "contentinfo"
+  | "complementary"
+  | "generic";
+
+export interface CaptureScope {
+  nearestLandmarkRole?: LandmarkRole; // Milestone 4: landmark context
+}
+
 export interface CaptureRecordV2 {
   id: string;
   sessionId: string;
@@ -139,6 +154,8 @@ export interface CaptureRecordV2 {
   createdAt: number; // ms since epoch (backward compatible)
 
   conditions: CaptureConditions;
+
+  scope?: CaptureScope; // Milestone 4: optional scope context
 
   element: ElementCore;
 

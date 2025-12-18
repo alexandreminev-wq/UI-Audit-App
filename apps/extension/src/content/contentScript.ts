@@ -1,4 +1,4 @@
-import { generateCaptureId, type CaptureConditions, type ElementIntent, type ThemeHint } from "../types/capture";
+import { generateCaptureId, type CaptureConditions, type ElementIntent, type ThemeHint, type LandmarkRole } from "../types/capture";
 import { extractComputedStyles, extractStylePrimitives } from "./extractComputedStyles";
 
 console.log("[UI Inventory] Content script loaded on:", location.href);
@@ -44,6 +44,38 @@ function extractConditions(): CaptureConditions {
         timestamp: Date.now(),
         themeHint,
     };
+}
+
+/**
+ * Get nearest landmark role for scope context (innermost wins)
+ * Walks up DOM tree looking for explicit role attributes or semantic HTML tags
+ */
+function getNearestLandmarkRole(el: Element): LandmarkRole {
+    let current: Element | null = el;
+    let depth = 0;
+    const maxDepth = 15;
+
+    while (current && current !== document.body && depth < maxDepth) {
+        // Check explicit role attribute first
+        const role = current.getAttribute("role")?.trim().toLowerCase();
+        if (role === "banner" || role === "navigation" || role === "main" ||
+            role === "contentinfo" || role === "complementary") {
+            return role as LandmarkRole;
+        }
+
+        // Check semantic HTML tags
+        const tagName = current.tagName;
+        if (tagName === "HEADER") return "banner";
+        if (tagName === "NAV") return "navigation";
+        if (tagName === "MAIN") return "main";
+        if (tagName === "FOOTER") return "contentinfo";
+        if (tagName === "ASIDE") return "complementary";
+
+        current = current.parentElement;
+        depth++;
+    }
+
+    return "generic";
 }
 
 /**
@@ -109,6 +141,8 @@ function extractIntent(element: Element): ElementIntent {
 // ─────────────────────────────────────────────────────────────
 
 let overlayDiv: HTMLDivElement | null = null;
+let pillDiv: HTMLDivElement | null = null;
+let lastHoverElForPill: Element | null = null;
 let isHoverModeActive = false;
 let rafId: number | null = null;
 let pendingUpdate = false;
@@ -133,6 +167,142 @@ function createOverlay(): HTMLDivElement {
     return div;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Metadata pill logic
+// ─────────────────────────────────────────────────────────────
+
+function createMetadataPill(): HTMLDivElement {
+    const div = document.createElement("div");
+    div.id = "ui-inventory-metadata-pill";
+    div.style.cssText = `
+        all: initial;
+        position: fixed;
+        z-index: 2147483647;
+        pointer-events: none;
+        display: none;
+    `;
+    // Set explicit basics after reset
+    div.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    div.style.fontSize = "12px";
+    div.style.lineHeight = "1.4";
+    div.style.color = "#1a1a1a";
+    div.style.backgroundColor = "#ffffff";
+    div.style.border = "1px solid #e0e0e0";
+    div.style.padding = "8px 12px";
+    div.style.borderRadius = "6px";
+    div.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+    div.style.maxWidth = "320px";
+    div.style.whiteSpace = "pre-line";
+    div.style.wordBreak = "break-word";
+
+    document.documentElement.appendChild(div);
+    return div;
+}
+
+/**
+ * Get readable CSS-ish path (display-only, max ~80 chars)
+ */
+function getReadableCssPath(el: Element): string {
+    const segments: string[] = [];
+    let current: Element | null = el;
+    let depth = 0;
+
+    while (current && current !== document.documentElement && depth < 3) {
+        let segment = current.tagName.toLowerCase();
+
+        // Add id if present
+        const id = (current as HTMLElement).id;
+        if (id) {
+            segment += `#${id}`;
+        }
+
+        // Add up to 2 classes
+        const classes = Array.from(current.classList).slice(0, 2);
+        if (classes.length > 0) {
+            segment += "." + classes.join(".");
+        }
+
+        segments.unshift(segment);
+
+        // Stop if we found an id (good anchor point)
+        if (id) break;
+
+        current = current.parentElement;
+        depth++;
+    }
+
+    let path = segments.join(" > ");
+
+    // Cap to ~80 chars
+    if (path.length > 80) {
+        path = path.slice(0, 77) + "…";
+    }
+
+    return path;
+}
+
+/**
+ * Update metadata pill content and position for hovered element
+ * Anchors pill above (or below if no space) the element's bounding box
+ */
+function updateMetadataPill(el: Element | null) {
+    if (!pillDiv || !isHoverModeActive) return;
+
+    // Hide if no element or html/body
+    if (!el || el === document.documentElement || el === document.body) {
+        pillDiv.style.display = "none";
+        lastHoverElForPill = null;
+        return;
+    }
+
+    // Only recompute if element changed
+    if (el !== lastHoverElForPill) {
+        const tagName = `<${el.tagName.toLowerCase()}>`;
+        const path = getReadableCssPath(el);
+
+        pillDiv.textContent = `${tagName}\n${path}`;
+        lastHoverElForPill = el;
+
+        // Measure pill size (temporarily show if hidden to get dimensions)
+        const wasHidden = pillDiv.style.display === "none";
+        if (wasHidden) {
+            pillDiv.style.display = "block";
+            pillDiv.style.visibility = "hidden"; // measure without showing
+        }
+
+        const pillWidth = pillDiv.offsetWidth;
+        const pillHeight = pillDiv.offsetHeight;
+
+        if (wasHidden) {
+            pillDiv.style.visibility = "visible";
+        }
+
+        // Get element bounding box
+        const rect = el.getBoundingClientRect();
+
+        // Default: place above element with 6px gap
+        let top = rect.top - pillHeight - 6;
+        let left = rect.left;
+
+        // If not enough space above, place below
+        if (top < 6) {
+            top = rect.bottom + 6;
+        }
+
+        // Clamp top within viewport bounds
+        top = Math.max(6, Math.min(top, window.innerHeight - pillHeight - 6));
+
+        // Clamp left within viewport bounds
+        left = Math.min(Math.max(6, left), window.innerWidth - pillWidth - 6);
+
+        // Apply position
+        pillDiv.style.left = `${Math.round(left)}px`;
+        pillDiv.style.top = `${Math.round(top)}px`;
+    }
+
+    pillDiv.style.display = "block";
+}
+
 function updateOverlay(x: number, y: number) {
     if (!overlayDiv || !isHoverModeActive) return;
 
@@ -140,12 +310,14 @@ function updateOverlay(x: number, y: number) {
     const el = document.elementFromPoint(x, y);
     if (!el) {
         overlayDiv.style.display = "none";
+        updateMetadataPill(null);
         return;
     }
 
     // Skip <html> and <body> unless truly necessary
     if (el === document.documentElement || el === document.body) {
         overlayDiv.style.display = "none";
+        updateMetadataPill(null);
         return;
     }
 
@@ -156,6 +328,9 @@ function updateOverlay(x: number, y: number) {
     overlayDiv.style.top = `${rect.top}px`;
     overlayDiv.style.width = `${rect.width}px`;
     overlayDiv.style.height = `${rect.height}px`;
+
+    // Update metadata pill
+    updateMetadataPill(el);
 }
 
 function onMouseMove(e: MouseEvent) {
@@ -191,6 +366,7 @@ async function onClickSelect(e: MouseEvent) {
     const conditions = extractConditions();
     const intent = extractIntent(target);
     const primitives = extractStylePrimitives(target);
+    const nearestLandmarkRole = getNearestLandmarkRole(target);
 
     // Build capture record (v1 structure with v2.2 fields added)
     // Service worker will transform this to full CaptureRecordV2
@@ -201,6 +377,11 @@ async function onClickSelect(e: MouseEvent) {
 
         // v2.2: conditions
         conditions,
+
+        // Milestone 4: scope (landmark context)
+        scope: {
+            nearestLandmarkRole,
+        },
 
         element: {
             tagName: target.tagName,
@@ -248,10 +429,14 @@ async function onClickSelect(e: MouseEvent) {
         },
     };
 
-    // Hide overlay before screenshot to avoid capturing it
+    // Hide overlay and pill before screenshot to avoid capturing them
     const wasOverlayVisible = overlayDiv && overlayDiv.style.display !== "none";
+    const wasPillVisible = pillDiv && pillDiv.style.display !== "none";
     if (overlayDiv) {
         overlayDiv.style.display = "none";
+    }
+    if (pillDiv) {
+        pillDiv.style.display = "none";
     }
 
     // Wait for browser to render the hidden overlay (one frame)
@@ -260,10 +445,13 @@ async function onClickSelect(e: MouseEvent) {
     // Send capture message to service worker
     chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record });
 
-    // Restore overlay after a short delay (allows screenshot to complete)
+    // Restore overlay and pill after a short delay (allows screenshot to complete)
     setTimeout(() => {
         if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
             overlayDiv.style.display = "block";
+        }
+        if (pillDiv && wasPillVisible && isHoverModeActive) {
+            pillDiv.style.display = "block";
         }
     }, 100);
 }
@@ -278,6 +466,11 @@ function startHoverMode() {
     // Create overlay if it doesn't exist
     if (!overlayDiv) {
         overlayDiv = createOverlay();
+    }
+
+    // Create metadata pill if it doesn't exist
+    if (!pillDiv) {
+        pillDiv = createMetadataPill();
     }
 
     // Start listening for mouse movement
@@ -307,6 +500,13 @@ function stopHoverMode() {
         overlayDiv.remove();
         overlayDiv = null;
     }
+
+    // Hide and remove pill
+    if (pillDiv) {
+        pillDiv.remove();
+        pillDiv = null;
+    }
+    lastHoverElForPill = null;
 
     pendingUpdate = false;
 

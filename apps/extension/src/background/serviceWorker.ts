@@ -501,6 +501,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     themeHint: "unknown",
                 },
 
+                // Milestone 4: preserve scope if provided (backward compatible)
+                scope: recordV1.scope ?? undefined,
+
                 element: {
                     tagName: recordV1.element.tagName,
                     role: recordV1.element.role || null,
