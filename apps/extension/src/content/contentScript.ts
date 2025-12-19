@@ -143,6 +143,10 @@ function extractIntent(element: Element): ElementIntent {
 let overlayDiv: HTMLDivElement | null = null;
 let pillDiv: HTMLDivElement | null = null;
 let lastHoverElForPill: Element | null = null;
+let currentHoverEl: Element | null = null;
+let isFrozen = false;
+let frozenEl: Element | null = null;
+let suppressNextClickCapture = false;
 let isHoverModeActive = false;
 let rafId: number | null = null;
 let pendingUpdate = false;
@@ -187,7 +191,9 @@ function createMetadataPill(): HTMLDivElement {
     div.style.lineHeight = "1.4";
     div.style.color = "#1a1a1a";
     div.style.backgroundColor = "#ffffff";
-    div.style.border = "1px solid #e0e0e0";
+    div.style.borderWidth = "1px";
+    div.style.borderStyle = "solid";
+    div.style.borderColor = "#e0e0e0";
     div.style.padding = "8px 12px";
     div.style.borderRadius = "6px";
     div.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
@@ -245,7 +251,7 @@ function getReadableCssPath(el: Element): string {
  * Update metadata pill content and position for hovered element
  * Anchors pill above (or below if no space) the element's bounding box
  */
-function updateMetadataPill(el: Element | null) {
+function updateMetadataPill(el: Element | null, forceReposition: boolean = false) {
     if (!pillDiv || !isHoverModeActive) return;
 
     // Hide if no element or html/body
@@ -255,12 +261,26 @@ function updateMetadataPill(el: Element | null) {
         return;
     }
 
-    // Only recompute if element changed
-    if (el !== lastHoverElForPill) {
+    // Recompute if element changed or forced
+    const shouldRecompute = (el !== lastHoverElForPill) || forceReposition;
+
+    if (shouldRecompute) {
         const tagName = `<${el.tagName.toLowerCase()}>`;
         const path = getReadableCssPath(el);
 
-        pillDiv.textContent = `${tagName}\n${path}`;
+        // Add frozen prefix if frozen
+        const prefix = isFrozen ? "❄️ [FROZEN]\n" : "";
+        pillDiv.textContent = `${prefix}${tagName}\n${path}`;
+
+        // Update border color based on frozen state
+        if (isFrozen) {
+            pillDiv.style.borderColor = "#3b82f6";
+            pillDiv.style.borderWidth = "2px";
+        } else {
+            pillDiv.style.borderColor = "#e0e0e0";
+            pillDiv.style.borderWidth = "1px";
+        }
+
         lastHoverElForPill = el;
 
         // Measure pill size (temporarily show if hidden to get dimensions)
@@ -303,14 +323,40 @@ function updateMetadataPill(el: Element | null) {
     pillDiv.style.display = "block";
 }
 
+/**
+ * Render overlay and pill for a specific element (used when frozen)
+ */
+function renderForElement(el: Element) {
+    if (!overlayDiv || !isHoverModeActive) return;
+
+    // Guard against html/body
+    if (el === document.documentElement || el === document.body) return;
+
+    const rect = el.getBoundingClientRect();
+    overlayDiv.style.display = "block";
+    overlayDiv.style.left = `${rect.left}px`;
+    overlayDiv.style.top = `${rect.top}px`;
+    overlayDiv.style.width = `${rect.width}px`;
+    overlayDiv.style.height = `${rect.height}px`;
+
+    updateMetadataPill(el, true); // force reposition
+}
+
 function updateOverlay(x: number, y: number) {
     if (!overlayDiv || !isHoverModeActive) return;
+
+    // If frozen, ignore mouse movement and keep rendering frozen element
+    if (isFrozen && frozenEl) {
+        renderForElement(frozenEl);
+        return;
+    }
 
     // Find element under cursor (overlay has pointer-events: none, so it won't interfere)
     const el = document.elementFromPoint(x, y);
     if (!el) {
         overlayDiv.style.display = "none";
         updateMetadataPill(null);
+        currentHoverEl = null;
         return;
     }
 
@@ -318,8 +364,12 @@ function updateOverlay(x: number, y: number) {
     if (el === document.documentElement || el === document.body) {
         overlayDiv.style.display = "none";
         updateMetadataPill(null);
+        currentHoverEl = null;
         return;
     }
+
+    // Track current hover element
+    currentHoverEl = el;
 
     // Get bounding box and position overlay
     const rect = el.getBoundingClientRect();
@@ -343,20 +393,70 @@ function onMouseMove(e: MouseEvent) {
     });
 }
 
+async function onPointerCapture(e: PointerEvent) {
+    if (!isHoverModeActive) return;
+
+    // Only primary button (left-click)
+    if (e.button !== 0) return;
+
+    // Only capture when frozen
+    if (!isFrozen || !frozenEl) return;
+
+    // Block interaction
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    const target = frozenEl;
+
+    // Ignore selecting <html>/<body>
+    if (target === document.documentElement || target === document.body) {
+        return;
+    }
+
+    // Suppress next click to prevent double-capture
+    suppressNextClickCapture = true;
+
+    await performCapture(target);
+}
+
 async function onClickSelect(e: MouseEvent) {
     if (!isHoverModeActive) return;
 
-    // Block the page interaction (Option A)
+    // Greedy click blocking: always prevent page interaction while auditing
     e.preventDefault();
     e.stopPropagation();
-    // stopImmediatePropagation is useful when pages attach lots of click handlers
     e.stopImmediatePropagation();
 
+    // Skip this click if pointerdown just captured
+    if (suppressNextClickCapture) {
+        suppressNextClickCapture = false;
+        return;
+    }
+
+    // If frozen, pointerdown already handled capture - don't double-capture
+    if (isFrozen) {
+        return;
+    }
+
+    // Non-frozen click capture
     const target = e.target as Element | null;
     if (!target) return;
 
     // Ignore selecting <html>/<body>
-    if (target === document.documentElement || target === document.body) return;
+    if (target === document.documentElement || target === document.body) {
+        return;
+    }
+
+    await performCapture(target);
+}
+
+async function performCapture(target: Element) {
+    // Show capturing feedback
+    if (pillDiv) {
+        pillDiv.textContent = "📸 CAPTURING…";
+        pillDiv.style.borderColor = "#10b981";
+    }
 
     const rect = target.getBoundingClientRect();
     const textPreview = ((target.textContent || "").trim()).slice(0, 120);
@@ -445,6 +545,10 @@ async function onClickSelect(e: MouseEvent) {
     // Send capture message to service worker
     chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record });
 
+    // Unfreeze after capture
+    isFrozen = false;
+    frozenEl = null;
+
     // Restore overlay and pill after a short delay (allows screenshot to complete)
     setTimeout(() => {
         if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
@@ -454,6 +558,54 @@ async function onClickSelect(e: MouseEvent) {
             pillDiv.style.display = "block";
         }
     }, 100);
+
+    // Restore pill content using final frozen state (after isFrozen cleared)
+    setTimeout(() => {
+        if (pillDiv && isHoverModeActive) {
+            updateMetadataPill(currentHoverEl ?? target, true);
+        }
+    }, 400);
+}
+
+function onKeyDown(e: KeyboardEvent) {
+    if (!isHoverModeActive) return;
+
+    // Shift: freeze on current hovered element
+    if (e.key === "Shift") {
+        // Ignore key repeat to prevent flip-flop
+        if (e.repeat) return;
+
+        // Only freeze if actively hovering an element (no stale fallback)
+        if (currentHoverEl) {
+            isFrozen = true;
+            frozenEl = currentHoverEl;
+            renderForElement(frozenEl);
+        }
+        return;
+    }
+
+    // Escape: exit selection mode
+    if (e.key === "Escape") {
+        stopHoverMode();
+        chrome.runtime.sendMessage({ type: "AUDIT/TOGGLE", enabled: false });
+        return;
+    }
+}
+
+function onKeyUp(e: KeyboardEvent) {
+    if (!isHoverModeActive) return;
+
+    // Shift released: unfreeze
+    if (e.key === "Shift") {
+        isFrozen = false;
+        frozenEl = null;
+        // Force refresh pill visuals immediately
+        const targetEl = currentHoverEl ?? lastHoverElForPill;
+        if (targetEl) {
+            updateMetadataPill(targetEl, true);
+        }
+        return;
+    }
 }
 
 
@@ -473,9 +625,12 @@ function startHoverMode() {
         pillDiv = createMetadataPill();
     }
 
-    // Start listening for mouse movement
+    // Start listening for mouse movement, pointer, and keyboard
     document.addEventListener("mousemove", onMouseMove, { passive: true });
+    document.addEventListener("pointerdown", onPointerCapture, true);
     document.addEventListener("click", onClickSelect, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keyup", onKeyUp, true);
 }
 
 function stopHoverMode() {
@@ -490,10 +645,12 @@ function stopHoverMode() {
         rafId = null;
     }
 
-    // Remove event listener
+    // Remove event listeners
     document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("pointerdown", onPointerCapture, true);
     document.removeEventListener("click", onClickSelect, true);
-
+    document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("keyup", onKeyUp, true);
 
     // Hide and remove overlay
     if (overlayDiv) {
@@ -507,6 +664,9 @@ function stopHoverMode() {
         pillDiv = null;
     }
     lastHoverElForPill = null;
+    currentHoverEl = null;
+    isFrozen = false;
+    frozenEl = null;
 
     pendingUpdate = false;
 
