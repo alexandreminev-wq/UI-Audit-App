@@ -731,6 +731,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     createdAtMs = Date.parse((capture as any).conditions.timestamp);
                     if (isNaN(createdAtMs)) createdAtMs = null;
                 }
+                const primitives = (capture as any).styles?.primitives;
 
                 return {
                     id: capture.id,
@@ -741,17 +742,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     role: capture.element?.role || null,
                     accessibleName: (capture.element as any)?.intent?.accessibleName || null,
                     screenshot: (capture as any).screenshot || null,
-                    primitivesSummary: capture.styles?.primitives ? {
-                        paddingTop: capture.styles.primitives.spacing?.paddingTop,
-                        paddingRight: capture.styles.primitives.spacing?.paddingRight,
-                        paddingBottom: capture.styles.primitives.spacing?.paddingBottom,
-                        paddingLeft: capture.styles.primitives.spacing?.paddingLeft,
-                        backgroundColorRgba: capture.styles.primitives.backgroundColor?.rgba ?? null,
-                        borderColorRgba: capture.styles.primitives.borderColor?.rgba ?? null,
-                        colorRgba: capture.styles.primitives.color?.rgba ?? null,
-                        shadowPresence: capture.styles.primitives.shadow?.shadowPresence,
-                        shadowLayerCount: capture.styles.primitives.shadow?.shadowLayerCount,
-                    } : undefined,
+                    primitivesSummary: primitives
+                        ? {
+                            paddingTop: primitives.spacing?.paddingTop,
+                            paddingRight: primitives.spacing?.paddingRight,
+                            paddingBottom: primitives.spacing?.paddingBottom,
+                            paddingLeft: primitives.spacing?.paddingLeft,
+                            backgroundColorRgba: primitives.backgroundColor?.rgba ?? null,
+                            borderColorRgba: primitives.borderColor?.rgba ?? null,
+                            colorRgba: primitives.color?.rgba ?? null,
+                            shadowPresence: primitives.shadow?.shadowPresence,
+                            shadowLayerCount: primitives.shadow?.shadowLayerCount,
+                        }
+                        : undefined,
                 };
             });
 
