@@ -4,6 +4,34 @@ import { extractComputedStyles, extractStylePrimitives } from "./extractComputed
 console.log("[UI Inventory] Content script loaded on:", location.href);
 
 // ─────────────────────────────────────────────────────────────
+// Toast utility (Milestone 5)
+// ─────────────────────────────────────────────────────────────
+
+function showToast(message: string, duration = 3500) {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    Object.assign(toast.style, {
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        background: "#f44336",
+        color: "white",
+        padding: "12px 16px",
+        borderRadius: "4px",
+        fontSize: "13px",
+        fontWeight: "500",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+        zIndex: "999999",
+        maxWidth: "300px",
+    });
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, duration);
+}
+
+// ─────────────────────────────────────────────────────────────
 // v2.2 Capture helpers
 // ─────────────────────────────────────────────────────────────
 
@@ -532,39 +560,68 @@ async function performCapture(target: Element) {
     // Hide overlay and pill before screenshot to avoid capturing them
     const wasOverlayVisible = overlayDiv && overlayDiv.style.display !== "none";
     const wasPillVisible = pillDiv && pillDiv.style.display !== "none";
-    if (overlayDiv) {
-        overlayDiv.style.display = "none";
+
+    try {
+        if (overlayDiv) {
+            overlayDiv.style.display = "none";
+        }
+        if (pillDiv) {
+            pillDiv.style.display = "none";
+        }
+
+        // Wait for browser to render the hidden overlay (one frame)
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        // Send capture message to service worker with timeout tracking (Milestone 5)
+        let timeoutId: number | null = null;
+        let didRespond = false;
+
+        // Start timeout (1200ms - increased from 800ms to reduce false warnings)
+        timeoutId = window.setTimeout(() => {
+            if (!didRespond) {
+                showToast("Capture didn't complete. Try again, or reload the page.");
+            }
+        }, 1200);
+
+        chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record }, (response) => {
+            didRespond = true;
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+            }
+
+            // Check for runtime errors (connection issues, etc.)
+            if (chrome.runtime.lastError) {
+                showToast("Capture didn't complete. Try again, or reload the page.");
+                return;
+            }
+
+            // Treat missing response or non-ok response as failure
+            if (!response || response.ok !== true) {
+                showToast("Capture failed. Try again.");
+            }
+        });
+    } finally {
+        // Unfreeze after capture (always runs even if exception occurs)
+        isFrozen = false;
+        frozenEl = null;
+
+        // Restore overlay and pill after a short delay (allows screenshot to complete)
+        setTimeout(() => {
+            if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
+                overlayDiv.style.display = "block";
+            }
+            if (pillDiv && wasPillVisible && isHoverModeActive) {
+                pillDiv.style.display = "block";
+            }
+        }, 100);
+
+        // Restore pill content using final frozen state (after isFrozen cleared)
+        setTimeout(() => {
+            if (pillDiv && isHoverModeActive) {
+                updateMetadataPill(currentHoverEl ?? target, true);
+            }
+        }, 400);
     }
-    if (pillDiv) {
-        pillDiv.style.display = "none";
-    }
-
-    // Wait for browser to render the hidden overlay (one frame)
-    await new Promise(resolve => requestAnimationFrame(resolve));
-
-    // Send capture message to service worker
-    chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record });
-
-    // Unfreeze after capture
-    isFrozen = false;
-    frozenEl = null;
-
-    // Restore overlay and pill after a short delay (allows screenshot to complete)
-    setTimeout(() => {
-        if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
-            overlayDiv.style.display = "block";
-        }
-        if (pillDiv && wasPillVisible && isHoverModeActive) {
-            pillDiv.style.display = "block";
-        }
-    }, 100);
-
-    // Restore pill content using final frozen state (after isFrozen cleared)
-    setTimeout(() => {
-        if (pillDiv && isHoverModeActive) {
-            updateMetadataPill(currentHoverEl ?? target, true);
-        }
-    }, 400);
 }
 
 function onKeyDown(e: KeyboardEvent) {

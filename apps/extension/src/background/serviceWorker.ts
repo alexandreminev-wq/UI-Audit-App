@@ -3,6 +3,7 @@ import {
     listRecentCaptures,
     listRecentCapturesByHost,
     clearAllCaptures,
+    deleteCapture,
     saveSession,
     getSession,
     listSessions,
@@ -732,6 +733,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     if (isNaN(createdAtMs)) createdAtMs = null;
                 }
 
+                const primitives = (capture as any).styles?.primitives;
+
                 return {
                     id: capture.id,
                     sessionId: (capture as any).sessionId || capture.id.split("-")[0], // fallback for old records
@@ -741,18 +744,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     role: capture.element?.role || null,
                     accessibleName: (capture.element as any)?.intent?.accessibleName || null,
                     screenshot: (capture as any).screenshot || null,
-                    primitivesSummary: capture.styles?.primitives ? {
-                        paddingTop: capture.styles.primitives.spacing?.paddingTop,
-                        paddingRight: capture.styles.primitives.spacing?.paddingRight,
-                        paddingBottom: capture.styles.primitives.spacing?.paddingBottom,
-                        paddingLeft: capture.styles.primitives.spacing?.paddingLeft,
-                        backgroundColorRgba: capture.styles.primitives.backgroundColor?.rgba ?? null,
-                        borderColorRgba: capture.styles.primitives.borderColor?.rgba ?? null,
-                        colorRgba: capture.styles.primitives.color?.rgba ?? null,
-                        shadowPresence: capture.styles.primitives.shadow?.shadowPresence,
-                        shadowLayerCount: capture.styles.primitives.shadow?.shadowLayerCount,
-                    } : undefined,
+                    primitivesSummary: primitives
+                        ? {
+                            paddingTop: primitives.spacing?.paddingTop,
+                            paddingRight: primitives.spacing?.paddingRight,
+                            paddingBottom: primitives.spacing?.paddingBottom,
+                            paddingLeft: primitives.spacing?.paddingLeft,
+                            backgroundColorRgba: primitives.backgroundColor?.rgba ?? null,
+                            borderColorRgba: primitives.borderColor?.rgba ?? null,
+                            colorRgba: primitives.color?.rgba ?? null,
+                            shadowPresence: primitives.shadow?.shadowPresence,
+                            shadowLayerCount: primitives.shadow?.shadowLayerCount,
+                        }
+                        : undefined,
                 };
+
             });
 
             sendResponse({ ok: true, captures: listItems });
@@ -778,6 +784,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
 
             sendResponse({ ok: true, capture });
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "VIEWER/DELETE_CAPTURE") {
+        (async () => {
+            const captureId = msg.captureId;
+            console.log("[UI Inventory] VIEWER/DELETE_CAPTURE request for:", captureId);
+
+            if (!captureId || typeof captureId !== "string") {
+                sendResponse({ ok: false, error: "Invalid captureId" });
+                return;
+            }
+
+            try {
+                await deleteCapture(captureId);
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete capture:", err);
+                sendResponse({ ok: false, error: "Failed to delete capture" });
+            }
         })();
 
         return true; // async response

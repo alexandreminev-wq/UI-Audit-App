@@ -252,6 +252,26 @@ export async function listCapturesBySession(sessionId: string, limit = 200): Pro
 }
 
 /**
+ * Delete a single capture by ID
+ * Throws on error - caller must handle failures
+ */
+export async function deleteCapture(captureId: string): Promise<void> {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CAPTURES, "readwrite");
+    const store = tx.objectStore(STORE_CAPTURES);
+
+    store.delete(captureId);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+
+    console.log("[capturesDb] Deleted capture:", captureId);
+}
+
+/**
  * Clear all captures from IndexedDB
  * Fails gracefully - logs warning but doesn't throw
  */

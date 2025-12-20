@@ -348,6 +348,15 @@ function ViewerApp() {
     const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
     const [capturesError, setCapturesError] = useState<string | null>(null);
 
+    // Undo last capture state (Milestone 5 - Slice 5.1)
+    const [showUndoToast, setShowUndoToast] = useState(false);
+    const [undoToastError, setUndoToastError] = useState<string | null>(null);
+    const lastSeenNewestCaptureIdRef = useRef<string | null>(null);
+    const hasInitializedCaptureBaselineRef = useRef(false);
+
+    // Live refresh state (Milestone 5 - Slice 5.1 - polling)
+    const capturesLoadInFlightRef = useRef(false);
+
     // Handle session selection with immediate UI update (prevents old-captures flash)
     const handleSelectSession = useCallback(
         (sessionId: string) => {
@@ -400,11 +409,22 @@ function ViewerApp() {
     }, []);
 
     // Load captures when session changes
-    const loadCaptures = useCallback(async (sessionId: string) => {
-        const reqId = ++capturesRequestIdRef.current;
+    const loadCaptures = useCallback(async (sessionId: string, options?: { silent?: boolean }) => {
+        // Guard against concurrent loads (for polling)
+        if (capturesLoadInFlightRef.current) {
+            return;
+        }
 
-        setIsLoadingCaptures(true);
-        setCapturesError(null);
+        capturesLoadInFlightRef.current = true;
+        const reqId = ++capturesRequestIdRef.current;
+        const silent = options?.silent ?? false;
+
+        // Only show loading UI for non-silent loads (initial/session switch)
+        if (!silent) {
+            setIsLoadingCaptures(true);
+            setCapturesError(null);
+        }
+
         try {
             const resp = await sendMessageAsync<{ type: string; sessionId: string; limit: number }, any>({
                 type: "VIEWER/LIST_CAPTURES",
@@ -416,21 +436,42 @@ function ViewerApp() {
             if (reqId !== capturesRequestIdRef.current) return;
 
             if (resp?.ok && resp.captures) {
-                setCaptures(resp.captures);
+                // Anti-flicker: only update state if captures actually changed
+                setCaptures((prevCaptures) => {
+                    const newCaptures = resp.captures;
+                    // Cheap comparison: same length + same newest id = unchanged
+                    if (
+                        prevCaptures.length === newCaptures.length &&
+                        prevCaptures[0]?.id === newCaptures[0]?.id
+                    ) {
+                        // No change detected, keep previous state to avoid re-render
+                        return prevCaptures;
+                    }
+                    // Data changed, update state
+                    return newCaptures;
+                });
             } else {
-                setCapturesError("Failed to load captures. Please try again.");
+                // Only set error for non-silent loads
+                if (!silent) {
+                    setCapturesError("Failed to load captures. Please try again.");
+                }
             }
         } catch (err) {
             // Ignore stale response
             if (reqId !== capturesRequestIdRef.current) return;
 
             console.error("[VIEWER] Failed to load captures:", err);
-            setCapturesError("Failed to load captures. Please try again.");
+            // Only set error for non-silent loads
+            if (!silent) {
+                setCapturesError("Failed to load captures. Please try again.");
+            }
         } finally {
-            // Ignore stale response
-            if (reqId !== capturesRequestIdRef.current) return;
-
-            setIsLoadingCaptures(false);
+            // Only clear loading state for non-stale, non-silent loads
+            if (reqId === capturesRequestIdRef.current && !silent) {
+                setIsLoadingCaptures(false);
+            }
+            // ALWAYS clear in-flight lock to prevent deadlock (even for stale requests)
+            capturesLoadInFlightRef.current = false;
         }
     }, []);
 
@@ -472,6 +513,54 @@ function ViewerApp() {
     useEffect(() => {
         setSelectedVariantKey(null);
     }, [selectedGroupKey, groupingMode]);
+
+    // Reset undo toast state when session changes (Milestone 5 - Slice 5.1 - Fix #1)
+    useEffect(() => {
+        lastSeenNewestCaptureIdRef.current = null;
+        hasInitializedCaptureBaselineRef.current = false;
+        setShowUndoToast(false);
+        setUndoToastError(null);
+    }, [selectedSessionId]);
+
+    // Detect new capture and show undo toast (Milestone 5 - Slice 5.1)
+    useEffect(() => {
+        // Only watch if we have a selected session
+        if (!selectedSessionId) {
+            return;
+        }
+
+        // Handle empty capture list (mark baseline as initialized but no last seen)
+        if (captures.length === 0) {
+            hasInitializedCaptureBaselineRef.current = true;
+            lastSeenNewestCaptureIdRef.current = null;
+            return;
+        }
+
+        // Find newest capture (captures are already sorted newest-first by createdAt desc from SW)
+        // The listCapturesBySession returns newest first via index.openCursor(null, "prev")
+        const newestCapture = captures[0];
+        if (!newestCapture) return;
+
+        const newestCaptureId = newestCapture.id;
+        const lastSeenId = lastSeenNewestCaptureIdRef.current;
+
+        // If baseline not yet initialized, this is first observation
+        if (!hasInitializedCaptureBaselineRef.current) {
+            // Set baseline without showing toast (existing captures at load)
+            lastSeenNewestCaptureIdRef.current = newestCaptureId;
+            hasInitializedCaptureBaselineRef.current = true;
+            return;
+        }
+
+        // Baseline initialized: check if newest capture changed
+        if (lastSeenId !== newestCaptureId) {
+            // New capture detected - show toast (includes empty → first capture case)
+            setShowUndoToast(true);
+            setUndoToastError(null);
+            // Update last seen
+            lastSeenNewestCaptureIdRef.current = newestCaptureId;
+        }
+    }, [captures, selectedSessionId]);
 
     // Fetch full record when compareAId changes
     useEffect(() => {
@@ -778,6 +867,56 @@ function ViewerApp() {
         }
     }, [getCapturesToExport, fetchFullCaptures, selectedSessionId, sessions, includeViewerDerived, groupingMode, computeGroupKey]);
 
+    // Handle manual refresh all (Milestone 5 - Slice 5.1)
+    const handleRefreshAll = useCallback(() => {
+        // Always reload sessions
+        loadSessions();
+        // If a session is selected, also reload its captures
+        if (selectedSessionId) {
+            loadCaptures(selectedSessionId);
+        }
+    }, [selectedSessionId, loadCaptures, loadSessions]);
+
+    // Handle undo last capture (Milestone 5 - Slice 5.1)
+    const handleUndoLastCapture = useCallback(async () => {
+        if (!selectedSessionId || captures.length === 0) {
+            return;
+        }
+
+        // Find newest capture (first in the list, already sorted newest-first)
+        const newestCapture = captures[0];
+
+        try {
+            setUndoToastError(null);
+
+            // Delete the capture via service worker
+            const resp = await sendMessageAsync<{ type: string; captureId: string }, any>({
+                type: "VIEWER/DELETE_CAPTURE",
+                captureId: newestCapture.id,
+            });
+
+            if (!resp?.ok) {
+                setUndoToastError("Failed to delete capture");
+                return;
+            }
+
+            // Hide toast immediately
+            setShowUndoToast(false);
+
+            // Reload captures to refresh the viewer
+            await loadCaptures(selectedSessionId);
+        } catch (err) {
+            console.error("[VIEWER] Undo capture failed:", err);
+            setUndoToastError("Failed to delete capture");
+        }
+    }, [selectedSessionId, captures, loadCaptures]);
+
+    // Handle dismiss undo toast (Milestone 5 - Slice 5.1)
+    const handleDismissUndoToast = useCallback(() => {
+        setShowUndoToast(false);
+        setUndoToastError(null);
+    }, []);
+
     // Export as CSV
     const handleExportCSV = useCallback(async () => {
         setIsExporting(true);
@@ -996,7 +1135,26 @@ function ViewerApp() {
                     background: "#f9f9f9",
                 }}
             >
-                <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>Sessions ({sessions.length})</h2>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <h2 style={{ margin: 0, fontSize: 18 }}>Sessions ({sessions.length})</h2>
+                    <button
+                        onClick={handleRefreshAll}
+                        disabled={isLoadingSessions}
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            border: "1px solid #1976d2",
+                            borderRadius: 4,
+                            background: "white",
+                            color: "#1976d2",
+                            cursor: isLoadingSessions ? "not-allowed" : "pointer",
+                            opacity: isLoadingSessions ? 0.5 : 1,
+                        }}
+                    >
+                        {isLoadingSessions ? "Refreshing..." : "Refresh"}
+                    </button>
+                </div>
 
                 {/* Sessions loading state */}
                 {isLoadingSessions && (
@@ -1135,6 +1293,67 @@ function ViewerApp() {
                         <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>
                             Captures ({filteredCaptures.length} of {captures.length})
                         </h2>
+
+                        {/* Undo last capture toast (Milestone 5 - Slice 5.1) */}
+                        {showUndoToast && captures.length > 0 && (
+                            <div
+                                style={{
+                                    border: "2px solid #4caf50",
+                                    borderRadius: 4,
+                                    padding: 12,
+                                    marginBottom: 16,
+                                    background: "#e8f5e9",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: 12,
+                                }}
+                            >
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, color: "#2e7d32" }}>
+                                        Recent capture: {getCaptureDisplayName(captures[0])}
+                                    </div>
+                                    {undoToastError && (
+                                        <div style={{ fontSize: 11, color: "#d32f2f", marginTop: 4 }}>
+                                            {undoToastError}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <button
+                                        onClick={handleUndoLastCapture}
+                                        disabled={captures.length === 0}
+                                        style={{
+                                            padding: "6px 12px",
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            border: "1px solid #2e7d32",
+                                            borderRadius: 4,
+                                            background: "white",
+                                            color: "#2e7d32",
+                                            cursor: captures.length === 0 ? "not-allowed" : "pointer",
+                                            opacity: captures.length === 0 ? 0.5 : 1,
+                                        }}
+                                    >
+                                        Undo
+                                    </button>
+                                    <button
+                                        onClick={handleDismissUndoToast}
+                                        style={{
+                                            padding: "6px 12px",
+                                            fontSize: 12,
+                                            border: "1px solid #757575",
+                                            borderRadius: 4,
+                                            background: "white",
+                                            color: "#757575",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Compare panel */}
                         {(compareAId || compareBId) && (
