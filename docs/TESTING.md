@@ -1,6 +1,6 @@
-# Testing Checklist — v2.2 (Milestone 1 + Milestone 2)
+# Testing Checklist — v2.3 (Milestones 1–4)
 
-_Last updated: 2025-12-17 (Europe/Madrid)_
+_Last updated: 2025-12-19 (Europe/Madrid)_
 
 ## Manual smoke tests (developer)
 
@@ -130,6 +130,87 @@ _Last updated: 2025-12-17 (Europe/Madrid)_
 
 ---
 
+# Milestone 3 — Explainable clustering + variants (viewer-side)
+
+### Q) Grouping modes
+- Switch grouping mode dropdown between:
+  - Tag + Name
+  - Tag + Role + Name
+  - Tag + Role + Name + Primitives
+- Confirm groups update deterministically (no crashes, no stale state)
+
+### R) Explainability tooltips
+- Hover “Why?” on multiple groups
+- Confirm tooltip tokens match the active grouping mode and reflect the expected fields
+
+### S) Variants
+- Open a group with multiple occurrences
+- Confirm:
+  - “Variants: N” appears when N > 1
+  - Variant chips filter occurrences correctly
+  - “All variants” clears filter
+  - Badges V1…VN render on items
+
+### T) Export with derived fields (optional)
+- Enable “Include viewer-derived grouping fields”
+- Confirm JSON includes `viewerDerived` per capture and CSV appends the 4 viewer_* columns
+- Disable checkbox and confirm exports match Milestone 2 behavior
+
+---
+
+# Milestone 4 — Verified capture UX + environmental context
+
+### U) Metadata pill appears and tracks hovered element
+- Enable audit mode on a normal page (with a nav, main content, footer)
+- Move mouse across different elements
+- Confirm:
+  - overlay outlines hovered element
+  - pill appears near the element (above/below) with viewport clamping
+  - pill content shows only:
+    - `<tag>`
+    - readable CSS-ish path (display-only)
+  - pill does NOT show element text/labels
+
+### V) Screenshot hygiene (pill/overlay never appear in evidence)
+- Capture multiple elements including:
+  - a button
+  - a link
+  - a form input
+- Confirm every screenshot is cropped correctly and does NOT include:
+  - the hover outline overlay
+  - the metadata pill
+
+### W) Landmark scope capture (stored, not displayed)
+- Capture an element inside each of these regions (when present):
+  - header (banner)
+  - nav (navigation)
+  - main (main)
+  - footer (contentinfo)
+  - aside (complementary)
+- Verify in stored capture record:
+  - `scope.nearestLandmarkRole` exists and matches expectation (or "generic" when none detected)
+- Confirm viewer does not break if `scope` is present or absent
+
+### X) Freeze + confirm capture flow (transient UI)
+- Use a page with hover-driven UI (e.g., dropdown menu)
+- Steps:
+  1) Hover until the desired state is visible
+  2) Hold Shift to freeze the target reference (pill indicates frozen)
+  3) Confirm capture
+  4) Release Shift to unfreeze
+- Confirm:
+  - frozen state is stable (overlay/pill stay anchored)
+  - capture is recorded once (no double-capture)
+  - after capture, frozen state clears and pill returns to normal
+  - screenshot does not include overlay/pill
+
+### Y) Exit / disable audit
+- Press Escape (if implemented)
+- Or disable audit mode via popup toggle
+- Confirm overlay and pill are removed and normal browsing resumes
+
+---
+
 ## Useful debug snippet: force a “Missing blob” state
 Run in DevTools console on `chrome-extension://<id>/viewer.html`:
 
@@ -161,11 +242,3 @@ if (!c) {
   await reqToPromise(db.transaction("blobs","readwrite").objectStore("blobs").delete(blobId));
   console.log("Deleted blob:", blobId, "for capture:", c.id);
 }
-
-
----
-
-## Optional tests
-- Large viewport: verify dimension cap/compression
-- Dark mode page: confirm themeHint best-effort
-- Large session (200–500 captures): verify viewer remains usable; export remains responsive

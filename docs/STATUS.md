@@ -1,6 +1,6 @@
 # STATUS
 
-_Last updated: 2025-12-17 (Europe/Madrid)_
+_Last updated: 2025-12-19 (Europe/Madrid)_
 
 This document tracks what is **done**, what is **in progress**, and what is **next** for the UI Inventory App.
 
@@ -11,6 +11,7 @@ This document tracks what is **done**, what is **in progress**, and what is **ne
 - **Milestone 1 v2.2:** ✅ Complete
 - **Milestone 2 v2.2:** ✅ Complete
 - **Milestone 3:** ✅ Complete (2025-12-17)
+- **Milestone 4:** ✅ Complete (2025-12-19)
 
 ---
 
@@ -155,23 +156,3 @@ Enhanced viewer-side grouping with multiple modes, primitives-based bucketing, e
     "variantKey": "v::p8-12-8-12::bg240,240,240,1::...",
     "signatureVersion": 1
   }
-  ```
-- When enabled, CSV export appends 4 columns:
-  - `viewer_grouping_mode`
-  - `viewer_group_key`
-  - `viewer_variant_key`
-  - `viewer_signature_version`
-- Fields matched by capture ID (handles failed fetches correctly)
-- **Export-only:** not persisted to IndexedDB
-
-### Architecture preserved
-- No signature keys or bucketing metadata stored in extension
-- All grouping/variant computation happens in viewer on demand
-- Service worker and capture pipeline unchanged
-
-### Acceptance checks
-- Grouping modes switch without errors; primitives mode includes bucketed values in group keys
-- "Why?" tooltips show accurate grouping criteria
-- Variant detection shows correct counts and filtering works
-- Export with derived fields produces valid JSON/CSV with matching IDs
-- Export without checkbox remains identical to Milestone 2 output

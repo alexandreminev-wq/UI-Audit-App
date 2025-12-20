@@ -1,4 +1,4 @@
-# STYLE_KEYS — v2.2
+# STYLE_KEYS — v2.3 (Milestone 4)
 
 This document defines the **minimal style evidence** we extract/store for MVP.
 Goal: capture enough signal to support viewer-side grouping, comparison, and later normalization.
@@ -9,6 +9,7 @@ Goal: capture enough signal to support viewer-side grouping, comparison, and lat
   - **raw computed value** (for debugging)
   - **canonical form** (for grouping stability)
 - Keep the list minimal; expand only when we have a viewer use-case.
+- Viewer may compute derived/bucketed tokens for grouping/variants, but those remain **viewer-only**.
 
 ## Spacing
 Stored as strings (computed style values), per-side:
@@ -34,6 +35,7 @@ Minimum set:
 
 ## Notes
 - These keys are stored in `styles.primitives` and versioned via `stylePrimitiveVersion: 1`.
-- Viewer may compute additional derived fields (group keys, variant buckets), but these are **not stored back** into capture records in v2.2.
+- Milestone 4 did **not** expand the style keys; it added **capture UX** and optional **scope context** (landmarks), not new primitives.
+- Viewer computes additional derived fields (group keys, variant buckets), but these are **not stored back** into capture records.
 - Padding values are stored as computed style strings (typically `px`), not numeric tokens.
-- See `CAPTURE_RECORD.md` for the canonical schema (`styles.primitives`).
+- See `CAPTURE_RECORD.md` for the canonical schema (`styles.primitives`). 

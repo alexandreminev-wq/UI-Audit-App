@@ -1,10 +1,10 @@
-Here’s an updated **ARCHITECTURE.md** reflecting **Milestone 3 completion** and setting up **Milestone 4** (Metadata Pill / scope / freeze) without overcommitting to new schema yet.
+Below is an **updated `ARCHITECTURE.md`** that reflects **Milestone 4 completed** (Slices 4.1–4.3) and captures the *current, real behavior* without overcommitting to Milestone 5.
 
 ---
 
-# Architecture (High Level) — v2.3 (Updated)
+# Architecture (High Level) — v2.4
 
-*Last updated: 2025-12-17 (Europe/Madrid)*
+*Last updated: 2025-12-19 (Europe/Madrid)*
 
 This project consists of:
 
@@ -17,22 +17,33 @@ This project consists of:
 
 #### Content script
 
-* **Selection UX**
+**Responsibilities:**
 
-  * hover highlight
-  * click-to-capture (selection-only)
+* **Capture UX (Verified Capture)**
+
+  * hover highlight overlay
+  * metadata pill anchored to hovered element (verified target)
+  * optional **freeze** to lock the current target reference (keyboard)
+  * confirm-to-capture behavior (selection-only)
+
 * **Evidence assembly**
 
   * extracts element intent + evidence anchors
   * extracts **style primitives** (minimal normalized primitives set)
   * captures **conditions** (viewport/DPR/theme/zoom best-effort)
-* Requests screenshot capture/crop/encode via MV3 pipeline (background + offscreen)
+  * captures **environmental scope context** (nearest landmark role)
+
+* **Screenshot hygiene**
+
+  * ensures overlay/pill are not included in captured screenshots (hidden during screenshot capture window)
+
+> The content script does **not** write to IndexedDB. It only assembles capture payloads and communicates via message passing.
 
 #### Service worker (MV3 background)
 
 * Owns orchestration and **all IndexedDB reads/writes** (hard rule)
 * Triggers screenshot capture and offscreen processing
-* Exposes message APIs for Viewer data access:
+* Exposes message APIs for:
 
   * `VIEWER/*` for sessions/captures
   * `AUDIT/GET_BLOB` for screenshot bytes
@@ -47,14 +58,14 @@ This project consists of:
 
 ## Viewer app (packaged web app)
 
-* Built by **Vite** into `dist/viewer.html` (shipped inside the extension)
+* Built by **Vite** into packaged HTML
 * Opened from popup via:
 
   * `chrome.runtime.getURL("viewer.html")` (or equivalent packaged path)
 
 ### Critical rule: Viewer does not access IndexedDB directly
 
-* Viewer reads everything via service worker message passing only.
+Viewer reads everything via **service worker message passing only**.
 
 ### Viewer responsibilities (Milestone 2 + 3)
 
@@ -75,12 +86,12 @@ Grouping/clustering remains **viewer-only** (no persisted signatures in DB).
 
 * “Why grouped?” is explainable:
 
-  * groups carry a tokenized key (e.g. tag/role/name + primitives tokens)
+  * groups carry a tokenized key (tag/role/name + primitives tokens)
   * UI shows a **Why?** tooltip derived from the key
 
 #### Variants within groups (Milestone 3)
 
-* Within a selected group, Viewer computes **variant keys** based on bucketed primitives
+* Viewer computes **variant keys** based on bucketed primitives
 * Group detail supports:
 
   * `Variants: N`
@@ -128,6 +139,7 @@ We use explicit stores to avoid rewriting captures when images are re-encoded.
 
   * structured capture records (JSON)
   * includes `sessionId`, schema versions, conditions, element intent, style primitives
+  * optional `scope` context (landmarks)
   * references screenshot via `screenshotBlobId` (or equivalent nested screenshot metadata)
 
 * `blobs`
@@ -139,29 +151,80 @@ We use explicit stores to avoid rewriting captures when images are re-encoded.
 
 ## Data flow (capture pipeline)
 
-1. User interacts with page (content script selection UX)
-2. Content script builds:
+1. User enables audit/capture mode (popup → SW → content script)
+2. Content script:
 
-   * element core + intent anchors
-   * conditions
-   * style primitives (normalized minimal set)
-3. Content script sends message to background:
+   * tracks hovered element
+   * displays overlay + metadata pill (verified target)
+   * optionally freezes target reference (keyboard)
+3. On confirm capture:
+
+   * content script assembles capture payload:
+
+     * element core + intent anchors
+     * conditions
+     * style primitives (normalized minimal set)
+     * scope: nearest landmark role
+     * crop rect from element bounding box
+4. Content script sends message to background:
 
    * capture payload + target crop rect
-4. Background:
+5. Background:
 
    * ensures active session exists
    * performs viewport capture
    * sends image + crop rect to offscreen context
-5. Offscreen context:
+6. Offscreen context:
 
    * crops via OffscreenCanvas
    * encodes/compresses (webp/jpeg) + caps size
    * returns Blob + metadata
-6. Background writes:
+7. Background writes:
 
    * blob to `blobs` store
    * capture record to `captures` store with `screenshotBlobId`
+
+---
+
+## Milestone 4 — Verified Capture UX (implemented)
+
+Milestone 4 turns “blind click” capture into **verified evidence capture**.
+
+### Slice 4.1 — Metadata Pill
+
+* Fixed-position pill anchored to hovered element
+* Shows only:
+
+  * `<tag>`
+  * readable selector-ish path
+* Anchored above/below hovered element with viewport clamping
+* Hidden during screenshot capture window
+
+### Slice 4.2 — Pragmatic Landmarks (scope context)
+
+* Content script computes nearest landmark role (innermost wins), using:
+
+  * explicit ARIA role first
+  * semantic tags fallback
+  * capped ancestor walk
+* Stored as optional:
+
+  * `scope?: { nearestLandmarkRole?: LandmarkRole }`
+* Preserved by service worker; viewer may ignore if unknown
+
+### Slice 4.3 — Live-Value Freeze + Confirm Save
+
+* Designed to capture **live DOM state as-is** (no simulated pseudo-states).
+* User creates the desired state manually (hover/menus/pressed, etc.)
+* Content script supports:
+
+  * freeze target reference (keyboard)
+  * confirm capture without relying on persisted dedupe keys
+* Implementation details (high-level):
+
+  * overlay/pill remain anchored to frozen element while frozen
+  * capture flow hides overlay/pill during screenshot capture window to prevent self-inclusion
+  * protections exist to avoid double-capture from overlapping pointer/click event sequences
 
 ---
 
@@ -208,25 +271,23 @@ Bucketing remains viewer-derived and versionable via `signatureVersion`.
 
 ---
 
-## Non-goals (as of Milestone 3)
+## Non-goals (as of Milestone 4)
 
 * No dedupe/signature keys persisted back into IndexedDB (analysis stays in viewer)
 * No deep-link routing required
 * No dark mode required
 * No virtualization/pagination unless large sessions demand it
-* No “simulated” pseudo-state evidence (hover/active) captured automatically (to avoid false evidence)
+* No automatic pseudo-state simulation (hover/active) for evidence (avoid false evidence)
+* No sidebar capture workflow yet (verified capture remains overlay/pill based)
 
 ---
 
-## Next (Milestone 4 direction — capture UX refinement)
+## Next (Milestone 5 direction — Capture Review & Trust)
 
-Milestone 4 focuses on turning capture into **verified evidence** without introducing a full sidebar yet:
-
-* **Metadata Pill**: fixed overlay on target pages showing hovered target metadata
-* **Pragmatic landmark scope**: nearest landmark role (banner/navigation/main/contentinfo), depth-capped
-* **Live-value freeze**: user freezes hovered target (e.g., Shift) before confirming capture
-
-All changes must preserve:
+Milestone 5 will focus on reducing mistakes and increasing confidence after capture (review/undo/trust), while preserving:
 
 * SW-only IndexedDB access
-* minimal diffs and backwards-tolerant capture reading in Viewer
+* message-passing boundaries
+* minimal diffs and backwards-tolerant viewer reads
+
+---

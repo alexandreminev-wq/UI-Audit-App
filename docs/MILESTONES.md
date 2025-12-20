@@ -1,7 +1,6 @@
-```md
 # MILESTONES
 
-*Last updated: 2025-12-18 (Europe/Madrid)*
+*Last updated: 2025-12-19 (Europe/Madrid)*
 
 This file is the canonical milestone plan for the **UI Inventory App**. Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
 
@@ -9,228 +8,232 @@ This file is the canonical milestone plan for the **UI Inventory App**. Mileston
 
 ## Guiding principles (canon)
 
-* We are building **guided capture + automatic grouping of what you captured**.
-* We are **not** claiming complete UI coverage.
-* **Service worker is the only IndexedDB accessor**.
-* Popup, Content Script, and Viewer use **message passing only** (no direct IndexedDB access).
-* Binary in MV3:
-  * Prefer storing screenshots as **Blobs in IndexedDB** (via the service worker).
-  * If bytes ever traverse messages, transfer as `number[]` and reconstruct on the receiving end.
-* Keep capture schema versioned and forward-compatible (ignore unknown fields safely).
-* Avoid “false evidence”:
-  * Prefer **passive observation + user confirmation** over simulating pseudo-states (`:hover`, `:active`).
+- We are building **guided capture + automatic grouping of what you captured**, with an **outliers-first audit workflow**.
+- Designers don’t audit to see 500 buttons; they audit to find the **3 that shouldn’t exist**.
+- We are **not** claiming complete UI coverage.
+- **Service worker is the only IndexedDB accessor.**
+- Content script / popup / viewer **use message passing only**.
+- **No edits to `dist/**`**.
+- Prefer **viewer-side analysis**; only persist capture-time fields that are **evidence**, not dedupe keys.
+- Keep diffs **small, incremental, reversible**.
+- Schema changes must be **optional** and justified.
 
 ---
 
-## Milestone 1 v2.2 — Extension capture + evidence + storage (✅ Complete)
+## Milestone 1 — Storage + pipeline hardening ✅
 
-### Goal
-Enable guided element capture on real pages and store trustworthy evidence in IndexedDB via the MV3 service worker.
+**Goal:** Reliable capture → storage under MV3 constraints.
 
-### Scope
-* Element selection UX (click-to-select)
-* Element locator strategy + intent anchors
-* Capture “conditions” so evidence is comparable:
-  * viewport `{ width, height }`
-  * devicePixelRatio
-  * browser zoom (best-effort)
-  * theme hint (light/dark/unknown)
-  * timestamp
-* Store normalized style primitives:
-  * per-side padding (and similar per-side fields as needed)
-  * canonical RGBA color fields + raw strings
-  * shadow raw + simplified derived fields (presence/count)
-* Screenshot capture and blob storage (reference by id)
-* Sessions concept:
-  * each capture has `sessionId`
-  * sessions are listable
-
-### Acceptance criteria
-* Captures persist reliably and are retrievable by session.
-* Screenshots are retrievable by blob id.
-* Version fields exist on capture records.
-* Viewer/popup never access IndexedDB directly (enforced by architecture).
+**Key validations**
+- SW-only IndexedDB CRUD via message passing
+- Screenshot capture pipeline stable
+- Forward-compatible capture types and tolerant parsing
 
 ---
 
-## Milestone 2 v2.2 — Viewer gallery + naive clustering (✅ Complete)
+## Milestone 2 — Viewer app + naive clustering/grouping ✅
 
-### Goal
-Move analysis out of the extension into the viewer. The extension only captures and stores.
+**Goal:** Move “analysis” out of extension into viewer.
 
-### Scope
-
-#### Viewer foundations
-* Build viewer via Vite into `dist/viewer.html` (build output only; **never hand-edit dist**).
-* Popup “Open Viewer” opens viewer via `chrome.runtime.getURL("viewer.html")`.
-* Viewer reads data only via SW messages:
-  * `VIEWER/LIST_SESSIONS`
-  * `VIEWER/LIST_CAPTURES`
-  * `VIEWER/GET_CAPTURE`
-  * `AUDIT/GET_BLOB`
-
-#### Gallery + filters
-* Sessions list + open session
-* Capture gallery with thumbnails
-* Filters that combine:
-  * substring search (accessible name)
-  * has screenshot
-  * tag/type filter
-
-#### Naive grouping
-* Toggle grouped/ungrouped
-* Grouping heuristic:
-  * `tagName + unicode-safe normalized accessibleName`
-* Group detail (occurrences + count)
-
-#### Compare + export
-* Compare A/B:
-  * screenshots side-by-side
-  * primitives diff showing differing paths only
-* Export:
-  * JSON (no embedded bytes; strip `styles.computed`)
-  * CSV (stable schema mapping)
-
-#### Stability + polish
-* Loading/error states with Retry
-* Empty states (“No captures…”, “No results…” + clear filters)
-* Missing screenshot UX (“No screenshot” vs “Missing blob”)
-* Stale request protection for rapid session switching
-* Blob URL caching + cleanup
-* Export progress + batching/yielding
-* Type/tag chip on capture cards
-* Group label tooltip
-* Keyboard focus-visible styling
-
-### Acceptance criteria
-* All viewer features work without direct IndexedDB access.
-* Grouping + compare are stable across session switching.
-* Export completes and remains responsive on large sessions.
+**Scope**
+- Sessions list + session detail
+- Capture list + basic filters
+- Naive grouping
+- Side-by-side comparisons
+- Export (JSON/CSV)
 
 ---
 
-## Milestone 3 — Explainable clustering + variant detection (✅ Complete)
+## Milestone 3 — Grouping upgrades + variants + export enhancements ✅
 
-### Goal
-Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while preserving:
-* no dedupe/signature keys stored in capture payload
-* analysis remains viewer-side
-* performance remains acceptable for large sessions
+**Goal:** Make the viewer practical for real inventory work.
 
-### Scope
-
-#### 3.1 Grouping modes with primitives bucketing (✅ Complete)
-* Three configurable grouping presets:
-  * **Tag + Name:** `tagName::normalizedName` (fast, default)
-  * **Tag + Role + Name:** `tagName::role::normalizedName`
-  * **Tag + Role + Name + Primitives:** includes bucketed padding/colors/shadow
-* Primitives bucketing functions:
-  * Padding: rounded to nearest 4px
-  * Colors: 16-step RGB buckets (0,16,32...240), alpha to 0.1 precision
-  * Shadow: presence + layer count
-* Viewer dropdown to switch modes without page reload
-
-#### 3.2 Explainable "Why grouped?" tooltips (✅ Complete)
-* Each group card shows a "Why?" affordance with tooltip
-* Tooltip content shows:
-  * Base grouping fields: tag, role (when enabled), name
-  * Primitives breakdown (when primitives mode enabled):
-    * Padding values (pt/pr/pb/pl)
-    * Color tokens (bg/bd/c)
-    * Shadow token
-
-#### 3.3 Variant detection within groups (✅ Complete)
-* Group detail view computes variant clusters using primitives bucketing
-* UI shows:
-  * "Variants: N" count
-  * Variant filter chips (only when N > 1)
-  * "V{index}" badge on each capture card
-* Variants sorted deterministically (count DESC, then key ASC)
-* Click chip to filter group items by variant
-* Memoized computation (avoids rebuild on every render)
-
-#### 3.4 Export enhancement (optional) (✅ Complete)
-* Checkbox: "Include viewer-derived grouping fields"
-* When enabled:
-  * JSON adds `viewerDerived` object to each capture
-  * CSV appends columns: `viewer_grouping_mode`, `viewer_group_key`, `viewer_variant_key`, `viewer_signature_version`
-* **Export-only:** not persisted to IndexedDB
+**Scope**
+- Explainable clustering refinement
+- Variants concept (families + states/props)
+- Export batching/perf + UX improvements
 
 ---
 
-## Milestone 4 — Verified capture UX + environmental context (⏳ Next)
+## Milestone 4 — Verified Capture UX ✅
 
-### Goal
-Transform capture from “blind click” into **verified evidence** by adding a small on-page inspector (“Metadata Pill”), minimal scope context, and a freeze/confirm flow.
+**Goal:** Capturing becomes operationally reliable on real sites.
 
-### Hard rules (canon for Milestone 4)
-* **No IndexedDB access outside the service worker.**
-* Popup/content script/viewer use **message passing only**.
-* **No edits to dist outputs** (build artifacts only).
-* Keep diffs small and verifiable; ship in slices.
+### Slice 4.1 — Metadata pill ✅
+- Tag + readable path, anchored + clamped
+- Hidden during screenshot, restored correctly
 
-### Milestone 4 slices
+### Slice 4.2 — Pragmatic landmarks ✅
+- Capture `scope.nearestLandmarkRole` (banner|navigation|main|contentinfo|complementary|generic)
 
-#### 4.1 The Metadata Pill (✅ target: implement first)
-**What it is**
-* A small, fixed overlay in the **top-right** of the page.
-* Shows metadata for the element currently under hover:
-  * Tag name (e.g., `<button>`)
-  * A best-effort selector string (CSS-ish, not guaranteed unique)
-  * A short semantic label when present (best-effort):
-    * `aria-label` → `aria-labelledby` text → `title` → short `textContent`
-
-**Constraints**
-* No interaction.
-* `pointer-events: none`.
-* Must not appear in captured screenshots:
-  * hide before screenshot capture, restore after.
-
-**Acceptance criteria**
-* When audit/hover mode is enabled, the pill appears and updates as the user hovers.
-* When audit mode is disabled, the pill is removed.
-* Captured screenshots do **not** include the pill.
+### Slice 4.3 — Live-value freeze + confirm save ✅
+- Hold Shift to freeze target
+- Confirm capture flow
+- Fixes: double-capture, pill restore timing, overlay not appearing in screenshots
 
 ---
 
-#### 4.2 Pragmatic Landmarks (⏳ after 4.1 is verified)
-**What it is**
-* Extend pill context with a nearest “landmark scope” label.
-* Only consider nearest ancestor (including self) matching one of:
-  * `[role="banner"]`
-  * `[role="navigation"]`
-  * `[role="main"]`
-  * `[role="contentinfo"]`
+## Milestone 5 — Capture Review & Trust ⏳ (NEXT)
 
-**Constraints**
-* Keep algorithm pragmatic:
-  * no full accessibility tree work
-  * no exhaustive landmark roles
-* Display-only (no new persistence required).
+**Goal:** Increase user trust and reduce mistakes by adding lightweight review/undo flows around captures.
 
-**Acceptance criteria**
-* Pill shows the nearest matching landmark role (or “none”) for hovered elements.
-* No measurable performance degradation on mousemove (updates only on element change).
+### Slice 5.1 — Undo last capture (minimal, highest value)
+**Goal:** Provide immediate recovery from “oops” captures.
+**Scope**
+- Viewer shows a small “Recent capture” toast/banner when a new capture appears in the open session
+- Actions: **Undo** (delete newest capture for that session) + **Dismiss**
+- SW adds a minimal delete handler **only if needed** (prefer existing message paths)
+- No schema changes
+**Verification**
+- Capture → toast appears
+- Undo → capture removed from list/groups and stays removed after refresh
+- No-capture edge case handled
+
+### Slice 5.2 — Recent captures tray (multi-undo)
+**Goal:** Make undo more robust for rapid capture runs.
+**Scope**
+- Viewer tray listing last ~5 captures with quick delete
+- “Undo last N” / “Undo all recent”
+**Verification**
+- Capture 3+ items → tray shows order correctly → delete one updates state + persists
+
+### Slice 5.3 — Optional restore (session-local, in-memory)
+**Goal:** Prevent irreversible mistakes without heavier data model changes.
+**Scope**
+- Viewer “Recently deleted” in-memory stack + Restore within current viewer session
+**Verification**
+- Delete → appears in recently deleted → Restore returns capture
+
+---
+
+## Milestone 6 — Semantic Categorization + Audit Mode Funnel ⏳
+
+**Goal:** Move from “technical list” to “designer language + hierarchy of pain.”
+
+### Slice 6.1 — Local classifier + category tabs (viewer-only)
+**Goal:** Make captures readable in designer terms.
+**Scope**
+- Viewer computes `HumanCategory` from existing fields (no schema change):
+  - Actions, Inputs, Navigation, Feedback, Media (optional: Layout/Container)
+- Session-level tabs/filters: All / Actions / Inputs / Navigation / Feedback
+- Category chip/badge on capture cards + group headers
+**Verification**
+- Chips render across session
+- Tabs filter correctly
+- Older sessions load unchanged
+
+### Slice 6.2 — Audit Mode toggle (Hierarchy of Pain)
+**Goal:** Funnel to the work that matters without rewriting existing views.
+**Scope**
+- “Audit Mode” toggle inside session detail
+- For selected category, show three buckets:
+  1) Canonical candidates (most frequent groups)
+  2) Pattern drifts (near matches to canonical)
+  3) Outliers (“WTF”) (singletons + suspicious signals)
+- Clicking an item routes into existing detail view
+**Verification**
+- Toggle produces stable 3-bucket layout
+- Navigation works; no perf cliff on large sessions
+
+### Slice 6.3 — Simple near-match similarity (drift ranking)
+**Goal:** Make “Pattern drifts” meaningful with minimal heuristics.
+**Scope**
+- Similarity scoring based on:
+  - normalized accessible name similarity (exact/close)
+  - small subset of primitives with tolerances (padding/font/color)
+- Used only to rank/stack drift groups under canonicals
+**Verification**
+- Drift groups appear beneath canonical with highlighted deltas
 
 ---
 
-#### 4.3 Live-Value Freeze + Confirm Save (⏳ after 4.2 is verified)
-**What it is**
-* Holding **Shift** “freezes” the pill values (tag/label/selector/landmark) even if hover changes.
-* Adds a minimal **Confirm Save** flow:
-  * User freezes, then clicks an element to capture
-  * UI makes it clear the capture will reflect the frozen target
-  * Allows user to confirm/cancel the save
+## Milestone 7 — Style Provenance + Token/Compliance Evidence (honest, optional) ⏳
 
-**Constraints**
-* Still no sidebar; keep UI minimal and resilient to CSS collisions.
-* Avoid pseudo-state simulation; do not attempt to force `:hover/:active`.
+**Goal:** Reliably detect “off-system” everywhere; extract token evidence when available at runtime, without overpromising.
 
-**Acceptance criteria**
-* Shift reliably freezes/unfreezes pill values.
-* Confirm Save is required before capture is persisted.
-* Cancel returns to normal hover mode without capturing.
-* Screenshots never include overlays (pill/outline/confirm UI).
+**Principle:** Store/display **evidence + confidence**, not guaranteed token identity.
+
+### Slice 7.1 — Capture minimal style evidence (optional schema; tiny property set)
+**Goal:** Enable later viewer audit signals even when the page DOM is gone.
+**Scope**
+- For a small property set (start minimal):
+  - `background-color`, `color`, `border-color`, `padding`, `box-shadow`
+- Optional evidence per property:
+  - computed value
+  - whether the winning declaration used `var(--…)` (when discoverable)
+  - var names (if present)
+  - hardcoded signals: literal / inline
+  - method + confidence: `directVar` (high), `mapByValue` (low), `none`
+**Verification**
+- Evidence present when detectable; absent otherwise
+- No breakage on old sessions (optional field)
+
+### Slice 7.2 — Viewer badges + filters for “off-system”
+**Goal:** Surface violations fast.
+**Scope**
+- Badges: Tokenized / Variable-derived / Hardcoded / Inline / Unknown
+- Filters within Audit Mode to show “Hardcoded/Inline” first
+**Verification**
+- Badges match stored evidence and/or viewer-derived signals
+
+### Slice 7.3 — Rare-value anomaly flags (viewer computed)
+**Goal:** Catch the “3 weird ones” with stats-first signals.
+**Scope**
+- Distributions per category/group (e.g., padding)
+- Flag rare values as outliers
+**Verification**
+- “Most are 16px; these are 14px” style highlights appear
 
 ---
-```
+
+## Milestone 8 — Diff-centric workflow (Decision Maker Viewer) ⏳
+
+**Goal:** Canonical vs drift stacking with highlighted deltas and fast triage.
+
+**Scope**
+- Choose canonical per group/category
+- Stack drift variants under canonical
+- Highlight deltas across key primitives
+- Export “issue payload” (still no Jira/Linear integration)
+
+---
+
+## Milestone 9 — Lightweight anomaly detection (stats-first) ⏳
+
+**Goal:** Automatic “WTF list” without AI dependency.
+
+**Scope**
+- Statistical clustering/outliers per category
+- Auto-suggestions (e.g., 90% padding=16px → highlight non-16px)
+
+---
+
+## Milestone 10+ — Reports + integrations (optional expansion) ⏳
+
+**Goal:** Make audit results actionable across tools.
+
+**Scope**
+- AI-generated audit summaries (LLM optional)
+- One-click ticket creation (Linear/Jira)
+- Figma plugin import (organized frames, not dead screenshots)
+
+---
+
+## Milestone 11+ — Headless auditor / crawler mode (separate product mode) ⏳
+
+**Goal:** Automated coverage and background scanning.
+
+**Scope**
+- Navigation-following capture
+- Background violation flagging
+- Treated as separate complexity tier (permissions, stability, safety)
+
+---
+
+## Immediate execution order (recommended)
+
+1) **Milestone 5 — Slice 5.1:** Undo last capture
+2) **Milestone 6 — Slice 6.1:** Local classifier + category tabs
+3) **Milestone 6 — Slice 6.2:** Audit Mode funnel
+4) **Milestone 7 — Slice 7.1:** Minimal style evidence (optional schema, tiny property set)
+  
