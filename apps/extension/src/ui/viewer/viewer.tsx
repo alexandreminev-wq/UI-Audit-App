@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 // ─────────────────────────────────────────────────────────────
 
 type GroupingMode = "nameOnly" | "namePlusType" | "nameTypePrimitives";
+type DesignerCategory = "Action" | "Input" | "Navigation" | "Content" | "Media" | "Container" | "Other";
 
 interface SessionRecord {
     id: string;
@@ -127,6 +128,66 @@ function bucketRgba(value: { r: number; g: number; b: number; a: number } | stri
 function bucketShadow(presence: string | undefined, layerCount: number | undefined): string {
     if (!presence || presence === "none") return "noshadow";
     return `${presence}-${layerCount ?? 0}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Designer Category (Milestone 6 - Slice 6.1)
+// ─────────────────────────────────────────────────────────────
+
+function categorizeCapture(capture: CaptureListItem): DesignerCategory {
+    const tag = (capture.tagName || "").toLowerCase();
+    const role = (capture.role || "").toLowerCase();
+
+    // Media: img, video, audio, svg, canvas, role="img"
+    if (tag === "img" || tag === "video" || tag === "audio" || tag === "svg" || tag === "canvas" || role === "img") {
+        return "Media";
+    }
+
+    // Input: input, textarea, select, option, role="textbox"/"combobox"/"checkbox"/"radio"/"switch"
+    if (tag === "input" || tag === "textarea" || tag === "select" || tag === "option") {
+        return "Input";
+    }
+    if (role === "textbox" || role === "combobox" || role === "checkbox" || role === "radio" || role === "switch" || role === "searchbox" || role === "spinbutton" || role === "slider") {
+        return "Input";
+    }
+
+    // Action: button, role="button", input type="button|submit|reset"
+    if (tag === "button" || role === "button") {
+        return "Action";
+    }
+
+    // Navigation: a, nav, role="link"/"navigation"/"menuitem"/"menuitemcheckbox"/"menuitemradio"
+    if (tag === "a" || tag === "nav") {
+        return "Navigation";
+    }
+    if (role === "link" || role === "navigation" || role === "menuitem" || role === "menuitemcheckbox" || role === "menuitemradio" || role === "menu" || role === "menubar") {
+        return "Navigation";
+    }
+
+    // Content: headings, p, article, label, span, text-like
+    if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") {
+        return "Content";
+    }
+    if (tag === "p" || tag === "article" || tag === "label" || tag === "span" || tag === "strong" || tag === "em" || tag === "code" || tag === "pre") {
+        return "Content";
+    }
+    if (role === "heading" || role === "article" || role === "text" || role === "note" || role === "definition") {
+        return "Content";
+    }
+
+    // Container: div, section, main, header, footer, form, dialog, aside, ul, ol, table
+    if (tag === "div" || tag === "section" || tag === "main" || tag === "header" || tag === "footer" || tag === "form" || tag === "dialog" || tag === "aside") {
+        return "Container";
+    }
+    if (tag === "ul" || tag === "ol" || tag === "li" || tag === "table" || tag === "tr" || tag === "td" || tag === "th" || tag === "tbody" || tag === "thead") {
+        return "Container";
+    }
+    if (role === "dialog" || role === "region" || role === "group" || role === "list" || role === "listbox" || role === "table" || role === "grid" || role === "tabpanel") {
+        return "Container";
+    }
+
+    // Other: fallback
+    return "Other";
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -321,6 +382,7 @@ function ViewerApp() {
     const [searchQuery, setSearchQuery] = useState("");
     const [hasScreenshotOnly, setHasScreenshotOnly] = useState(false);
     const [selectedTagName, setSelectedTagName] = useState<string>("all");
+    const [selectedCategory, setSelectedCategory] = useState<DesignerCategory | "all">("all");
 
     // View mode: "ungrouped" | "grouped"
     const [viewMode, setViewMode] = useState<"ungrouped" | "grouped">("ungrouped");
@@ -486,6 +548,7 @@ function ViewerApp() {
         setSearchQuery("");
         setHasScreenshotOnly(false);
         setSelectedTagName("all");
+        setSelectedCategory("all");
         setSelectedGroupKey(null);
         setCompareAId(null);
         setCompareBId(null);
@@ -627,9 +690,17 @@ function ViewerApp() {
                 return false;
             }
 
+            // Category filter (Milestone 6 - Slice 6.1)
+            if (selectedCategory !== "all") {
+                const category = categorizeCapture(capture);
+                if (category !== selectedCategory) {
+                    return false;
+                }
+            }
+
             return true;
         });
-    }, [captures, searchQuery, hasScreenshotOnly, selectedTagName]);
+    }, [captures, searchQuery, hasScreenshotOnly, selectedTagName, selectedCategory]);
 
     // Get unique tag names for dropdown
     const uniqueTagNames = useMemo(() => {
@@ -1553,6 +1624,28 @@ function ViewerApp() {
                                     </option>
                                 ))}
                             </select>
+
+                            {/* Category dropdown (Milestone 6 - Slice 6.1) */}
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value as DesignerCategory | "all")}
+                                style={{
+                                    padding: "8px 12px",
+                                    fontSize: 13,
+                                    border: "1px solid #ddd",
+                                    borderRadius: 4,
+                                    minWidth: 120,
+                                }}
+                            >
+                                <option value="all">All categories</option>
+                                <option value="Action">Action</option>
+                                <option value="Input">Input</option>
+                                <option value="Navigation">Navigation</option>
+                                <option value="Content">Content</option>
+                                <option value="Media">Media</option>
+                                <option value="Container">Container</option>
+                                <option value="Other">Other</option>
+                            </select>
                         </div>
 
                         {/* Empty filter state */}
@@ -1566,6 +1659,7 @@ function ViewerApp() {
                                         setSearchQuery("");
                                         setHasScreenshotOnly(false);
                                         setSelectedTagName("all");
+                                        setSelectedCategory("all");
                                         setSelectedGroupKey(null);
                                     }}
                                     style={{
@@ -2388,6 +2482,9 @@ interface CaptureCardProps {
 function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCompareA, onSetCompareB, isCompareA, isCompareB, missingBlobIds }: CaptureCardProps) {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
+    // Compute category (Milestone 6 - Slice 6.1)
+    const category = useMemo(() => categorizeCapture(capture), [capture]);
+
     useEffect(() => {
         setThumbnailUrl(null);
         if (capture.screenshot?.screenshotBlobId) {
@@ -2501,6 +2598,20 @@ function CaptureCard({ capture, displayName, time, hostname, getBlobUrl, onSetCo
                     }}
                 >
                     {(capture.tagName ?? "UNKNOWN").toUpperCase()}
+                </span>
+                <span
+                    style={{
+                        background: "#e3f2fd",
+                        color: "#1976d2",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        border: "1px solid #90caf9",
+                    }}
+                    title={`Category: ${category}`}
+                >
+                    {category}
                 </span>
                 {isCompareA && (
                     <span
