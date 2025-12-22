@@ -1,6 +1,6 @@
-# Testing Checklist — v2.2 (Milestone 1 + Milestone 2)
+# Testing Checklist — v2.2 (Milestone 1 + Milestone 2 + Milestone 4 + Milestone 5)
 
-_Last updated: 2025-12-17 (Europe/Madrid)_
+_Last updated: 2025-12-22 (Europe/Madrid)_
 
 ## Manual smoke tests (developer)
 
@@ -130,7 +130,60 @@ _Last updated: 2025-12-17 (Europe/Madrid)_
 
 ---
 
-## Useful debug snippet: force a “Missing blob” state
+# Milestone 4 — Verified capture UX + environmental context
+
+### Q) Metadata pill
+- Enable audit mode; hover over elements
+- Pill appears in top-right corner showing:
+  - tag name (e.g., `<button>`)
+  - selector string (best-effort)
+  - short semantic label (aria-label/title/textContent)
+- Pill updates as hover changes
+- When audit mode disabled, pill removed
+- Pill and outline do NOT appear in captured screenshots
+
+### R) Pragmatic landmarks
+- Hover elements with landmark ancestors
+- Pill shows `nearestLandmarkRole` when present:
+  - banner, navigation, main, contentinfo, complementary, generic
+- Elements without landmark ancestors show no landmark label
+
+### S) Freeze + confirm save
+- Hold Shift to freeze pill values
+- Pill remains frozen even when hovering other elements
+- Release Shift to unfreeze
+- Click element while frozen → Confirm Save UI appears
+- Confirm → capture persists
+- Cancel → returns to hover mode without saving
+- Screenshots never include pill, outline, or confirm UI
+
+---
+
+# Milestone 5 — Trust loop (undo + refresh + non-fatal feedback)
+
+### T) Viewer Refresh button
+- Open Viewer → Sessions header has "Refresh" button
+- Click Refresh → sessions list reloads
+- If session selected → captures for that session also reload
+- UI remains responsive during refresh
+
+### U) Undo last capture
+- Capture an element
+- Open Viewer → "Recent capture" toast appears with Undo button
+- Click Undo → capture deleted; list refreshes
+- If delete fails → error message in toast; viewer does not crash
+- Click Dismiss → toast disappears
+
+### V) Non-fatal capture toast
+- Trigger a capture where service worker is slow/unresponsive
+- Page shows toast: "Capture didn't complete. Try again, or reload the page."
+- Overlay and pill still restore (no stuck UI)
+- Toast appears after ~1200ms timeout
+- Viewer continues working normally
+
+---
+
+## Useful debug snippet: force a "Missing blob" state
 Run in DevTools console on `chrome-extension://<id>/viewer.html`:
 
 ```js

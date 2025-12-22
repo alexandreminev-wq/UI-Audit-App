@@ -10,6 +10,9 @@
 5) Test Viewer:
    - open popup → click **Open Viewer**
    - verify sessions, gallery, thumbnails, grouping, compare, export
+   - Viewer no longer polls (manual Refresh button only, in Sessions header)
+   - If capture doesn't ACK quickly, page shows non-fatal toast; overlay/pill still restore
+   - See `docs/TESTING.md` for full smoke test checklist.
 
 ## Debug loop tips
 - If thumbnails look wrong or missing, verify:
@@ -29,3 +32,4 @@
 - Do not run build unless explicitly requested.
 - Never edit `apps/**/dist/**`.
 - 🚨 If making a risky change, commit first or create a backup file, and remove/ignore `.bak` files before committing.
+

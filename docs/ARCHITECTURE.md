@@ -4,12 +4,14 @@ Here’s an updated **ARCHITECTURE.md** reflecting **Milestone 3 completion** an
 
 # Architecture (High Level) — v2.3 (Updated)
 
-*Last updated: 2025-12-17 (Europe/Madrid)*
+*Last updated: 2025-12-22 (Europe/Madrid)*
 
 This project consists of:
 
 1. a **Chrome Extension (MV3)** for guided UI capture + storage
 2. a **Viewer app** (packaged with the extension) for browsing, grouping, comparing, and exporting captured evidence
+
+**Note:** User-facing concepts (e.g., projects, design systems) may layer on top of this architecture but do not alter its core constraints (SW-only IndexedDB access, message passing, viewer-side analysis).
 
 ## System components
 
@@ -121,7 +123,7 @@ We use explicit stores to avoid rewriting captures when images are re-encoded.
 
 * `sessions`
 
-  * session metadata
+  * internal capture run metadata (session = one audit/capture run)
   * (optional) pages visited breadcrumb
 
 * `captures`
@@ -218,15 +220,10 @@ Bucketing remains viewer-derived and versionable via `signatureVersion`.
 
 ---
 
-## Next (Milestone 4 direction — capture UX refinement)
+## Recently completed
 
-Milestone 4 focuses on turning capture into **verified evidence** without introducing a full sidebar yet:
+* **Milestone 4**: Verified capture UX (metadata pill, pragmatic landmarks, freeze + confirm)
+* **Milestone 5**: Trust loop (viewer refresh, undo last capture, non-fatal toast feedback)
+* **Milestone 6**: Designer categories (viewer-side classification: Action, Input, Navigation, Content, Media, Container, Other)
 
-* **Metadata Pill**: fixed overlay on target pages showing hovered target metadata
-* **Pragmatic landmark scope**: nearest landmark role (banner/navigation/main/contentinfo), depth-capped
-* **Live-value freeze**: user freezes hovered target (e.g., Shift) before confirming capture
-
-All changes must preserve:
-
-* SW-only IndexedDB access
-* minimal diffs and backwards-tolerant capture reading in Viewer
+See `docs/MILESTONES.md` for full roadmap and acceptance criteria.

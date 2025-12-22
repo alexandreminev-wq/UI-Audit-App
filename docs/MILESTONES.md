@@ -1,7 +1,7 @@
 ```md
 # MILESTONES
 
-*Last updated: 2025-12-18 (Europe/Madrid)*
+*Last updated: 2025-12-22 (Europe/Madrid)*
 
 This file is the canonical milestone plan for the **UI Inventory App**. Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
 
@@ -158,7 +158,7 @@ Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while pre
 
 ---
 
-## Milestone 4 — Verified capture UX + environmental context (⏳ Next)
+## Milestone 4 — Verified capture UX + environmental context (✅ Complete)
 
 ### Goal
 Transform capture from “blind click” into **verified evidence** by adding a small on-page inspector (“Metadata Pill”), minimal scope context, and a freeze/confirm flow.
@@ -233,4 +233,22 @@ Transform capture from “blind click” into **verified evidence** by adding a 
 * Screenshots never include overlays (pill/outline/confirm UI).
 
 ---
+
+### Milestone 5 ✅ complete — Capture Review & Trust (pragmatic)
+Goal: Increase trust and reduce mistakes with lightweight review/feedback loops.
+
+- Slice 5.1: Recent capture feedback + safe recovery
+  - Viewer: manual Refresh in Sessions header (reload sessions + selected session captures)
+  - Viewer: Undo last capture UI
+  - Service worker + DB: deleteCapture plumbing (VIEWER/DELETE_CAPTURE)
+  - Content script: non-fatal toast when capture doesn’t ACK quickly
+    - 1200ms timeout + chrome.runtime.lastError + response.ok check
+    - Overlay/pill restoration protected via try/finally
+
+### Milestone 6 (legacy) ✅ implemented — Viewer-only designer categories
+Note: This is considered a stopgap improvement and may be superseded by the new Sidebar + Projects workflow.
+
+- Slice 6.1: Designer categories in Viewer (computed only)
+  - Category badges + category filter (Action/Input/Navigation/Content/Media/Container/Other)
+  - Viewer-only; no schema or SW changes
 ```
