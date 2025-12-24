@@ -11,6 +11,13 @@ import {
     getBlob,
     getCapture,
     listCapturesBySession,
+    createProject,
+    listProjects,
+    linkSessionToProject,
+    listProjectSessionsByProject,
+    listSessionIdsForProject,
+    listCapturesBySessionIds,
+    getProjectCaptureCount,
 } from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
@@ -18,6 +25,10 @@ import { generateSessionId, generateBlobId } from "../types/capture";
 const auditEnabledByTab = new Map<number, boolean>();
 const lastSelectedByTab = new Map<number, any>();
 const activeSessionIdByTab = new Map<number, string>();
+const activeProjectByTabId = new Map<number, string>();
+let lastActiveAuditTabId: number | null = null;
+let currentProjectId: string | null = null;
+let currentAuditEnabled: boolean = false;
 
 // Track offscreen document state
 let offscreenDocumentCreated = false;
@@ -126,6 +137,10 @@ function resolveTabId(msg: any, sender: chrome.runtime.MessageSender): number | 
     // Then check explicit tabId from popup
     if (typeof msg?.tabId === "number") {
         return msg.tabId;
+    }
+    // Finally fallback to last active audit tab (for side panel)
+    if (lastActiveAuditTabId !== null) {
+        return lastActiveAuditTabId;
     }
     // Do not guess - return null
     return null;
@@ -325,6 +340,10 @@ chrome.runtime.onInstalled.addListener(() => {
     console.log("[UI Inventory] Service worker installed");
 });
 
+// Configure side panel to open on extension icon click
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((err) => console.warn("[UI Inventory] sidePanel behavior setup failed:", err));
+
 // Track page navigation during audit sessions
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     // Only track if audit is enabled and URL changed
@@ -335,6 +354,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.url) {
         trackPageVisit(tabId, changeInfo.url);
     }
+});
+
+// Clean up per-tab project mapping when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+    activeProjectByTabId.delete(tabId);
+    console.log("[UI Inventory] Cleared active project for closed tab:", tabId);
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -353,6 +378,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Store state for this tab
             const enabled = Boolean(msg.enabled);
             auditEnabledByTab.set(tabId, enabled);
+            currentAuditEnabled = enabled;
             await setEnabledPersisted(tabId, enabled);
 
             // Create session when audit mode is enabled
@@ -387,8 +413,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 return;
             }
 
-            // Priority order: Map → persisted storage → content script
-            let enabled = auditEnabledByTab.get(tabId) === true;
+            // Priority order: Map → persisted storage → currentAuditEnabled → content script
+            const stored = auditEnabledByTab.get(tabId);
+            let enabled = (typeof stored === "boolean") ? stored : currentAuditEnabled;
 
             // Try persisted storage
             const persisted = await getEnabledPersisted(tabId);
@@ -459,6 +486,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
             // Ensure session exists for this tab
             const sessionId = await ensureSession(tabId);
+
+            // Link session to active project if one is set for this tab (non-fatal)
+            const projectId = activeProjectByTabId.get(tabId);
+            if (projectId) {
+                try {
+                    await linkSessionToProject(projectId, sessionId);
+                } catch (err) {
+                    console.warn("[UI Inventory] Failed to link session to project (non-fatal):", err);
+                }
+            }
 
             // Transform incoming record to v2.2 structure
             const recordV1 = msg.record;
@@ -542,6 +579,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     void chrome.runtime.lastError;
                 }
             );
+
+            // Broadcast capture saved event for side panel auto-refresh
+            if (projectId) {
+                chrome.runtime.sendMessage(
+                    { type: "UI/CAPTURE_SAVED", projectId, captureId: recordV2.id },
+                    () => {
+                        void chrome.runtime.lastError;
+                    }
+                );
+            }
 
             sendResponse({ ok: true });
         })();
@@ -805,6 +852,228 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             } catch (err) {
                 console.error("[UI Inventory] Failed to delete capture:", err);
                 sendResponse({ ok: false, error: "Failed to delete capture" });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Milestone 6.1: Projects message handlers
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "UI/LIST_PROJECTS") {
+        (async () => {
+            try {
+                const projects = await listProjects();
+                sendResponse({ ok: true, projects });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to list projects:", err);
+                sendResponse({ ok: false, error: "Failed to list projects" });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/CREATE_PROJECT") {
+        (async () => {
+            const name = msg.name;
+
+            // Validate name
+            if (!name || typeof name !== "string" || name.trim() === "") {
+                sendResponse({ ok: false, error: "Project name is required" });
+                return;
+            }
+
+            try {
+                const project = await createProject(name);
+                sendResponse({ ok: true, project });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to create project:", err);
+                sendResponse({ ok: false, error: "Failed to create project" });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/REGISTER_ACTIVE_TAB") {
+        if (typeof sender.tab?.id === "number") {
+            const tabId = sender.tab.id;
+            lastActiveAuditTabId = tabId;
+
+            // Apply current project to newly registered tab
+            if (currentProjectId) {
+                activeProjectByTabId.set(tabId, currentProjectId);
+            }
+
+            // Apply current audit enabled state to newly registered tab
+            auditEnabledByTab.set(tabId, currentAuditEnabled);
+
+            // Broadcast registration event (non-fatal)
+            chrome.runtime.sendMessage({ type: "UI/TAB_REGISTERED", tabId }, () => void chrome.runtime.lastError);
+
+            sendResponse({ ok: true });
+        } else {
+            sendResponse({ ok: false, error: "No tab ID" });
+        }
+        return;
+    }
+
+    if (msg?.type === "UI/SET_ACTIVE_PROJECT_FOR_TAB") {
+        (async () => {
+            const tabId = typeof sender.tab?.id === "number"
+                ? sender.tab.id
+                : (typeof msg.tabId === "number" ? msg.tabId : (lastActiveAuditTabId ?? null));
+
+            if (tabId === null) {
+                sendResponse({ ok: false, error: "No tab ID" });
+                return;
+            }
+
+            const projectId = msg.projectId;
+
+            if (projectId && typeof projectId === "string") {
+                activeProjectByTabId.set(tabId, projectId);
+                currentProjectId = projectId;
+                console.log("[UI Inventory] Set active project for tab", tabId, ":", projectId);
+            } else {
+                activeProjectByTabId.delete(tabId);
+                console.log("[UI Inventory] Cleared active project for tab", tabId);
+            }
+
+            sendResponse({ ok: true });
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/DEBUG_LIST_PROJECT_SESSIONS") {
+        (async () => {
+            const projectId = msg.projectId;
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "projectId is required" });
+                return;
+            }
+
+            try {
+                const links = await listProjectSessionsByProject(projectId);
+                sendResponse({ ok: true, links });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to list project sessions:", err);
+                sendResponse({ ok: false, error: "Failed to list project sessions" });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/GET_ACTIVE_SESSION_CAPTURES") {
+        (async () => {
+            try {
+                const tabId = resolveTabId(msg, sender);
+
+                if (tabId === null) {
+                    sendResponse({ ok: false, error: "No tab ID" });
+                    return;
+                }
+
+                // Get active sessionId for this tab
+                const sessionId = activeSessionIdByTab.get(tabId);
+
+                if (!sessionId) {
+                    sendResponse({ ok: true, sessionId: null, captures: [] });
+                    return;
+                }
+
+                // Load captures for this session
+                const captures = (await listCapturesBySession(sessionId)) ?? [];
+                sendResponse({ ok: true, sessionId, captures });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get active session captures:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/GET_PROJECT_CAPTURES") {
+        (async () => {
+            try {
+                const tabId = resolveTabId(msg, sender);
+
+                if (tabId === null) {
+                    sendResponse({ ok: false, error: "No tab ID" });
+                    return;
+                }
+
+                // Get active projectId for this tab
+                const projectId = activeProjectByTabId.get(tabId);
+
+                if (!projectId) {
+                    sendResponse({ ok: true, projectId: null, sessionIds: [], captures: [] });
+                    return;
+                }
+
+                // Load all session IDs linked to this project
+                const sessionIds = await listSessionIdsForProject(projectId);
+
+                // Load all captures across those sessions
+                const captures = await listCapturesBySessionIds(sessionIds);
+
+                sendResponse({ ok: true, projectId, sessionIds, captures });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get project captures:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/GET_PROJECT_COMPONENT_COUNTS") {
+        (async () => {
+            try {
+                // Load all projects
+                const projects = await listProjects();
+
+                // Build counts object for each project
+                const counts: Record<string, number> = {};
+                for (const project of projects) {
+                    counts[project.id] = await getProjectCaptureCount(project.id);
+                }
+
+                sendResponse({ ok: true, counts });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get project component counts:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/DELETE_CAPTURE") {
+        (async () => {
+            try {
+                const captureId = msg.captureId;
+
+                // Validate captureId
+                if (!captureId || typeof captureId !== "string" || captureId.trim() === "") {
+                    sendResponse({ ok: false, error: "Invalid captureId" });
+                    return;
+                }
+
+                // Delete from IndexedDB
+                await deleteCapture(captureId);
+
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete capture:", err);
+                sendResponse({ ok: false, error: String(err) });
             }
         })();
 

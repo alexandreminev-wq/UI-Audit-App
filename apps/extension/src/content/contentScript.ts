@@ -3,6 +3,17 @@ import { extractComputedStyles, extractStylePrimitives } from "./extractComputed
 
 console.log("[UI Inventory] Content script loaded on:", location.href);
 
+// Register this tab as active audit tab, then restore audit mode if enabled
+chrome.runtime.sendMessage({ type: "UI/REGISTER_ACTIVE_TAB" }, () => {
+    if (chrome.runtime.lastError) return;
+    chrome.runtime.sendMessage({ type: "AUDIT/GET_STATE" }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        if (resp?.enabled === true && !isHoverModeActive) {
+            startHoverMode();
+        }
+    });
+});
+
 // ─────────────────────────────────────────────────────────────
 // Toast utility (Milestone 5)
 // ─────────────────────────────────────────────────────────────
@@ -178,6 +189,173 @@ let suppressNextClickCapture = false;
 let isHoverModeActive = false;
 let rafId: number | null = null;
 let pendingUpdate = false;
+
+// ─────────────────────────────────────────────────────────────
+// Sidebar (Milestone 6.1)
+// ─────────────────────────────────────────────────────────────
+
+let sidebarHost: HTMLDivElement | null = null;
+let sidebarShadow: ShadowRoot | null = null;
+let sidebarIsOpen = false;
+
+function ensureSidebar() {
+    if (sidebarHost && sidebarShadow) return;
+
+    sidebarIsOpen = false;
+
+    // Create host element
+    sidebarHost = document.createElement("div");
+    sidebarHost.id = "ui-inventory-sidebar-host";
+    sidebarHost.style.cssText = `
+        all: initial;
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 0;
+        height: 100vh;
+        z-index: 2147483646;
+        pointer-events: none;
+    `;
+
+    // Attach shadow DOM
+    sidebarShadow = sidebarHost.attachShadow({ mode: "open" });
+
+    // Build sidebar UI (vanilla DOM + minimal CSS)
+    const style = document.createElement("style");
+    style.textContent = `
+        * { box-sizing: border-box; }
+
+        .edge-toggle {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            cursor: pointer;
+            border-radius: 4px 0 0 4px;
+            box-shadow: -2px 2px 8px rgba(0,0,0,0.2);
+            pointer-events: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .edge-toggle:hover {
+            background: #1d4ed8;
+        }
+
+        .panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100vh;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+            display: none;
+            flex-direction: column;
+            pointer-events: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .panel.open {
+            display: flex;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #111827;
+        }
+    `;
+
+    const edgeToggle = document.createElement("button");
+    edgeToggle.className = "edge-toggle";
+    edgeToggle.textContent = "UI Audit";
+    edgeToggle.addEventListener("click", () => toggleSidebar());
+
+    const panel = document.createElement("div");
+    panel.className = "panel";
+
+    const header = document.createElement("div");
+    header.className = "panel-header";
+
+    const title = document.createElement("h3");
+    title.className = "panel-title";
+    title.textContent = "UI Audit";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "close-btn";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => closeSidebar());
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    sidebarShadow.appendChild(style);
+    sidebarShadow.appendChild(edgeToggle);
+    sidebarShadow.appendChild(panel);
+
+    document.documentElement.appendChild(sidebarHost);
+
+    console.log("[UI Inventory] Sidebar shell created");
+}
+
+function openSidebar() {
+    ensureSidebar();
+    sidebarIsOpen = true;
+    const panel = sidebarShadow?.querySelector(".panel");
+    if (panel) {
+        panel.classList.add("open");
+    }
+}
+
+function closeSidebar() {
+    sidebarIsOpen = false;
+    const panel = sidebarShadow?.querySelector(".panel");
+    if (panel) {
+        panel.classList.remove("open");
+    }
+}
+
+function toggleSidebar() {
+    if (sidebarIsOpen) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Hover overlay logic
@@ -730,17 +908,6 @@ function stopHoverMode() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// On load: ask SW if audit is enabled for this tab (persists across navigation)
-// ─────────────────────────────────────────────────────────────
-
-chrome.runtime.sendMessage({ type: "AUDIT/GET_STATE" }, (resp) => {
-    if (resp?.type === "AUDIT/STATE" && resp.enabled) {
-        console.log("[UI Inventory] Resuming hover mode (tab state enabled)");
-        startHoverMode();
-    }
-});
-
-// ─────────────────────────────────────────────────────────────
 // Message handling
 // ─────────────────────────────────────────────────────────────
 
@@ -769,4 +936,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse?.({ ok: true });
         return;
     }
+
+    if (msg?.type === "UI/TOGGLE_SIDEBAR") {
+        ensureSidebar();
+        toggleSidebar();
+        sendResponse({ ok: true });
+        return;
+    }
+
+    // No default sendResponse to avoid interfering with other handlers
 });

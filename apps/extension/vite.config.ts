@@ -12,6 +12,7 @@ export default defineConfig({
         popup: resolve(__dirname, "popup.html"),
         offscreen: resolve(__dirname, "offscreen.html"),
         viewer: resolve(__dirname, "viewer.html"),
+        sidepanel: resolve(__dirname, "sidepanel.html"),
         serviceWorker: resolve(__dirname, "src/background/serviceWorker.ts")
       },
       output: {

@@ -7,14 +7,14 @@
         "storage",
         "tabs",
         "activeTab",
-        "offscreen"
+        "offscreen",
+        "sidePanel"
     ],
     "host_permissions": [
         "<all_urls>"
     ],
     "action": {
-        "default_title": "UI Inventory",
-        "default_popup": "popup.html"
+        "default_title": "UI Inventory"
     },
     "background": {
         "service_worker": "serviceWorker.js",
@@ -35,5 +35,8 @@
         "16": "icons/icon-16.png",
         "48": "icons/icon-48.png",
         "128": "icons/icon-128.png"
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
     }
 }

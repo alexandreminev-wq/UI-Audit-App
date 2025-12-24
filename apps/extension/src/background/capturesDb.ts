@@ -1,21 +1,25 @@
 /**
- * IndexedDB helper for persisting captures, sessions, and blobs
+ * IndexedDB helper for persisting captures, sessions, blobs, projects, and project-session links
  *
  * DB: ui-inventory
- * Version: 2 (v2.2 schema)
+ * Version: 3 (v2.2 schema + projects)
  * Stores:
  *   - captures (keyPath: id, indexes: byCreatedAt, byUrl)
  *   - sessions (keyPath: id, indexes: byCreatedAt, byStartUrl)
  *   - blobs (keyPath: id, indexes: byCreatedAt)
+ *   - projects (keyPath: id, indexes: byUpdatedAt, byCreatedAt)
+ *   - projectSessions (keyPath: id, indexes: byProjectId, bySessionId)
  */
 
 import type { CaptureRecord, CaptureRecordV2, SessionRecord, BlobRecord } from "../types/capture";
 
 const DB_NAME = "ui-inventory";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_CAPTURES = "captures";
 const STORE_SESSIONS = "sessions";
 const STORE_BLOBS = "blobs";
+const STORE_PROJECTS = "projects";
+const STORE_PROJECT_SESSIONS = "projectSessions";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -65,6 +69,22 @@ function openDb(): Promise<IDBDatabase> {
                 const blobsStore = db.createObjectStore(STORE_BLOBS, { keyPath: "id" });
                 blobsStore.createIndex("byCreatedAt", "createdAt", { unique: false });
                 console.log("[capturesDb] Created blobs store with indexes");
+            }
+
+            // Version 3: Add projects store
+            if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
+                const projectsStore = db.createObjectStore(STORE_PROJECTS, { keyPath: "id" });
+                projectsStore.createIndex("byUpdatedAt", "updatedAt", { unique: false });
+                projectsStore.createIndex("byCreatedAt", "createdAt", { unique: false });
+                console.log("[capturesDb] Created projects store with indexes");
+            }
+
+            // Version 3: Add projectSessions store
+            if (!db.objectStoreNames.contains(STORE_PROJECT_SESSIONS)) {
+                const projectSessionsStore = db.createObjectStore(STORE_PROJECT_SESSIONS, { keyPath: "id" });
+                projectSessionsStore.createIndex("byProjectId", "projectId", { unique: false });
+                projectSessionsStore.createIndex("bySessionId", "sessionId", { unique: false });
+                console.log("[capturesDb] Created projectSessions store with indexes");
             }
         };
     });
@@ -435,4 +455,212 @@ export async function getBlob(blobId: string): Promise<BlobRecord | null> {
         console.warn("[capturesDb] Failed to get blob (non-fatal):", err);
         return null;
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Projects
+// ─────────────────────────────────────────────────────────────
+
+export type ProjectRecord = {
+    id: string;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+};
+
+export type ProjectSessionLinkRecord = {
+    id: string;
+    projectId: string;
+    sessionId: string;
+    linkedAt: number;
+};
+
+/**
+ * Create a new project
+ * Throws on error (validation or DB failure)
+ */
+export async function createProject(name: string): Promise<ProjectRecord> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+        throw new Error("Project name cannot be empty");
+    }
+
+    const now = Date.now();
+    const project: ProjectRecord = {
+        id: `project-${now}-${Math.random().toString(36).slice(2, 11)}`,
+        name: trimmedName,
+        createdAt: now,
+        updatedAt: now,
+    };
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECTS, "readwrite");
+    const store = tx.objectStore(STORE_PROJECTS);
+
+    store.put(project);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Transaction failed"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+
+    console.log("[capturesDb] Created project:", project.id);
+    return project;
+}
+
+/**
+ * List all projects
+ * Returns raw getAll() results (no sorting)
+ * Throws on error
+ */
+export async function listProjects(): Promise<ProjectRecord[]> {
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECTS, "readonly");
+    const store = tx.objectStore(STORE_PROJECTS);
+
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            resolve(request.result || []);
+        };
+
+        request.onerror = () => reject(request.error ?? new Error("Failed to list projects"));
+    });
+}
+
+/**
+ * Link a session to a project
+ * Idempotent: uses deterministic id and put() to avoid duplicates
+ * Throws on error (validation or DB failure)
+ */
+export async function linkSessionToProject(projectId: string, sessionId: string): Promise<void> {
+    if (!projectId || !sessionId) {
+        throw new Error("projectId and sessionId are required");
+    }
+
+    const link: ProjectSessionLinkRecord = {
+        id: `${projectId}::${sessionId}`,
+        projectId,
+        sessionId,
+        linkedAt: Date.now(),
+    };
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECT_SESSIONS, "readwrite");
+    const store = tx.objectStore(STORE_PROJECT_SESSIONS);
+
+    store.put(link);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Transaction failed"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+
+    console.log("[capturesDb] Linked session to project:", link.id);
+}
+
+/**
+ * List all project-session links for a given project
+ * Throws on error (validation or DB failure)
+ */
+export async function listProjectSessionsByProject(projectId: string): Promise<ProjectSessionLinkRecord[]> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECT_SESSIONS, "readonly");
+    const store = tx.objectStore(STORE_PROJECT_SESSIONS);
+    const index = store.index("byProjectId");
+
+    return new Promise((resolve, reject) => {
+        const request = index.getAll(projectId);
+
+        request.onsuccess = () => {
+            resolve(request.result || []);
+        };
+
+        request.onerror = () => reject(request.error ?? new Error("Failed to list project sessions"));
+    });
+}
+
+/**
+ * List session IDs for a given project (sorted by linkedAt ascending)
+ * Read-only helper for aggregating captures across project sessions
+ */
+export async function listSessionIdsForProject(projectId: string): Promise<string[]> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECT_SESSIONS, "readonly");
+    const store = tx.objectStore(STORE_PROJECT_SESSIONS);
+    const index = store.index("byProjectId");
+
+    return new Promise((resolve, reject) => {
+        const request = index.getAll(projectId);
+
+        request.onsuccess = () => {
+            const links: ProjectSessionLinkRecord[] = request.result || [];
+            // Sort by linkedAt ascending, then extract sessionIds
+            const sessionIds = links
+                .sort((a, b) => a.linkedAt - b.linkedAt)
+                .map(link => link.sessionId);
+            resolve(sessionIds);
+        };
+
+        request.onerror = () => reject(request.error ?? new Error("Failed to list session IDs for project"));
+    });
+}
+
+/**
+ * List captures across multiple sessions (sorted by createdAt ascending)
+ * Read-only helper for aggregating captures from multiple sessions
+ */
+export async function listCapturesBySessionIds(sessionIds: string[]): Promise<CaptureRecordV2[]> {
+    if (!Array.isArray(sessionIds)) {
+        throw new Error("sessionIds must be an array");
+    }
+
+    const allCaptures: CaptureRecordV2[] = [];
+
+    for (const sessionId of sessionIds) {
+        const captures = await listCapturesBySession(sessionId);
+        allCaptures.push(...captures);
+    }
+
+    // Sort by createdAt ascending if available
+    allCaptures.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+    return allCaptures;
+}
+
+/**
+ * Get total count of captures across all sessions linked to a project.
+ * Used for displaying component counts on StartScreen project cards.
+ */
+export async function getProjectCaptureCount(projectId: string): Promise<number> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    // Get all session IDs linked to this project
+    const sessionIds = await listSessionIdsForProject(projectId);
+
+    if (sessionIds.length === 0) {
+        return 0;
+    }
+
+    // Count captures across all sessions
+    let totalCount = 0;
+    for (const sessionId of sessionIds) {
+        const captures = await listCapturesBySession(sessionId);
+        totalCount += captures.length;
+    }
+
+    return totalCount;
 }
