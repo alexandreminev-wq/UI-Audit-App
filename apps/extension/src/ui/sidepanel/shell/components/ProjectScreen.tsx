@@ -4,20 +4,12 @@ import type { Project, Component } from '../App';
 import type { CaptureRecordV2 } from '../../../../../types/capture';
 import { ComponentDirectory } from './ComponentDirectory';
 import { ComponentDetails } from './ComponentDetails';
+import { classifyCapture } from '../utils/classifyCapture';
 
 interface ProjectScreenProps {
   project: Project;
   onUpdateProject: (project: Project) => void;
   onBack: () => void;
-}
-
-function categorizeByTagName(tagName: string): string {
-  const tag = tagName.toLowerCase();
-  if (tag === 'button') return 'Buttons';
-  if (tag === 'a') return 'Links';
-  if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6' || tag === 'p') return 'Typography';
-  if (tag === 'img' || tag === 'video') return 'Media';
-  return 'Other';
 }
 
 export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBack }: ProjectScreenProps) {
@@ -40,7 +32,8 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
       if (chrome.runtime.lastError) return;
       if (resp?.ok && Array.isArray(resp.captures)) {
         const components: Component[] = resp.captures.map((capture: CaptureRecordV2) => {
-          const tagName = capture.element?.tagName || 'unknown';
+          // Use classifier for designer-friendly categorization and naming
+          const classification = classifyCapture(capture);
 
           // Convert styles to Record<string, string>
           const stylesObj = capture.styles?.primitives || capture.styles || {};
@@ -54,13 +47,16 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
 
           return {
             id: capture.id,
-            name: capture.accessibleName || `<${tagName}>`,
-            category: categorizeByTagName(tagName),
+            name: classification.displayName,
+            category: classification.functionalCategory,
             url: captureUrl,
             html: capture.element?.outerHTML || '',
             styles,
+            stylePrimitives: capture.styles?.primitives, // Pass through for Visual Essentials
             imageUrl: '',
-            comments: ''
+            comments: '',
+            typeKey: classification.typeKey,
+            confidence: classification.confidence,
           };
         });
         setCapturedComponents(components);

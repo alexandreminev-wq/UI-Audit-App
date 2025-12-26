@@ -1,254 +1,164 @@
-```md
 # MILESTONES
 
-*Last updated: 2025-12-22 (Europe/Madrid)*
+*Last updated: 2025-12-24 (Europe/Madrid)*
 
-This file is the canonical milestone plan for the **UI Inventory App**. Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
+This file is the canonical milestone plan for the **UI Inventory App**.
+Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
 
 ---
 
 ## Guiding principles (canon)
 
-* We are building **guided capture + automatic grouping of what you captured**.
-* We are **not** claiming complete UI coverage.
-* **Service worker is the only IndexedDB accessor**.
-* Popup, Content Script, and Viewer use **message passing only** (no direct IndexedDB access).
-* Binary in MV3:
-  * Prefer storing screenshots as **Blobs in IndexedDB** (via the service worker).
-  * If bytes ever traverse messages, transfer as `number[]` and reconstruct on the receiving end.
-* Keep capture schema versioned and forward-compatible (ignore unknown fields safely).
-* Avoid “false evidence”:
-  * Prefer **passive observation + user confirmation** over simulating pseudo-states (`:hover`, `:active`).
+- Guided capture + automatic grouping of what you captured (no promise of complete coverage)
+- Service worker is the only IndexedDB accessor
+- Message passing only (no UI direct IndexedDB)
+- Never hand-edit `dist/**`
+- Avoid “false evidence”: do not simulate pseudo-states (`:hover`, `:active`)
+- Prefer reversible changes; keep diffs small; version schemas when needed
 
 ---
 
 ## Milestone 1 v2.2 — Extension capture + evidence + storage (✅ Complete)
 
-### Goal
-Enable guided element capture on real pages and store trustworthy evidence in IndexedDB via the MV3 service worker.
+Goal: Guided element capture on real pages and store trustworthy evidence via SW-owned IndexedDB.
 
-### Scope
-* Element selection UX (click-to-select)
-* Element locator strategy + intent anchors
-* Capture “conditions” so evidence is comparable:
-  * viewport `{ width, height }`
-  * devicePixelRatio
-  * browser zoom (best-effort)
-  * theme hint (light/dark/unknown)
-  * timestamp
-* Store normalized style primitives:
-  * per-side padding (and similar per-side fields as needed)
-  * canonical RGBA color fields + raw strings
-  * shadow raw + simplified derived fields (presence/count)
-* Screenshot capture and blob storage (reference by id)
-* Sessions concept:
-  * each capture has `sessionId`
-  * sessions are listable
-
-### Acceptance criteria
-* Captures persist reliably and are retrievable by session.
-* Screenshots are retrievable by blob id.
-* Version fields exist on capture records.
-* Viewer/popup never access IndexedDB directly (enforced by architecture).
+Includes:
+- sessions created and required for captures
+- capture schema versioning
+- capture conditions (viewport/DPR/theme/zoom best-effort)
+- style primitives (minimal normalized set)
+- screenshot capture via offscreen document, stored as blobs and referenced by id
 
 ---
 
 ## Milestone 2 v2.2 — Viewer gallery + naive clustering (✅ Complete)
 
-### Goal
-Move analysis out of the extension into the viewer. The extension only captures and stores.
+Goal: Move analysis out of the extension into the viewer. Extension only captures + stores.
 
-### Scope
-
-#### Viewer foundations
-* Build viewer via Vite into `dist/viewer.html` (build output only; **never hand-edit dist**).
-* Popup “Open Viewer” opens viewer via `chrome.runtime.getURL("viewer.html")`.
-* Viewer reads data only via SW messages:
-  * `VIEWER/LIST_SESSIONS`
-  * `VIEWER/LIST_CAPTURES`
-  * `VIEWER/GET_CAPTURE`
-  * `AUDIT/GET_BLOB`
-
-#### Gallery + filters
-* Sessions list + open session
-* Capture gallery with thumbnails
-* Filters that combine:
-  * substring search (accessible name)
-  * has screenshot
-  * tag/type filter
-
-#### Naive grouping
-* Toggle grouped/ungrouped
-* Grouping heuristic:
-  * `tagName + unicode-safe normalized accessibleName`
-* Group detail (occurrences + count)
-
-#### Compare + export
-* Compare A/B:
-  * screenshots side-by-side
-  * primitives diff showing differing paths only
-* Export:
-  * JSON (no embedded bytes; strip `styles.computed`)
-  * CSV (stable schema mapping)
-
-#### Stability + polish
-* Loading/error states with Retry
-* Empty states (“No captures…”, “No results…” + clear filters)
-* Missing screenshot UX (“No screenshot” vs “Missing blob”)
-* Stale request protection for rapid session switching
-* Blob URL caching + cleanup
-* Export progress + batching/yielding
-* Type/tag chip on capture cards
-* Group label tooltip
-* Keyboard focus-visible styling
-
-### Acceptance criteria
-* All viewer features work without direct IndexedDB access.
-* Grouping + compare are stable across session switching.
-* Export completes and remains responsive on large sessions.
+Includes:
+- sessions list + open session
+- capture gallery + filters
+- naive grouping: `tagName + normalized accessibleName`
+- compare A/B screenshots + primitives diff
+- export JSON/CSV (no embedded bytes)
 
 ---
 
-## Milestone 3 — Explainable clustering + variant detection (✅ Complete)
+## Milestone 3 — Viewer-side explainable clustering + variants (✅ Complete)
 
-### Goal
-Improve viewer-side grouping beyond naive `(tagName + accessibleName)` while preserving:
-* no dedupe/signature keys stored in capture payload
-* analysis remains viewer-side
-* performance remains acceptable for large sessions
+Goal: Improve viewer grouping beyond naive, remain explainable and view-only.
 
-### Scope
-
-#### 3.1 Grouping modes with primitives bucketing (✅ Complete)
-* Three configurable grouping presets:
-  * **Tag + Name:** `tagName::normalizedName` (fast, default)
-  * **Tag + Role + Name:** `tagName::role::normalizedName`
-  * **Tag + Role + Name + Primitives:** includes bucketed padding/colors/shadow
-* Primitives bucketing functions:
-  * Padding: rounded to nearest 4px
-  * Colors: 16-step RGB buckets (0,16,32...240), alpha to 0.1 precision
-  * Shadow: presence + layer count
-* Viewer dropdown to switch modes without page reload
-
-#### 3.2 Explainable "Why grouped?" tooltips (✅ Complete)
-* Each group card shows a "Why?" affordance with tooltip
-* Tooltip content shows:
-  * Base grouping fields: tag, role (when enabled), name
-  * Primitives breakdown (when primitives mode enabled):
-    * Padding values (pt/pr/pb/pl)
-    * Color tokens (bg/bd/c)
-    * Shadow token
-
-#### 3.3 Variant detection within groups (✅ Complete)
-* Group detail view computes variant clusters using primitives bucketing
-* UI shows:
-  * "Variants: N" count
-  * Variant filter chips (only when N > 1)
-  * "V{index}" badge on each capture card
-* Variants sorted deterministically (count DESC, then key ASC)
-* Click chip to filter group items by variant
-* Memoized computation (avoids rebuild on every render)
-
-#### 3.4 Export enhancement (optional) (✅ Complete)
-* Checkbox: "Include viewer-derived grouping fields"
-* When enabled:
-  * JSON adds `viewerDerived` object to each capture
-  * CSV appends columns: `viewer_grouping_mode`, `viewer_group_key`, `viewer_variant_key`, `viewer_signature_version`
-* **Export-only:** not persisted to IndexedDB
+Includes:
+- additional grouping modes (role + primitives bucketed)
+- “Why grouped?” explanations
+- variant detection within groups
+- export option to include viewer-derived fields (export-only, not persisted)
 
 ---
 
-## Milestone 4 — Verified capture UX + environmental context (✅ Complete)
+## Milestone 4 — Verified capture UX (✅ Complete)
+
+Goal: Increase capture correctness and trust.
+
+Includes:
+- metadata pill
+- pragmatic landmarks (nearest landmark scope label)
+- freeze + confirm save
+- overlays excluded from screenshots (best-effort)
+
+---
+
+## Milestone 5 — Trust loop (✅ Complete)
+
+Goal: Lightweight review/recovery loops.
+
+Includes:
+- viewer manual refresh
+- undo last capture plumbing
+- non-fatal capture toast if ACK missing
+
+---
+
+## Milestone 6 (legacy) — Viewer-only designer categories (✅ Complete, FROZEN)
+
+Stopgap classification in viewer (Action/Input/Navigation/Content/Media/Container/Other).
+Do not redesign/extend this UI in Milestone 6.1 work.
+
+---
+
+# Milestone 6 (new direction) — Projects + Chrome native side panel
+
+## Product decisions (locked)
+- Projects are the primary user-facing unit
+- Sessions remain internal capture runs
+- Projects can contain multiple sessions
+- Strategy: (C) now keep session behavior but LINK sessions to project; (B) later add explicit “Start capture run”
+- Viewer redesign is Milestone 7 (do not redesign now)
+
+---
+
+## Milestone 6.1 — Projects + side panel shell (✅ In progress; core flows working)
 
 ### Goal
-Transform capture from “blind click” into **verified evidence** by adding a small on-page inspector (“Metadata Pill”), minimal scope context, and a freeze/confirm flow.
+Ship a projects-first capture workflow in the native Chrome side panel with real data wiring.
 
-### Hard rules (canon for Milestone 4)
-* **No IndexedDB access outside the service worker.**
-* Popup/content script/viewer use **message passing only**.
-* **No edits to dist outputs** (build artifacts only).
-* Keep diffs small and verifiable; ship in slices.
+### Scope (implemented / verified)
+- Side panel scaffold + icon opens side panel
+- Tab resolution strategy for side panel (no sender.tab):
+  - content script registers tab
+  - SW stores last active audit tab id
+- Audit toggle from side panel (per-tab)
+- IndexedDB schema v3:
+  - `projects` store
+  - `projectSessions` store
+- Link session→project on capture
+- Side panel shell adoption + Tailwind styles loading
+- Project-wide component list:
+  - SW aggregates captures across all sessions linked to project
+- Screenshots render in side panel via `AUDIT/GET_BLOB`
+- Delete capture from side panel deletes from DB
+- Project cards show component counts
+- Viewer button (opens viewer.html; projectId query param hint)
 
-### Milestone 4 slices
+### Still in 6.1 (next)
+- Define designer-facing taxonomy + properties (doc + small classifier utility)
+- Replace tagName-only categorization with functional category + typeKey mapping (view-only)
+- Improve component properties display in detail view (visual essentials)
+- Known issue: capture overlay sometimes appears in screenshot (fix later)
 
-#### 4.1 The Metadata Pill (✅ target: implement first)
-**What it is**
-* A small, fixed overlay in the **top-right** of the page.
-* Shows metadata for the element currently under hover:
-  * Tag name (e.g., `<button>`)
-  * A best-effort selector string (CSS-ish, not guaranteed unique)
-  * A short semantic label when present (best-effort):
-    * `aria-label` → `aria-labelledby` text → `title` → short `textContent`
-
-**Constraints**
-* No interaction.
-* `pointer-events: none`.
-* Must not appear in captured screenshots:
-  * hide before screenshot capture, restore after.
-
-**Acceptance criteria**
-* When audit/hover mode is enabled, the pill appears and updates as the user hovers.
-* When audit mode is disabled, the pill is removed.
-* Captured screenshots do **not** include the pill.
-
----
-
-#### 4.2 Pragmatic Landmarks (⏳ after 4.1 is verified)
-**What it is**
-* Extend pill context with a nearest “landmark scope” label.
-* Only consider nearest ancestor (including self) matching one of:
-  * `[role="banner"]`
-  * `[role="navigation"]`
-  * `[role="main"]`
-  * `[role="contentinfo"]`
-
-**Constraints**
-* Keep algorithm pragmatic:
-  * no full accessibility tree work
-  * no exhaustive landmark roles
-* Display-only (no new persistence required).
-
-**Acceptance criteria**
-* Pill shows the nearest matching landmark role (or “none”) for hovered elements.
-* No measurable performance degradation on mousemove (updates only on element change).
+### Non-goals (6.1)
+- No new viewer redesign
+- No “Start capture run” button yet
+- No “items” / multi-state framework yet
 
 ---
 
-#### 4.3 Live-Value Freeze + Confirm Save (⏳ after 4.2 is verified)
-**What it is**
-* Holding **Shift** “freezes” the pill values (tag/label/selector/landmark) even if hover changes.
-* Adds a minimal **Confirm Save** flow:
-  * User freezes, then clicks an element to capture
-  * UI makes it clear the capture will reflect the frozen target
-  * Allows user to confirm/cancel the save
+## Milestone 6.2 — Capture preview + confirm save + start capture run (⏳ Planned)
 
-**Constraints**
-* Still no sidebar; keep UI minimal and resilient to CSS collisions.
-* Avoid pseudo-state simulation; do not attempt to force `:hover/:active`.
+Goal: Make side panel workflow “review then commit”.
 
-**Acceptance criteria**
-* Shift reliably freezes/unfreezes pill values.
-* Confirm Save is required before capture is persisted.
-* Cancel returns to normal hover mode without capturing.
-* Screenshots never include overlays (pill/outline/confirm UI).
+Includes:
+- explicit “Start capture run” creates new session for project
+- capture produces preview, nothing written until confirm
+- improved capture review in side panel
 
 ---
 
-### Milestone 5 ✅ complete — Capture Review & Trust (pragmatic)
-Goal: Increase trust and reduce mistakes with lightweight review/feedback loops.
+## Milestone 6.3 — Notes + Item model + multi-state framework (⏳ Planned)
 
-- Slice 5.1: Recent capture feedback + safe recovery
-  - Viewer: manual Refresh in Sessions header (reload sessions + selected session captures)
-  - Viewer: Undo last capture UI
-  - Service worker + DB: deleteCapture plumbing (VIEWER/DELETE_CAPTURE)
-  - Content script: non-fatal toast when capture doesn’t ACK quickly
-    - 1200ms timeout + chrome.runtime.lastError + response.ok check
-    - Overlay/pill restoration protected via try/finally
+Goal: Add designer workflow features.
 
-### Milestone 6 (legacy) ✅ implemented — Viewer-only designer categories
-Note: This is considered a stopgap improvement and may be superseded by the new Sidebar + Projects workflow.
+Includes:
+- notes per item/state
+- item concept separate from raw captures
+- multi-state slots (hover/active/focus) via instructions (no simulation)
 
-- Slice 6.1: Designer categories in Viewer (computed only)
-  - Category badges + category filter (Action/Input/Navigation/Content/Media/Container/Other)
-  - Viewer-only; no schema or SW changes
-```
+---
+
+## Milestone 7 — Viewer becomes projects dashboard (⏳ Planned)
+
+Goal: Viewer becomes project-centric dashboard.
+
+Includes:
+- projects list + project detail
+- type rails, canonical/drift/outliers, etc.

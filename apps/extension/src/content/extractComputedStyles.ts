@@ -4,7 +4,7 @@
  */
 
 import { STYLE_KEYS, type StyleKey } from "./styleKeys";
-import type { StylePrimitives, Rgba, ColorPrimitive, ShadowPrimitive, SpacingPrimitive } from "../types/capture";
+import type { StylePrimitives, Rgba, ColorPrimitive, ShadowPrimitive, SpacingPrimitive, TypographyPrimitive, RadiusPrimitive, StyleSources, StyleSourceKey } from "../types/capture";
 
 export function extractComputedStyles(el: Element): Record<StyleKey, string> {
   const computed = window.getComputedStyle(el);
@@ -136,17 +136,86 @@ function extractShadow(computed: CSSStyleDeclaration): ShadowPrimitive {
 }
 
 /**
+ * Extract typography primitive (font properties)
+ */
+function extractTypography(computed: CSSStyleDeclaration): TypographyPrimitive {
+  return {
+    fontFamily: (computed.getPropertyValue("font-family") || "").trim(),
+    fontSize: (computed.getPropertyValue("font-size") || "").trim(),
+    fontWeight: (computed.getPropertyValue("font-weight") || "").trim(),
+    lineHeight: (computed.getPropertyValue("line-height") || "").trim(),
+  };
+}
+
+/**
+ * Extract radius primitive (border-radius per-corner)
+ */
+function extractRadius(computed: CSSStyleDeclaration): RadiusPrimitive {
+  return {
+    topLeft: (computed.getPropertyValue("border-top-left-radius") || "").trim(),
+    topRight: (computed.getPropertyValue("border-top-right-radius") || "").trim(),
+    bottomRight: (computed.getPropertyValue("border-bottom-right-radius") || "").trim(),
+    bottomLeft: (computed.getPropertyValue("border-bottom-left-radius") || "").trim(),
+  };
+}
+
+/**
+ * Extract inline style sources that use CSS variables
+ * Returns only properties with var(--...) references
+ */
+function extractInlineStyleSources(el: Element): StyleSources | undefined {
+  if (!(el instanceof HTMLElement)) return undefined;
+  const s = el.style;
+  if (!s) return undefined;
+
+  const sources: StyleSources = {};
+
+  // Helper to set only when value exists and includes var(--)
+  const setIfVar = (key: StyleSourceKey, cssProp: string) => {
+    const v = (s.getPropertyValue(cssProp) || "").trim();
+    const hasVar = /\bvar\(\s*--/i.test(v);
+    if (v && hasVar) sources[key] = v;
+  };
+
+  setIfVar("backgroundColor", "background-color");
+  setIfVar("color", "color");
+  setIfVar("borderColor", "border-color");
+  setIfVar("boxShadow", "box-shadow");
+
+  setIfVar("paddingTop", "padding-top");
+  setIfVar("paddingRight", "padding-right");
+  setIfVar("paddingBottom", "padding-bottom");
+  setIfVar("paddingLeft", "padding-left");
+
+  setIfVar("fontFamily", "font-family");
+  setIfVar("fontSize", "font-size");
+  setIfVar("fontWeight", "font-weight");
+  setIfVar("lineHeight", "line-height");
+
+  setIfVar("radiusTopLeft", "border-top-left-radius");
+  setIfVar("radiusTopRight", "border-top-right-radius");
+  setIfVar("radiusBottomRight", "border-bottom-right-radius");
+  setIfVar("radiusBottomLeft", "border-bottom-left-radius");
+
+  return Object.keys(sources).length ? sources : undefined;
+}
+
+/**
  * Extract structured style primitives (v2.2)
- * Returns raw + canonical forms for colors, spacing, shadows
+ * Returns raw + canonical forms for colors, spacing, shadows, typography, radius, sources
  */
 export function extractStylePrimitives(el: Element): StylePrimitives {
   const computed = window.getComputedStyle(el);
+  const sources = extractInlineStyleSources(el);
 
   return {
     spacing: extractSpacing(computed),
     backgroundColor: extractColor(computed, "background-color"),
     color: extractColor(computed, "color"),
-    borderColor: extractColor(computed, "border-top-color"), // Use top border as representative
+    borderColor: extractColor(computed, "border-color"),
     shadow: extractShadow(computed),
+    typography: extractTypography(computed),
+    radius: extractRadius(computed),
+    sources,
   };
 }

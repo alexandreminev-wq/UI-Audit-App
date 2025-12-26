@@ -12,6 +12,8 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
   });
 }
 
+import type { StylePrimitives } from '../../../types/capture';
+
 export interface Component {
   id: string;
   name: string;
@@ -20,7 +22,10 @@ export interface Component {
   url: string;
   html: string;
   styles: Record<string, string>;
+  stylePrimitives?: StylePrimitives; // Added for Visual Essentials display
   comments: string;
+  typeKey?: string; // Classifier output
+  confidence?: number; // Classifier output (debug)
 }
 
 export interface Project {

@@ -1,13 +1,15 @@
-# Testing Checklist — v2.2 (Milestone 1 + Milestone 2 + Milestone 4 + Milestone 5)
+# Testing Checklist — v2.3 (Milestone 1–6.1)
 
-_Last updated: 2025-12-22 (Europe/Madrid)_
+_Last updated: 2025-12-25 (Europe/Madrid)_
 
-## Manual smoke tests (developer)
+This is a manual smoke-test checklist for developers.
 
-# Milestone 1 v2.2 — Extension capture pipeline
+---
+
+## Milestone 1 v2.2 — Extension capture pipeline
 
 ### A) Session creation
-- Start audit mode
+- Enable capture mode
 - Confirm a `sessions` record is created
 - Confirm every capture has a non-empty `sessionId`
 
@@ -15,210 +17,137 @@ _Last updated: 2025-12-22 (Europe/Madrid)_
 - Confirm every new capture includes:
   - `captureSchemaVersion: 2`
   - optional `stylePrimitiveVersion: 1`
-- Confirm UI tolerates old rows missing v2.2 fields
 
 ### C) Conditions (best-effort)
 - Confirm capture includes:
   - viewport width/height
   - devicePixelRatio
-  - visualViewportScale (if available)
-  - browserZoom best-effort/optional; expect null
-  - timestamp uses createdAt (createdAt is canonical)
-- Confirm nothing depends on browserZoom
+  - browserZoom best-effort (often null; acceptable)
 
 ### D) Intent anchors (best-effort)
-- Capture:
-  - button with accessible label
-  - input type text
-  - checkbox (checked state)
-  - link (href)
-- Confirm fields are populated where relevant and absent otherwise
+Capture:
+- button with accessible label
+- link (href)
+- checkbox (checked)
+Confirm fields are populated where relevant.
 
 ### E) Style primitives
 - Confirm per-side padding exists
-- Confirm color fields store:
-  - raw string
-  - rgba canonical (or null if not parseable)
-- Confirm shadow fields store:
-  - raw string
-  - presence and (optional) layer count
+- Confirm color fields store raw + rgba
+- Confirm shadow fields store raw + presence
 
-### F) Screenshots (OffscreenCanvas)
-- Capture an element with a visible bounding box
+### F) Screenshots
+- Capture an element with visible bounding box
 - Confirm:
-  - a blob is written to `blobs` store
-  - capture includes screenshot reference + metadata
-    - typically `capture.screenshot.screenshotBlobId` (v2.2)
-  - image looks correctly cropped (not full viewport unless intended)
-
-### G) Backward compatibility
-- With old captures in DB:
-  - open popup/debug UI
-  - confirm it renders without crashes
-  - confirm v2.2 fields show as “missing” rather than breaking
+  - blob written to `blobs`
+  - capture references `screenshotBlobId`
+  - crop looks correct
 
 ---
 
-# Milestone 2 v2.2 — Viewer gallery + naive clustering
+## Milestone 4–5 — Verified capture UX + trust loop
 
-### H) Viewer opens + loads sessions
-- Open Viewer from popup (“Open Viewer” button)
-- Confirm sessions list loads
-- Failure mode: simulate SW failure → Viewer shows error banner + Retry
-- Retry works and sessions load
+### G) Metadata pill / landmarks / freeze + confirm
+- Pill appears + updates
+- Landmark role shows when applicable
+- Shift freezes values
+- Confirm Save required to persist
+- Cancel returns to hover mode
+- Screenshot should not include UI overlays (best-effort)
 
-### I) Open session + stale protection
-- Select session A, then quickly select session B
-- Confirm captures displayed match the latest selected session (no stale overwrite)
-
-### J) Gallery + filters
-- Confirm thumbnails render for captures with screenshot refs
-- Confirm type/tag chip is visible on capture cards
-- Filters combine correctly:
-  - search (substring)
-  - has screenshot toggle
-  - tag/type dropdown
-- No-results state:
-  - “No captures match your filters.” + Clear filters works
-
-### K) Empty states
-- Session with 0 captures shows:
-  - “No captures in this session yet.”
-
-### L) Missing screenshot vs missing blob
-- Capture with no screenshot reference shows:
-  - “No screenshot”
-- Missing blob test:
-  - Delete a blob record from IndexedDB (see snippet below)
-  - Viewer should show:
-    - “Missing blob”
-  - Viewer should not crash; warnings should be deduped per blobId
-
-### M) Grouping (naive)
-- Toggle grouped view
-- Confirm grouping heuristic:
-  - `tagName + normalized accessibleName`
-- Group cards show:
-  - count
-  - representative thumbnails
-- Group label tooltip shows full label on hover
-- Group detail shows occurrences list
-
-### N) Compare A/B
-- Set A and B from capture cards
-- Compare panel shows:
-  - screenshots side-by-side (or appropriate placeholders)
-  - primitives diff showing only differing paths
-
-### O) Export
-- JSON export:
-  - no embedded screenshot bytes
-  - screenshot refs preserved (blob id)
-  - `styles.computed` stripped
-- CSV export:
-  - stable flattened fields
-- Export UX:
-  - shows progress “Exporting X / Y…”
-  - stays responsive during export
-  - shows “Export complete” on success
-  - shows “Export failed” on error
-
-### P) Keyboard focus
-- Use Tab to navigate sessions, filters, buttons
-- Confirm `:focus-visible` outline is visible
-- Mouse clicks should not cause outlines everywhere
+### H) Viewer trust loop
+- Viewer manual refresh works
+- Undo last capture works
+- Capture ACK toast appears when capture ACK is delayed/missing (non-fatal)
 
 ---
 
-# Milestone 4 — Verified capture UX + environmental context
+## Milestone 6.1 — Projects + Side Panel
 
-### Q) Metadata pill
-- Enable audit mode; hover over elements
-- Pill appears in top-right corner showing:
-  - tag name (e.g., `<button>`)
-  - selector string (best-effort)
-  - short semantic label (aria-label/title/textContent)
-- Pill updates as hover changes
-- When audit mode disabled, pill removed
-- Pill and outline do NOT appear in captured screenshots
+### I) Side panel opens and styles load
+- Click extension icon: side panel opens
+- Shell UI renders with expected styling (Tailwind tokens)
 
-### R) Pragmatic landmarks
-- Hover elements with landmark ancestors
-- Pill shows `nearestLandmarkRole` when present:
-  - banner, navigation, main, contentinfo, complementary, generic
-- Elements without landmark ancestors show no landmark label
+### J) Projects CRUD (minimum)
+- Create a project
+- Project appears on start screen list
+- Reopen side panel: projects still list (persisted in IDB)
 
-### S) Freeze + confirm save
-- Hold Shift to freeze pill values
-- Pill remains frozen even when hovering other elements
-- Release Shift to unfreeze
-- Click element while frozen → Confirm Save UI appears
-- Confirm → capture persists
-- Cancel → returns to hover mode without saving
-- Screenshots never include pill, outline, or confirm UI
+### K) Project linking + capture aggregation
+- Open a project in side panel
+- Enable capture; capture an element
+- Confirm capture appears in project list
+- Capture on another page/tab under same project and confirm captures aggregate
 
----
+### L) Per-tab capture behavior + UI sync
+- With a project open, enable capture on Tab A, capture works
+- Switch to Tab B:
+  - capture button state should reflect Tab B state after tab registers
+  - enabling capture on Tab B works
+- Refresh Tab B:
+  - if capture is enabled for Tab B, content script should resume hover mode after registration
 
-# Milestone 5 — Trust loop (undo + refresh + non-fatal feedback)
+### M) Screenshots in side panel
+- Capture an element that generates a screenshot
+- Side panel list shows the screenshot without needing a full side panel reload
+- Detail view shows screenshot once available
 
-### T) Viewer Refresh button
-- Open Viewer → Sessions header has "Refresh" button
-- Click Refresh → sessions list reloads
-- If session selected → captures for that session also reload
-- UI remains responsive during refresh
-
-### U) Undo last capture
+### N) Auto-refresh after capture
 - Capture an element
-- Open Viewer → "Recent capture" toast appears with Undo button
-- Click Undo → capture deleted; list refreshes
-- If delete fails → error message in toast; viewer does not crash
-- Click Dismiss → toast disappears
+- Side panel should:
+  - auto-refresh list
+  - auto-open the new component detail
 
-### V) Non-fatal capture toast
-- Trigger a capture where service worker is slow/unresponsive
-- Page shows toast: "Capture didn't complete. Try again, or reload the page."
-- Overlay and pill still restore (no stuck UI)
-- Toast appears after ~1200ms timeout
-- Viewer continues working normally
+### O) Delete capture (real delete)
+- Delete from detail view
+- Confirm capture disappears
+- Exit project and re-enter; capture should still be gone
 
----
+### P) Component counts
+- Start screen shows a component count under each project name
+- Capture/delete changes should eventually reflect in counts (may require reopening side panel depending on current UI refresh behavior)
 
-## Useful debug snippet: force a "Missing blob" state
-Run in DevTools console on `chrome-extension://<id>/viewer.html`:
+### Q) Viewer button
+- Start screen "Open Viewer" opens viewer.html in a new tab
+- Project screen viewer button opens viewer.html?projectId=<id> (hint only for now)
 
-```js
-const DB_NAME = "ui-inventory";
-
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-function reqToPromise(req) {
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-const db = await openDb();
-const captures = await reqToPromise(db.transaction("captures","readonly").objectStore("captures").getAll());
-const c = captures.find(x => x?.screenshot?.screenshotBlobId);
-
-if (!c) {
-  console.log("No captures with screenshot.screenshotBlobId found.");
-} else {
-  const blobId = c.screenshot.screenshotBlobId;
-  await reqToPromise(db.transaction("blobs","readwrite").objectStore("blobs").delete(blobId));
-  console.log("Deleted blob:", blobId, "for capture:", c.id);
-}
-
+### R) Per-tab capture sync
+- Enable capture in Tab A, verify hover/capture works
+- Switch to Tab B, verify side panel toggle reflects Tab B state (likely off)
+- Enable capture in Tab B, refresh Tab B, confirm hover mode resumes (race condition fix)
+- Switch back to Tab A, confirm its state is preserved and reflected
 
 ---
 
-## Optional tests
-- Large viewport: verify dimension cap/compression
-- Dark mode page: confirm themeHint best-effort
-- Large session (200–500 captures): verify viewer remains usable; export remains responsive
+## Milestone 6.2–6.3 — Classification, Visual Essentials, Variable Provenance
+
+### S) Classifier correctness (ARIA role vs tagName)
+- Capture an element with `role="button"` (e.g., `<div role="button">`)
+  - Verify classifier assigns `displayType: "Button"` (ARIA role takes precedence)
+- Capture a semantic `<button>` element
+  - Verify classifier assigns `displayType: "Button"` (semantic tagName)
+- Capture a `<input type="checkbox">` element
+  - Verify classifier assigns `displayType: "Checkbox"` (input type)
+- Capture a `<div>` with no role
+  - Verify classifier assigns a fallback category (e.g., "Container" or "Other")
+
+### T) Visual Essentials readability (no raw JSON by default)
+- Capture an element and open its detail view in side panel
+- Verify Visual Essentials section shows:
+  - Background color (human-readable, e.g., "rgba(255, 255, 255, 1)" or color swatch)
+  - Text color (human-readable)
+  - Padding (e.g., "16px 24px 16px 24px" or "top: 16px, right: 24px, ...")
+  - Border radius (if present)
+  - Shadow presence (e.g., "Yes" / "None" or descriptive)
+- Verify no raw JSON blobs are shown by default in the essentials view
+- Technical details (outerHTML, full computed style) may be collapsed/hidden
+
+### U) Variable provenance display (when CSS variables present)
+- Capture an element that uses CSS variables (e.g., `background: var(--primary-color)`)
+- Open detail view in side panel
+- Verify:
+  - Raw CSS variable reference is shown (e.g., `var(--primary-color)`)
+  - Computed value is also shown (best-effort)
+  - No token inference or compliance labeling in v1 (deferred)
+- If element does not use CSS variables:
+  - Verify only computed values are shown (no false variable references)

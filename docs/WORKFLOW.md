@@ -1,35 +1,95 @@
 # Workflow
 
-## Build / test loop (extension + viewer)
-1) Build:
-   - run your standard build command (e.g. `npm run build` / `pnpm -w build`)
-   - confirm `viewer.html` is generated into the extension `dist/` output (Vite build output)
-2) chrome://extensions → Reload extension
-3) Refresh the target webpage tab (so the content script reloads)
-4) Test capture flow in the page
-5) Test Viewer:
-   - open popup → click **Open Viewer**
-   - verify sessions, gallery, thumbnails, grouping, compare, export
-   - Viewer no longer polls (manual Refresh button only, in Sessions header)
-   - If capture doesn't ACK quickly, page shows non-fatal toast; overlay/pill still restore
-   - See `docs/TESTING.md` for full smoke test checklist.
+_Last updated: 2025-12-25 (Europe/Madrid)_
 
-## Debug loop tips
-- If thumbnails look wrong or missing, verify:
-  - capture has screenshot reference (e.g. `capture.screenshot.screenshotBlobId`)
-  - blob exists in `blobs` store
-  - Viewer retrieves bytes via `AUDIT/GET_BLOB` and reconstructs `number[] → Blob → objectURL`
+This repo contains:
+- **Chrome extension (MV3)**: content script + service worker + side panel UI
+- **Viewer**: packaged web app built into the extension output as `viewer.html`
 
-## Popup behavior
-- Popup closes when you click the page (expected).
+### Side panel vs viewer responsibilities
 
-## Claude working rules
-- Small incremental diffs only.
-- Only apply changes when explicitly told **“apply changes”**.
-- When applying changes:
-  - edit files in-place
-  - **show a unified diff after edits** for review
-- Do not run build unless explicitly requested.
-- Never edit `apps/**/dist/**`.
-- 🚨 If making a risky change, commit first or create a backup file, and remove/ignore `.bak` files before committing.
+- **Side panel**: Capture validation only
+  - Toggle capture mode (per-tab)
+  - Review what you just captured
+  - Quick delete if needed
+  - Launch viewer for deeper work
 
+- **Viewer**: Refinement, grouping, and audit management
+  - Browse all captures across projects/sessions
+  - Group and compare variants
+  - Export for design system audits
+  - Manual refinement and analysis
+
+---
+
+## Build / test loop (extension + side panel + viewer)
+
+1) Build
+- Run your normal build command (example; use your repo’s standard):
+  - `pnpm -w build` or `npm run build`
+- Confirm build outputs include:
+  - `sidepanel.html`
+  - `viewer.html`
+  in the extension build output
+
+2) Reload extension
+- Open `chrome://extensions`
+- Enable Developer Mode
+- Click **Reload** on the extension
+
+3) Refresh target webpage tab
+- Refresh the page where you’ll capture (content script must reload)
+
+4) Open side panel
+- Click extension icon (opens side panel if configured)
+- Select project → toggle capture → capture elements
+
+5) Viewer smoke test
+- From side panel Start Screen click **Open Viewer**
+- Confirm viewer loads sessions and captures
+
+### Per-tab capture sync (critical)
+
+**Key behavior:**
+- Capture enablement is **per-tab** (does not follow you across tabs)
+- Side panel must re-sync when switching tabs to reflect the active tab's state
+
+**Manual verification:**
+1. Enable capture in Tab A → confirm hover/capture works
+2. Switch to Tab B → side panel reflects Tab B state (toggle likely off)
+3. Switch back to Tab A → Tab A state is preserved (toggle still on)
+
+---
+
+## Debugging tips
+
+### Side panel has no sender.tab
+- Side panel messages often have no `sender.tab`
+- Content script must send `UI/REGISTER_ACTIVE_TAB`
+- SW resolves tab id via last registered active tab fallback
+
+### Blob bytes over messaging
+- Do not send ArrayBuffers through MV3 messaging for this project
+- Use `number[]` (byte array) and reconstruct in UI:
+  - `Uint8Array(number[]) → Blob → objectURL`
+- Use SW message:
+  - `AUDIT/GET_BLOB { blobId }`
+
+### When something “doesn’t update”
+- Confirm you reloaded the extension
+- Confirm you refreshed the target webpage tab
+- Confirm content script logged “loaded” on that page
+
+---
+
+## Collaboration loop (me + ChatGPT + Claude Code)
+
+- ChatGPT plans steps + writes prompts for Claude Code
+- Claude Code applies changes in-place and returns a unified diff
+- We review diffs before proceeding
+
+Guardrails:
+- Smallest possible diffs
+- Avoid schema/message additions unless required
+- Never edit `dist/**` by hand
+- Commit frequently (checkpoint commits)

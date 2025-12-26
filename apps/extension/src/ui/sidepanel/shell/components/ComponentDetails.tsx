@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2, ExternalLink, X } from 'lucide-react';
 import type { Component } from '../App';
+import { formatVisualEssentials } from '../utils/formatVisualEssentials';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -94,17 +95,47 @@ export function ComponentDetails({
         </pre>
       </div>
 
-      {/* Style Properties */}
-      <div className="space-y-1">
-        <label className="text-sm text-gray-600">Style Properties</label>
-        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
-          {Object.entries(component.styles).map(([property, value]) => (
-            <div key={property} className="flex gap-3 p-2 text-xs">
-              <span className="text-gray-600 min-w-[100px]">{property}:</span>
-              <span className="text-gray-900 font-mono flex-1 break-all">{value}</span>
-            </div>
-          ))}
-        </div>
+      {/* Visual Essentials */}
+      <div className="space-y-2">
+        <label className="text-sm text-gray-600">Visual Essentials</label>
+        {component.stylePrimitives ? (
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            {formatVisualEssentials(component.stylePrimitives).map((section) => (
+              <div key={section.title} className="border-b border-gray-200 last:border-b-0">
+                <div className="px-3 py-2 bg-gray-50">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {section.title}
+                  </h4>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {section.rows.map((row, idx) => (
+                    <div key={idx} className="px-3 py-2">
+                      <div className="flex justify-between items-start gap-3 text-xs">
+                        <span className="text-gray-600 flex-shrink-0">{row.label}</span>
+                        <span className="text-gray-900 font-mono text-right break-all">{row.value}</span>
+                      </div>
+                      {row.evidence && (
+                        <div className="mt-1 text-xs text-gray-400 font-mono">{row.evidence}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400">No style primitives available</div>
+        )}
+
+        {/* Debug: Style primitives */}
+        <details className="text-xs">
+          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+            Debug: Style primitives
+          </summary>
+          <pre className="mt-2 bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto text-xs">
+            {JSON.stringify(component.stylePrimitives ?? component.styles, null, 2)}
+          </pre>
+        </details>
       </div>
 
       {/* Comments */}

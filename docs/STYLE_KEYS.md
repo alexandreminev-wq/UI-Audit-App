@@ -1,39 +1,52 @@
 # STYLE_KEYS — v2.2
 
+*Last updated: 2025-12-24 (Europe/Madrid)*
+
 This document defines the **minimal style evidence** we extract/store for MVP.
-Goal: capture enough signal to support viewer-side grouping, comparison, and later normalization.
+Goal: capture enough signal to support viewer-side comparison, and later designer-friendly summaries.
 
 ## Principles
 - Prefer **normalized primitives** over raw shorthand strings (e.g., per-side padding).
 - Store both:
-  - **raw computed value** (for debugging)
-  - **canonical form** (for grouping stability)
-- Keep the list minimal; expand only when we have a viewer use-case.
+  - **raw computed value** (debuggable)
+  - **canonical form** (stable for comparisons)
+- Keep the list minimal; expand only when we have a clear viewer/sidepanel use-case.
+- Analysis/grouping/compliance remains view-only (not persisted).
 
-## Spacing
+---
+
+## Spacing (required)
 Stored as strings (computed style values), per-side:
 - `paddingTop`
 - `paddingRight`
 - `paddingBottom`
 - `paddingLeft`
 
-## Color primitives
+(We do not yet store margin; viewer/sidepanel may compute additional derived summaries without persisting.)
+
+---
+
+## Color primitives (required minimum)
 For each color-like property we store:
 - `raw` (computed style string as-is)
-- `rgba` (canonical RGBA if parseable)
+- `rgba` (canonical RGBA if parseable, else null)
 
 Minimum set:
 - `backgroundColor`
 - `color`
-- `borderColor` (optional depending on component type)
+- `borderColor` (optional depending on element type)
 
-## Shadow primitives
+---
+
+## Shadow primitives (required minimum)
 - `boxShadowRaw` (computed string)
 - `shadowPresence`: `"none" | "some"`
 - `shadowLayerCount` (optional)
 
-## Notes
-- These keys are stored in `styles.primitives` and versioned via `stylePrimitiveVersion: 1`.
-- Viewer may compute additional derived fields (group keys, variant buckets), but these are **not stored back** into capture records in v2.2.
-- Padding values are stored as computed style strings (typically `px`), not numeric tokens.
-- See `CAPTURE_RECORD.md` for the canonical schema (`styles.primitives`).
+---
+
+## Notes for UI display (side panel + viewer)
+- Side panel “Visual Essentials” may display a subset:
+  - backgroundColor.raw, color.raw, spacing padding, shadowPresence, (and later: font properties)
+- Side panel currently maps primitives into a `Record<string,string>` for shell component display.
+- Do not add new capture keys without updating `CAPTURE_RECORD.md` and versioning as needed.

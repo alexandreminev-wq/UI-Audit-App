@@ -113,12 +113,40 @@ export interface SpacingPrimitive {
   paddingLeft: string;
 }
 
+export interface TypographyPrimitive {
+  fontFamily: string;
+  fontSize: string;
+  fontWeight: string;
+  lineHeight: string;
+}
+
+export interface RadiusPrimitive {
+  topLeft: string;
+  topRight: string;
+  bottomRight: string;
+  bottomLeft: string;
+}
+
+export type StyleSourceKey =
+  | "backgroundColor"
+  | "color"
+  | "borderColor"
+  | "boxShadow"
+  | "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft"
+  | "fontFamily" | "fontSize" | "fontWeight" | "lineHeight"
+  | "radiusTopLeft" | "radiusTopRight" | "radiusBottomRight" | "radiusBottomLeft";
+
+export type StyleSources = Partial<Record<StyleSourceKey, string>>;
+
 export interface StylePrimitives {
   spacing: SpacingPrimitive;
   backgroundColor: ColorPrimitive;
   color: ColorPrimitive;
   borderColor?: ColorPrimitive;
   shadow: ShadowPrimitive;
+  typography?: TypographyPrimitive; // Optional for backwards compatibility
+  radius?: RadiusPrimitive; // Optional for backwards compatibility
+  sources?: StyleSources; // Optional for backwards compatibility (CSS variable provenance)
 }
 
 export interface CaptureScreenshotRef {
