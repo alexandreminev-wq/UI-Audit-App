@@ -1,164 +1,274 @@
 # MILESTONES
 
-*Last updated: 2025-12-24 (Europe/Madrid)*
+*Last updated: 2025-12-27 (Europe/Madrid)*
 
-This file is the canonical milestone plan for the **UI Inventory App**.
-Milestones are scoped to keep changes incremental and verifiable, with a bias toward viewer-side analysis over extension-side complexity.
-
----
-
-## Guiding principles (canon)
-
-- Guided capture + automatic grouping of what you captured (no promise of complete coverage)
-- Service worker is the only IndexedDB accessor
-- Message passing only (no UI direct IndexedDB)
-- Never hand-edit `dist/**`
-- Avoid “false evidence”: do not simulate pseudo-states (`:hover`, `:active`)
-- Prefer reversible changes; keep diffs small; version schemas when needed
+This file is the canonical milestone plan for the **UI Inventory App**.  
+Milestones are intentionally incremental, verifiable, and biased toward
+**runtime correctness over theoretical completeness**.
 
 ---
 
-## Milestone 1 v2.2 — Extension capture + evidence + storage (✅ Complete)
+## Guiding Principles (Canon)
 
-Goal: Guided element capture on real pages and store trustworthy evidence via SW-owned IndexedDB.
-
-Includes:
-- sessions created and required for captures
-- capture schema versioning
-- capture conditions (viewport/DPR/theme/zoom best-effort)
-- style primitives (minimal normalized set)
-- screenshot capture via offscreen document, stored as blobs and referenced by id
+- We are building **guided capture + audit of real UI usage**, not full UI reconstruction.
+- Service Worker is the **only** IndexedDB accessor.
+- UI surfaces (content script / sidepanel / viewer) communicate via message passing only.
+- Viewer computes **derived labels and groupings at runtime** — no persisted derived keys.
+- Prefer small, reversible diffs.
+- No edits to `dist/**`.
 
 ---
 
-## Milestone 2 v2.2 — Viewer gallery + naive clustering (✅ Complete)
+## Milestones 1–3 (FOUNDATION — COMPLETE)
 
-Goal: Move analysis out of the extension into the viewer. Extension only captures + stores.
-
-Includes:
-- sessions list + open session
-- capture gallery + filters
-- naive grouping: `tagName + normalized accessibleName`
-- compare A/B screenshots + primitives diff
-- export JSON/CSV (no embedded bytes)
+**Outcome**
+- Chrome Extension (MV3) scaffolded
+- Service Worker ownership of storage
+- Content script capture pipeline established
+- Basic Viewer + Sidepanel scaffolding
+- Initial data model (`CaptureRecordV2`)
 
 ---
 
-## Milestone 3 — Viewer-side explainable clustering + variants (✅ Complete)
+## Milestone 4 (CAPTURE DEPTH — COMPLETE)
 
-Goal: Improve viewer grouping beyond naive, remain explainable and view-only.
-
-Includes:
-- additional grouping modes (role + primitives bucketed)
-- “Why grouped?” explanations
-- variant detection within groups
-- export option to include viewer-derived fields (export-only, not persisted)
-
----
-
-## Milestone 4 — Verified capture UX (✅ Complete)
-
-Goal: Increase capture correctness and trust.
-
-Includes:
-- metadata pill
-- pragmatic landmarks (nearest landmark scope label)
-- freeze + confirm save
-- overlays excluded from screenshots (best-effort)
+**Outcome**
+- Improved capture fidelity
+- Landmark / scope context
+- Style extraction groundwork
+- Screenshot + blob handling
+- Runtime-safe message passing patterns
 
 ---
 
-## Milestone 5 — Trust loop (✅ Complete)
+## Milestone 5 (STYLE PRIMITIVES — COMPLETE)
 
-Goal: Lightweight review/recovery loops.
-
-Includes:
-- viewer manual refresh
-- undo last capture plumbing
-- non-fatal capture toast if ACK missing
-
----
-
-## Milestone 6 (legacy) — Viewer-only designer categories (✅ Complete, FROZEN)
-
-Stopgap classification in viewer (Action/Input/Navigation/Content/Media/Container/Other).
-Do not redesign/extend this UI in Milestone 6.1 work.
+**Outcome**
+- StylePrimitives extraction
+- Typography, radius, spacing, shadow evidence
+- Inline CSS variable source tracking (`var(--...)`)
+- Debug surfaces for style evidence
 
 ---
 
-# Milestone 6 (new direction) — Projects + Chrome native side panel
+## Milestone 6 (CATEGORIZATION + NAMING — COMPLETE)
 
-## Product decisions (locked)
-- Projects are the primary user-facing unit
-- Sessions remain internal capture runs
-- Projects can contain multiple sessions
-- Strategy: (C) now keep session behavior but LINK sessions to project; (B) later add explicit “Start capture run”
-- Viewer redesign is Milestone 7 (do not redesign now)
-
----
-
-## Milestone 6.1 — Projects + side panel shell (✅ In progress; core flows working)
-
-### Goal
-Ship a projects-first capture workflow in the native Chrome side panel with real data wiring.
-
-### Scope (implemented / verified)
-- Side panel scaffold + icon opens side panel
-- Tab resolution strategy for side panel (no sender.tab):
-  - content script registers tab
-  - SW stores last active audit tab id
-- Audit toggle from side panel (per-tab)
-- IndexedDB schema v3:
-  - `projects` store
-  - `projectSessions` store
-- Link session→project on capture
-- Side panel shell adoption + Tailwind styles loading
-- Project-wide component list:
-  - SW aggregates captures across all sessions linked to project
-- Screenshots render in side panel via `AUDIT/GET_BLOB`
-- Delete capture from side panel deletes from DB
-- Project cards show component counts
-- Viewer button (opens viewer.html; projectId query param hint)
-
-### Still in 6.1 (next)
-- Define designer-facing taxonomy + properties (doc + small classifier utility)
-- Replace tagName-only categorization with functional category + typeKey mapping (view-only)
-- Improve component properties display in detail view (visual essentials)
-- Known issue: capture overlay sometimes appears in screenshot (fix later)
-
-### Non-goals (6.1)
-- No new viewer redesign
-- No “Start capture run” button yet
-- No “items” / multi-state framework yet
+**Outcome**
+- Classifier introduced and refined
+- Improved naming consistency
+- Category / Type groundwork
+- Sidepanel directory behavior stabilized
+- Viewer prototype explored in separate repo
 
 ---
 
-## Milestone 6.2 — Capture preview + confirm save + start capture run (⏳ Planned)
+# 🟦 Milestone 7 — Style Normalization + Finish Viewer  
+**Branch:** `m7-style-normalization`
 
-Goal: Make side panel workflow “review then commit”.
-
-Includes:
-- explicit “Start capture run” creates new session for project
-- capture produces preview, nothing written until confirm
-- improved capture review in side panel
+This milestone transitions the Viewer from prototype to **production-ready audit workspace** and aligns it visually, structurally, and conceptually with the Sidepanel.
 
 ---
 
-## Milestone 6.3 — Notes + Item model + multi-state framework (⏳ Planned)
+## 7.0 Guardrails & Styling Foundation (COMPLETE)
 
-Goal: Add designer workflow features.
+**Goal**  
+Unify styling across Sidepanel and Viewer using **Option C**:
+shared theme primitives without refactoring component libraries.
 
-Includes:
-- notes per item/state
-- item concept separate from raw captures
-- multi-state slots (hover/active/focus) via instructions (no simulation)
+**Non-Negotiable Rules**
+
+- A single shared theme file defines semantic tokens (HSL tuples).
+- No derived/grouping keys are persisted.
+- No edits to `dist/**`.
+- Sidepanel imports `shell/index.css` (effective CSS entry today).
+- Runtime tokens must resolve to shared theme values.
+- Changes must be incremental and reversible.
+
+**Deliverables (Achieved)**
+
+- `apps/extension/src/ui/theme/theme.css`
+  - HSL tuple semantic tokens
+  - `:root` + `.dark` definitions
+  - Includes Sidepanel extras (charts, inputs, switches)
+- Sidepanel wired so:
+  - Layouts preserved
+  - Legacy OKLCH tokens neutralized
+  - Runtime verification via `getComputedStyle`
+- CSS entry chain understood and documented
+
+**Acceptance Check**
+```js
+getComputedStyle(document.documentElement)
+  .getPropertyValue("--foreground")
+````
+
+Returns HSL tuple (not OKLCH).
 
 ---
 
-## Milestone 7 — Viewer becomes projects dashboard (⏳ Planned)
+## 7.1 Viewer Shell Integration
 
-Goal: Viewer becomes project-centric dashboard.
+**Goal**
+Bring the Viewer into the extension repo with a **stable, Sidepanel-consistent visual foundation**.
 
-Includes:
-- projects list + project detail
-- type rails, canonical/drift/outliers, etc.
+**Scope**
+
+* Import Viewer shell into:
+
+  ```
+  apps/extension/src/ui/viewer/**
+  ```
+* Remove Viewer-local theme/token systems.
+* Consume shared `theme.css`.
+* Normalize **design primitives only**:
+
+  * Typography scale
+  * Spacing
+  * Radii
+  * Shadows
+  * Color tokens
+* Normalize layout primitives:
+
+  * Header
+  * Filter bar
+  * List / grid container
+  * Details drawer
+* Ensure CSP-safe setup:
+
+  * No external font imports
+  * System font stack only
+
+**Explicit Non-Goals**
+
+* No feature parity
+* No data wiring
+* No component library refactors
+
+**Deliverable**
+
+* Viewer renders inside the extension
+* Viewer visually feels like the same product as Sidepanel
+* Viewer UI is stable enough to build IA + data on top
+
+---
+
+## 7.2 Viewer IA — Components + Styles (Single Mode)
+
+**Goal**
+Implement the unified Viewer IA that combines browsing and review into one workspace.
+
+**IA Structure**
+
+* Tabs:
+
+  * Components
+  * Styles
+* Filter bar:
+
+  * Category (All Categories supports sectioned inventory)
+  * Type (conditional on Category)
+  * Status (Unreviewed / Canonical / Variant / Deviation / Legacy / Experimental)
+  * Source
+  * Unknown-only toggle
+  * Search
+* Details drawer:
+
+  * Components: editable (name, category, type, status, tags, notes)
+  * Styles: read-only (variable, value, usage list)
+
+**Deliverable**
+
+* Viewer behavior matches shell/prototype expectations
+* IA is locked before export or automation work
+
+---
+
+## 7.3 Export (Filtered View)
+
+**Goal**
+Export exactly what the user is looking at.
+
+**Rules**
+
+* Export respects current filters and active tab.
+* Output is deterministic:
+
+  * Stable sorting
+  * Schema versioned
+* Export format v1:
+
+  * JSON
+  * Image references by ID (no blobs inline yet)
+
+**Deliverable**
+
+* Export produces predictable, reproducible output
+* Export reflects Viewer state, not raw dataset
+
+---
+
+## 7.4 Data Model Alignment (Sidepanel ↔ Viewer)
+
+**Goal**
+Ensure Viewer consumes the same concepts Sidepanel produces.
+
+**Confirm Support For**
+
+* Classifier output + manual overrides
+* Style primitives + evidence sources
+* Status, tags, notes
+
+**Key Rule**
+
+* Viewer computes grouping and labels at runtime only.
+* No derived fields persisted.
+
+**Deliverable**
+
+* One canonical mapping:
+
+  ```
+  CaptureRecordV2 → ViewerItem
+  CaptureRecordV2 → StyleIndex
+  ```
+* No mock or static Viewer data remains
+
+---
+
+## 7.5 Quality Bar
+
+**Goal**
+Make Milestone 7 shippable as a cohesive experience.
+
+**Checklist**
+
+* Viewer flows documented in TESTING.md
+* Known limitations documented (no overclaims)
+* Performance sanity check (large capture sets)
+* Developer ergonomics acceptable
+
+**Deliverable**
+
+* Milestone 7 is stable, honest, and demo-ready
+
+---
+
+# After Milestone 7 (Next Logical Steps)
+
+## Milestone 8 — Manual Refinement Workflows
+
+* Bulk select
+* Bulk status/tag updates
+* Variant grouping (canonical selection)
+* Pattern marking (styles → tokens/patterns)
+
+## Milestone 9 — Automated Suggestions
+
+* Status/category/type suggestions
+* Pattern detection that learns from manual edits
+
+## Milestone 10 — Figma Export (Real)
+
+* Frames / boards
+* Thumbnails
+* Token + pattern mapping
