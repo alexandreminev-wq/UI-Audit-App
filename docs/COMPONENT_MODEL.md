@@ -1,295 +1,353 @@
 # COMPONENT_MODEL
 
-*Last updated: 2025-12-25 (Europe/Madrid)*
+*Last updated: 2025-12-27*
 
-This document defines how the UI Inventory App represents, categorizes, groups, and displays captured UI elements **for designers**.
+This document defines the **canonical component model** used by the UI Audit Tool across capture, review, and export.  
+It governs how captured UI elements are represented, classified, reviewed, and organized in the Viewer.
 
-It establishes a strict separation between:
-
-- **Side panel** → capture validation & evidence presentation
-- **Viewer** → analysis, refinement, and audit management
-
-This is a **view-only model**:
-- All categorization, grouping, and analysis is derived at runtime
-- No derived keys, signatures, or scores are persisted into capture records
-- Captures remain immutable evidence
+This model is **designer-oriented**, not DOM-oriented.
 
 ---
 
-## Why this exists
+## 1. Core Concepts
 
-The capture pipeline produces trustworthy **evidence**:
-- screenshots
-- element metadata
-- accessibility signals
-- style primitives
+### Component
+A **Component** represents a captured UI element that is meaningful to designers and auditors.
 
-Designers, however, need an **inventory**, not raw DOM output.
+A component is:
+- Captured from a live UI
+- Classified into a **Category** and **Type**
+- Reviewed and optionally edited by the user
+- Included or excluded from exports
 
-This model bridges:
-> captured evidence → designer-readable inventory → audit insights
-
-while remaining honest, explainable, and reversible.
+Components are **reviewable artifacts**, not raw DOM nodes.
 
 ---
 
-## Canon constraints (do not break)
+### Style (derived)
+A **Style** is a deduplicated visual value (color, spacing, radius, typography, shadow) derived from one or more components.
 
-- Service worker is the only IndexedDB accessor
-- Content script / side panel / viewer communicate via message passing only
-- No edits to `dist/**`
-- Derived labels and groupings are computed at runtime
-- No schema changes for derived data
-- Prefer explainable heuristics over opaque inference
-- CSS variables are evidence, not tokens
-- Token semantics are user-defined later
+Styles:
+- Are **read-only**
+- Are **grouped and deduplicated**
+- Exist to support **design system auditing**
+- Can be exported independently or alongside components
 
 ---
 
-# PART 1 — SIDE PANEL MODEL (CAPTURE VALIDATION)
+## 2. Component Data Model
 
-## Purpose of the side panel
+### Component Fields
 
-The side panel exists to answer **one question**:
+```ts
+Component {
+  id: string
+  displayName: string
 
-> “Did we capture the right thing, and does it look the way a designer expects?”
+  category: ComponentCategory
+  type: ComponentType
 
-It is **not** an audit or management surface.
+  status: ComponentStatus
 
----
+  previewImageUrl?: string
+  sourceUrl: string
 
-## Side panel responsibilities
+  htmlSnippet?: string
 
-### 1) Component identity (classification)
+  stylePrimitives?: StylePrimitives
 
-Each capture is mapped to:
+  tags?: string[]
+  notes?: string
 
-- **functionalCategory**  
-  High-level designer grouping  
-  *(Actions, Forms, Navigation, Content, Feedback, Overlay, Media, Layout, Unknown)*
-
-- **typeKey**  
-  Stable internal identifier  
-  *(button, link, text-input, nav, checkbox, image, etc.)*
-
-- **displayName**  
-  Human-readable name  
-  - Accessible name when available  
-  - Otherwise a smart fallback (“Button”, “Text input”)
-
-- *(optional, debug only)* **confidence**  
-  Indicates strength of classification signals
-
-#### Selection precedence
-1. ARIA role
-2. Semantic tagName
-3. Input type
-4. Minimal heuristics (last resort)
-
-> The side panel does **not** infer modules, components, or variants.
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+````
 
 ---
 
-### 2) Designer-friendly property display (“Visual Essentials”)
+### Editable vs Derived Fields
 
-The side panel shows **summarized, readable properties**, not raw JSON.
-
-#### Visual Essentials (v1)
-
-**Text**
-- Font size
-- Font weight
-- Text color
-
-**Surface**
-- Background color
-- Border color (if present)
-- Border radius
-- Shadow (present / layer count)
-
-**Spacing**
-- Padding (T / R / B / L)
-
-**State**
-- Disabled (when detectable)
-- Focusable (best effort)
-
-Rules:
-- Show values exactly as detected
-- Normalize formatting for readability
-- Never invent values
-- Display `—` when unavailable
+| Field           | Editable | Notes                     |
+| --------------- | -------- | ------------------------- |
+| displayName     | ✅        | User-defined naming       |
+| category        | ✅        | Correct misclassification |
+| type            | ✅        | Conditional on category   |
+| status          | ✅        | Review state              |
+| tags            | ✅        | Freeform                  |
+| notes           | ✅        | Freeform                  |
+| stylePrimitives | ❌        | Derived from capture      |
+| htmlSnippet     | ❌        | Reference only            |
+| sourceUrl       | ❌        | Provenance                |
 
 ---
 
-### 3) Variable provenance (evidence only)
+## 3. Categories & Types (Canonical)
 
-When directly detectable, the side panel may show:
+Categories define **intent**.
+Types define **shape** within that intent.
 
-Background
-rgb(19, 61, 87)
-↳ var(--color-primary)
-
-Rules:
-- Variables are shown only when explicitly detectable
-- No stylesheet crawling or cascade reconstruction
-- No token naming or interpretation
-- No compliance claims
-
-Purpose:
-> “Is this value system-driven or hard-coded?”
+Types are **strictly conditional** on Category.
 
 ---
 
-### 4) Lightweight grouping (navigation only)
+### 3.1 Actions
 
-The side panel may group captures by:
-- functionalCategory
-- typeKey
-- type + displayName
+> User-initiated intent. Something happens.
 
-Purpose:
-- browsing
-- scanning
-- sanity checking
+**Types**
 
-The side panel does **not** group by:
-- patterns
-- signatures
-- consistency
-- compliance
+* Button
+* Link
+* Icon Button
+* Toggle Button
 
 ---
 
-## Explicitly out of scope for side panel
+### 3.2 Forms
 
-The side panel does **not**:
-- compute pattern frequency
-- detect variants
-- score consistency
-- recommend changes
-- allow persistent edits
-- manage relationships between captures
+> User provides or selects data.
 
----
+**Types**
 
-# PART 2 — VIEWER MODEL (AUDIT & REFINEMENT)
-
-## Purpose of the viewer
-
-The viewer exists for **analysis and decision-making**.
-
-It answers:
-- “What patterns exist?”
-- “Where are inconsistencies?”
-- “How do components relate to each other?”
-- “What should we fix or document?”
+* Input
+* Textarea
+* Select
+* Checkbox
+* Radio
+* Switch
+* Slider
+* Date Picker
+* File Upload
 
 ---
 
-## Viewer responsibilities
+### 3.3 Navigation
 
-### 1) Manual refinement (user intent)
+> Moves the user through information space.
 
-Manual actions live **only in the viewer**.
+**Types**
 
-Allowed manual annotations:
-- Rename capture (displayName override)
-- Add notes
-- Add tags
-- Assign status:
-  - canonical
-  - variant
-  - deviation
-  - legacy
-  - experimental
-- (Optional) override category/typeKey
-
-Manual data:
-- Is stored separately from capture records
-- Never mutates captured evidence
-- Is scoped by project
+* Nav Link
+* Menu
+* Menu Item
+* Tabs
+* Tab
+* Breadcrumb
+* Pagination
+* Sidebar Item
 
 ---
 
-### 2) Relationships & grouping
+### 3.4 Content
 
-The viewer may allow users to:
-- Group captures as variants
-- Mark a canonical instance within a group
-- Compare variants visually
+> Displays information. No interaction required.
 
-These relationships are:
-- user-defined
-- runtime-derived
-- never written back to captures
+**Types**
 
----
-
-### 3) Pattern detection & analysis
-
-Viewer-only analysis may include:
-- frequency analysis of colors, spacing, typography
-- detection of repeated values
-- identification of one-offs
-
-Principle:
-> Frequency implies intention, not correctness.
+* Heading
+* Paragraph
+* Text
+* Label
+* List
+* List Item
+* Rich Text
 
 ---
 
-### 4) Variable adoption analysis
+### 3.5 Media
 
-The viewer may show:
-- which components use CSS variables
-- which variables are most used
-- where values are hard-coded
+> Visual or illustrative assets.
 
-Still evidence-based, not prescriptive.
+**Types**
 
----
-
-### 5) Compliance (user-defined, later)
-
-Only after users:
-- import a design token set
-- or define expected values
-
-The viewer may then report:
-- compliant
-- variant
-- deviation
-
-The app never defines compliance on its own.
+* Image
+* Icon
+* Avatar
+* Video
+* Illustration
+* Logo
 
 ---
 
-## Explicitly deferred
+### 3.6 Feedback
 
-- Structural level scoring (Element / Module / Component)
-- Framework detection heuristics
-- Suggested token names
-- Auto-generated design systems
-- CSS stylesheet crawling
-- Prescriptive recommendations
+> System responses and state indicators.
 
----
+**Types**
 
-## Summary: responsibility split
-
-| Concern | Side panel | Viewer |
-|------|-----------|--------|
-| Classification | ✅ | ✅ |
-| Naming | ✅ | ✅ |
-| Visual properties | ✅ | ✅ |
-| Variable evidence | ✅ | ✅ |
-| Manual edits | ❌ | ✅ |
-| Grouping / variants | ❌ | ✅ |
-| Pattern detection | ❌ | ✅ |
-| Compliance | ❌ | ✅ (user-defined) |
+* Alert
+* Toast
+* Banner
+* Tooltip
+* Modal
+* Snackbar
+* Inline Message
+* Empty State
 
 ---
 
-## Design principle
+### 3.7 Layout
 
-> **Evidence first. Interpretation later. Authority stays with the user.**
+> Structural and organizational primitives.
+
+**Types**
+
+* Card
+* Container
+* Section
+* Panel
+* Divider
+* Grid
+* Landmark
+
+---
+
+### 3.8 Data Display
+
+> Structured or token-like information.
+
+**Types**
+
+* Table
+* Table Row
+* Table Cell
+* Badge
+* Chip
+* Tag
+* Stat
+* Key Value
+
+---
+
+### 3.9 Unknown
+
+> Captured but not confidently classified.
+
+**Types**
+
+* Element
+* Custom Element
+* Unclassified
+
+**Rules**
+
+* Always visible
+* Never hidden by default
+* Valid audit signal
+* Expected to decrease during review
+
+---
+
+## 4. Component Status
+
+Status reflects **review state**, not visual role.
+
+### Allowed Status Values
+
+* **Unreviewed** – Default after capture
+* **Canonical** – Primary reference implementation
+* **Variant** – Acceptable alternative
+* **Deviation** – Inconsistent or problematic
+* **Legacy** – Deprecated but still present
+* **Experimental** – Intentional exploration
+
+Status is **user-assigned** and **filterable**.
+
+---
+
+## 5. Viewer Modes (Unified)
+
+The Viewer operates in a **single unified review mode**.
+
+There is **no separate browse vs review mode**.
+
+Instead:
+
+* Filters control scope
+* Selection controls export
+* Editing occurs in the detail panel
+
+---
+
+### Viewer Capabilities
+
+Users can:
+
+* Browse components or styles
+* Filter by Category, Type, Status, Source
+* Review and correct classification
+* Add tags and notes
+* Inspect derived visual properties
+* Select items for export
+* Export the filtered view
+
+---
+
+## 6. Filtering & Sections
+
+### Filter Bar
+
+* Category
+* Type (conditional on Category)
+* Status
+* Source
+* Unknown only toggle
+* Search
+
+---
+
+### Sectioned Inventory
+
+* Sections by Category appear **only** when:
+
+  * Category filter = “All Categories”
+* When a specific Category or Type is selected:
+
+  * Sections collapse into a single list/grid
+
+---
+
+## 7. Detail View (Right Panel)
+
+The detail panel is the **only sidebar in the system**.
+
+It supports:
+
+* Identity editing (name, category, type, status)
+* Source inspection
+* HTML reference
+* Visual Essentials (read-only)
+* Notes and tags
+* Delete / Save actions
+
+Styles shown here are **informational**, not editable.
+
+---
+
+## 8. Export Model
+
+Export always operates on the **current filtered view**.
+
+Exports may include:
+
+* Components
+* Styles
+* Or both
+
+Target formats (future):
+
+* Figma frames / boards
+* JSON
+* CSV
+
+---
+
+## 9. Design Principles
+
+* Designers review, systems derive
+* Unknown is allowed
+* Human-readable over raw CSS
+* Capture is automatic, meaning is curated
+* Viewer is the source of truth
+

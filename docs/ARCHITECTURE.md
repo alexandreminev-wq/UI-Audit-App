@@ -1,152 +1,248 @@
-# Architecture (High Level) — v2.6
+# ARCHITECTURE
 
-*Last updated: 2025-12-25 (Europe/Madrid)*
+*Last updated: 2025-12-27*
 
-This project consists of:
+This document describes the high-level architecture of the **UI Audit Tool** Chrome extension and Viewer.
 
-1) a **Chrome Extension (MV3)** for guided UI capture + storage  
-2) a **Viewer app** (packaged with the extension) for browsing, grouping, comparing, and exporting captured evidence  
-3) a **Chrome native Side Panel** UI for **Projects-first capture workflows** (Milestone 6.1+)
+The system is intentionally split into **three layers**:
+1. Capture (Extension Runtime)
+2. Storage & Messaging (Service Worker)
+3. Review & Export (Viewer UI)
 
-**Non-negotiable rules (canon):**
-- **Service worker is the only IndexedDB accessor.**
-- Content script / side panel / viewer use **message passing only** (no direct IDB access).
-- **Never edit `dist/**` by hand** (build outputs only).
-- Viewer/sidepanel compute grouping/labels at runtime; **do not persist derived grouping/signatures** into capture rows.
+Each layer has strict responsibilities and boundaries.
 
 ---
 
-## System components
+## 1. Architectural Principles
 
-### 1) Content Script (apps/extension/src/content/*)
-
-Responsibilities:
-- **Selection UX**
-  - hover highlight/outline
-  - click-to-capture (guided capture)
-  - metadata pill + pragmatic landmarks + freeze/confirm (Milestone 4)
-- **Evidence assembly**
-  - element identity + intent anchors (best-effort)
-  - capture conditions (viewport/DPR/theme/zoom best-effort)
-  - style primitives (minimal normalized set)
-- **Triggers capture pipeline**
-  - sends capture payload + crop rect to SW
-- **Tab registration**
-  - sends `UI/REGISTER_ACTIVE_TAB` on load so the SW can resolve “active audit tab” for side panel messages
-  - (per-tab capture) asks SW `AUDIT/GET_STATE` after registration and resumes hover mode if enabled
-
-### 2) Service Worker (apps/extension/src/background/serviceWorker.ts)
-
-Responsibilities:
-- Owns orchestration and **all IndexedDB reads/writes** (hard rule).
-- Owns “state maps” for runtime behavior:
-  - audit enabled by tab
-  - active session ID by tab
-  - active project ID by tab
-  - last active audit tab id fallback (because side panel has no `sender.tab`)
-- Message APIs:
-  - `AUDIT/*` capture pipeline + blob retrieval
-  - `VIEWER/*` data access for viewer
-  - `UI/*` data access for side panel and project workflows
-
-### 3) Offscreen document (MV3)
-
-Responsibilities:
-- Crops/encodes screenshots via **OffscreenCanvas**
-- Returns encoded Blob + metadata back to SW
+### Canon Rules
+- **Service Worker is the only IndexedDB accessor**
+- **All UIs communicate via message passing**
+- **No derived meaning is persisted in capture records**
+- **Viewer performs classification, grouping, and review**
+- **Capture stores evidence, not interpretation**
 
 ---
 
-## IndexedDB data model (canonical)
+### Design Goals
+- Preserve trustworthy UI evidence
+- Enable designer-led interpretation
+- Avoid schema churn
+- Support incremental enrichment
+- Keep capture lightweight and deterministic
 
-**Stores**
-- `sessions`
-  - internal capture run metadata (session is an internal abstraction)
+---
+
+## 2. High-Level System Overview
+
+```
+
+┌───────────────┐
+│  Web Page UI  │
+└──────┬────────┘
+│
+▼
+┌────────────────────────┐
+│ Content Script (MV3)   │
+│ - Element inspection  │
+│ - Style extraction    │
+│ - Screenshot capture  │
+└──────┬─────────────────┘
+│ message passing
+▼
+┌────────────────────────┐
+│ Service Worker         │
+│ - IndexedDB access     │
+│ - Session / project   │
+│ - Blob storage        │
+│ - Broadcast events    │
+└──────┬─────────────────┘
+│ message passing
+▼
+┌────────────────────────┐
+│ Viewer UI              │
+│ - Review & curation    │
+│ - Classification       │
+│ - Visual Essentials    │
+│ - Filtering & export   │
+└────────────────────────┘
+
+```
+
+---
+
+## 3. Capture Layer (Extension Runtime)
+
+### Components
+- Content Script
+- Screenshot utilities
+
+### Responsibilities
+- Identify the DOM element being captured
+- Extract **computed visual evidence**
+- Normalize values into `StylePrimitives`
+- Capture screenshot and bounding box
+- Send capture payload to Service Worker
+
+### Explicit Non-Responsibilities
+- Naming components
+- Categorization
+- Pattern detection
+- Token resolution
+- Compliance judgments
+
+Capture is **mechanical and repeatable**.
+
+---
+
+## 4. Storage & Messaging Layer (Service Worker)
+
+### Responsibilities
+- Sole owner of IndexedDB
+- Persist Capture Records
+- Manage sessions and projects
+- Store and retrieve screenshot blobs
+- Fan out UI events (e.g. capture saved)
+
+### IndexedDB Stores
 - `captures`
-  - structured capture evidence records
-  - captures reference screenshots via blob id (no embedded bytes)
+- `sessions`
+- `projects`
+- `projectSessions`
 - `blobs`
-  - `{ id, mimeType, width, height, blob }`
-- `projects` (Milestone 6.1)
-  - user-facing “container” object
-- `projectSessions` (Milestone 6.1)
-  - links `{ projectId, sessionId }` (idempotent) so a project can span multiple sessions
 
-**Key rule:** sessions remain internal. Projects layer on top without changing capture schema.
+### Message-Based API
+- `AUDIT/CAPTURE`
+- `AUDIT/GET_BLOB`
+- `UI/GET_PROJECT_CAPTURES`
+- `UI/DELETE_CAPTURE`
+- `UI/CAPTURE_SAVED`
+- Project/session management messages
 
-**User annotations:** User-provided annotations (names, notes, status, grouping) are stored separately from capture records and merged at runtime in the viewer. Capture records remain immutable evidence.
+### Non-Responsibilities
+- Interpretation of capture data
+- Classification logic
+- UI state
 
----
-
-## Data flow: capture pipeline
-
-1) User enables capture mode (side panel or other UI)
-2) Content script activates hover UX and selection
-3) On capture:
-   - content script assembles evidence (intent, conditions, primitives, crop rect)
-   - sends to SW (`AUDIT/CAPTURE`)
-4) SW:
-   - ensures session exists for tab
-   - triggers screenshot capture and offscreen crop/encode
-   - writes blob to `blobs`
-   - writes capture record to `captures`
-   - links session to active project (if a project is selected for that tab)
-5) SW broadcasts:
-   - `AUDIT/CAPTURED` (generic)
-   - `UI/CAPTURE_SAVED { projectId, captureId }` (side panel auto-refresh hint)
+The Service Worker is a **data broker**, not a domain engine.
 
 ---
 
-## Data flow: Side panel (Projects-first)
+## 5. Viewer UI Layer
 
-### Side panel constraints
-Chrome side panel messages often have **no `sender.tab`**, so SW must resolve a tab via:
-- `resolveTabId(msg, sender)` which falls back to `lastActiveAuditTabId`
-- Content script must register itself as active via `UI/REGISTER_ACTIVE_TAB`
+The Viewer is a **review and export environment**, not a capture surface.
 
-### Side panel → SW message surface (current)
-- Projects:
-  - `UI/LIST_PROJECTS`
-  - `UI/CREATE_PROJECT { title }`
-  - `UI/SET_ACTIVE_PROJECT_FOR_TAB { projectId }`
-  - `UI/GET_PROJECT_CAPTURES` (returns captures aggregated across sessions linked to active project)
-  - `UI/GET_PROJECT_COMPONENT_COUNTS` (counts per project for Start Screen)
-  - `UI/DELETE_CAPTURE { captureId }` (real delete)
-- Capture:
-  - `AUDIT/GET_STATE`
-  - `AUDIT/TOGGLE { enabled }`
-  - `AUDIT/GET_BLOB { blobId }`
-
-### Side panel UX (today)
-- Start screen: create/select project, shows component counts, includes “Open Viewer”
-- Project screen: capture toggle, refresh, open viewer, list captured components, view details, delete capture
+It operates on **derived representations** of Capture Records.
 
 ---
 
-## Data flow: Viewer reads + thumbnails
+### 5.1 Component Review Model
 
-**Rule:** Service worker is the only IndexedDB accessor. Viewer uses messages.
+Capture Records are transformed into **Components** at runtime:
 
-1) Viewer requests sessions:
-   - `VIEWER/LIST_SESSIONS`
-2) Viewer requests captures for a session:
-   - `VIEWER/LIST_CAPTURES { sessionId }`
-3) Viewer requests screenshot bytes:
-   - `AUDIT/GET_BLOB { blobId }`
+- Classification (Category, Type)
+- Display name generation
+- Status assignment
+- Notes and tags
+- Visual Essentials rendering
 
-### Blob transfer constraint (MV3)
-ArrayBuffers do not reliably survive `chrome.runtime.sendMessage` for this pipeline, so blob bytes are returned as:
-
-- `{ ok: true, arrayBuffer: number[] }`
-
-Viewer/side panel reconstruct:
-- `Uint8Array(number[]) → Blob → URL.createObjectURL(...)`
+These transformations:
+- Are computed or user-edited
+- Are not written back into capture records
+- Exist only in the Viewer state
 
 ---
 
-## Non-goals (current)
-- No persisted grouping/signature keys in IndexedDB
-- No viewer redesign until Milestone 7
-- No deep linking guarantees (projectId query params are “best effort” hints for future viewer work)
-- No automatic pseudo-state simulation (`:hover/:active`) for evidence
-- No guarantee that overlays never appear in screenshots (work remains; fix later)
+### 5.2 Styles Inventory Model
+
+Styles are:
+- Derived by aggregating `StylePrimitives`
+- Grouped by visual value
+- Linked back to components
+- Presented read-only
+
+No style editing occurs in the Viewer.
+
+---
+
+### 5.3 Filtering & Sections
+
+- Filter bar controls the dataset view
+- Category sections appear **only** when viewing “All Categories”
+- Selecting a Category or Type flattens the inventory
+- Export operates on the **current filtered view**
+
+---
+
+## 6. Detail Panel (Inspector)
+
+The right-hand detail panel is the **only sidebar** in the system.
+
+It supports:
+- Component identity editing
+- Status updates
+- Tagging and notes
+- Visual Essentials inspection
+- Source and HTML reference
+
+The panel never mutates capture evidence.
+
+---
+
+## 7. Export Architecture
+
+Export is:
+- Viewer-driven
+- Filter-scoped
+- Explicitly user-triggered
+
+Export payloads may include:
+- Components
+- Styles
+- Or both
+
+Export formats are pluggable:
+- Figma
+- JSON
+- CSV
+
+---
+
+## 8. Data Flow Guarantees
+
+- Capture → Store → Review is one-way
+- Review never mutates capture evidence
+- Re-analysis is always possible
+- Future enrichment can be layered without re-capture
+
+---
+
+## 9. What This Architecture Enables
+
+- Designer-led audits
+- Incremental sophistication (patterns, tokens, compliance)
+- Safe schema evolution
+- Clear debugging boundaries
+- Scalable Viewer complexity
+
+---
+
+## 10. What This Architecture Avoids
+
+- Overloaded capture records
+- “Smart” service worker logic
+- Premature token systems
+- Hidden derived state
+- Irreversible transformations
+
+---
+
+## 11. Summary
+
+This architecture deliberately separates:
+- **Reality (Capture)**
+- **Evidence (Storage)**
+- **Meaning (Viewer)**
+
+This separation is what allows the UI Audit Tool to scale from simple inventories
+to deep design system audits without rewriting its foundations.
