@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import ReactDOM from "react-dom/client";
+import * as Popover from "@radix-ui/react-popover";
 import "./index.css";
 
 // ─────────────────────────────────────────────────────────────
@@ -467,6 +468,22 @@ function ProjectViewShell({
     const [activeView, setActiveView] = useState<"grid" | "table">("grid");
     const [unknownOnly, setUnknownOnly] = useState(false);
 
+    // Drawer state (IA-only)
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+    const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
+
+    // Unified menu/popover state (IA-only)
+    const [openMenu, setOpenMenu] = useState<null | "category" | "type" | "status" | "source" | "properties">(null);
+    const [visibleProps, setVisibleProps] = useState({
+        name: true,
+        category: true,
+        type: true,
+        status: true,
+        source: true,
+        captures: true,
+    });
+
     // TEMP: Mock data for IA-only layouts (will be replaced with real data in later milestones)
     const mockComponents = [
         { id: "c1", name: "Primary Button", category: "Actions", type: "button", status: "Canonical", source: "Homepage", capturesCount: 12 },
@@ -488,6 +505,29 @@ function ProjectViewShell({
 
     const hasComponents = mockComponents.length > 0;
     const hasStyles = mockStyles.length > 0;
+
+    // Selected item lookup (IA-only)
+    const selectedComponent = selectedComponentId ? mockComponents.find(c => c.id === selectedComponentId) : null;
+    const selectedStyle = selectedStyleId ? mockStyles.find(s => s.id === selectedStyleId) : null;
+
+    // Click handlers for opening drawer
+    const handleComponentClick = (id: string) => {
+        setSelectedComponentId(id);
+        setSelectedStyleId(null);
+        setDrawerOpen(true);
+    };
+
+    const handleStyleClick = (id: string) => {
+        setSelectedStyleId(id);
+        setSelectedComponentId(null);
+        setDrawerOpen(true);
+    };
+
+    const handleCloseDrawer = () => {
+        setDrawerOpen(false);
+        setSelectedComponentId(null);
+        setSelectedStyleId(null);
+    };
 
     // Style map for header and toolbar (reduces inline clutter)
     const styles = {
@@ -737,17 +777,66 @@ function ProjectViewShell({
 
                 {/* Third row: Filters toolbar (visual only) */}
                 <div style={styles.filterRow}>
+                    {/* Unified click-outside overlay for all dropdowns/popovers */}
+                    {openMenu !== null && openMenu !== "properties" && (
+                        <div
+                            onClick={() => setOpenMenu(null)}
+                            style={{
+                                position: "fixed",
+                                inset: 0,
+                                zIndex: 59,
+                                background: "transparent",
+                            }}
+                        />
+                    )}
+
                     <div style={styles.filterGroupLeft}>
-                        <button style={styles.filterButton}>
+                        <button
+                            onClick={() => setOpenMenu(openMenu === "category" ? null : "category")}
+                            style={{
+                                ...styles.filterButton,
+                                ...(openMenu === "category" ? {
+                                    background: "hsl(var(--muted))",
+                                    fontWeight: 600,
+                                } : {}),
+                            }}
+                        >
                             Category ▾
                         </button>
-                        <button style={styles.filterButton}>
+                        <button
+                            onClick={() => setOpenMenu(openMenu === "type" ? null : "type")}
+                            style={{
+                                ...styles.filterButton,
+                                ...(openMenu === "type" ? {
+                                    background: "hsl(var(--muted))",
+                                    fontWeight: 600,
+                                } : {}),
+                            }}
+                        >
                             Type ▾
                         </button>
-                        <button style={styles.filterButton}>
+                        <button
+                            onClick={() => setOpenMenu(openMenu === "status" ? null : "status")}
+                            style={{
+                                ...styles.filterButton,
+                                ...(openMenu === "status" ? {
+                                    background: "hsl(var(--muted))",
+                                    fontWeight: 600,
+                                } : {}),
+                            }}
+                        >
                             Status ▾
                         </button>
-                        <button style={styles.filterButton}>
+                        <button
+                            onClick={() => setOpenMenu(openMenu === "source" ? null : "source")}
+                            style={{
+                                ...styles.filterButton,
+                                ...(openMenu === "source" ? {
+                                    background: "hsl(var(--muted))",
+                                    fontWeight: 600,
+                                } : {}),
+                            }}
+                        >
                             Source ▾
                         </button>
                         <div style={styles.filterSeparator} />
@@ -765,9 +854,80 @@ function ProjectViewShell({
                     </div>
                     <div style={styles.filterSpacer} />
                     <div style={styles.filterGroupRight}>
-                        <button style={styles.filterButton}>
-                            Visible properties
-                        </button>
+                        {/* Visible properties button with Radix popover */}
+                        <Popover.Root
+                            open={openMenu === "properties"}
+                            onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "properties" : null)}
+                        >
+                            <Popover.Trigger asChild>
+                                <button
+                                    style={{
+                                        ...styles.filterButton,
+                                        ...(openMenu === "properties" ? {
+                                            background: "hsl(var(--muted))",
+                                            fontWeight: 600,
+                                        } : {}),
+                                    }}
+                                >
+                                    Visible properties
+                                </button>
+                            </Popover.Trigger>
+                            <Popover.Portal>
+                                <Popover.Content
+                                    sideOffset={8}
+                                    align="end"
+                                    style={{
+                                        width: 240,
+                                        background: "hsl(var(--background))",
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
+                                        padding: 12,
+                                        zIndex: 100,
+                                    }}
+                                >
+                                    <div style={{
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "hsl(var(--foreground))",
+                                        marginBottom: 8,
+                                    }}>
+                                        Visible properties
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                        {[
+                                            { key: "name", label: "Name" },
+                                            { key: "category", label: "Category" },
+                                            { key: "type", label: "Type" },
+                                            { key: "status", label: "Status" },
+                                            { key: "source", label: "Source" },
+                                            { key: "captures", label: "Captures" },
+                                        ].map(({ key, label }) => (
+                                            <label
+                                                key={key}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    padding: "4px 4px",
+                                                    cursor: "pointer",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={visibleProps[key as keyof typeof visibleProps]}
+                                                    onChange={(e) => setVisibleProps(prev => ({ ...prev, [key]: e.target.checked }))}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {label}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </Popover.Content>
+                            </Popover.Portal>
+                        </Popover.Root>
                     </div>
                 </div>
             </div>
@@ -847,12 +1007,19 @@ function ProjectViewShell({
                         gap: 12,
                     }}>
                         {mockComponents.map((comp) => (
-                            <div key={comp.id} style={{
-                                border: "1px solid hsl(var(--border))",
-                                background: "hsl(var(--background))",
-                                borderRadius: "var(--radius)",
-                                padding: 12,
-                            }}>
+                            <div
+                                key={comp.id}
+                                onClick={() => handleComponentClick(comp.id)}
+                                style={{
+                                    border: "1px solid hsl(var(--border))",
+                                    background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "hsl(var(--background))",
+                                    borderRadius: "var(--radius)",
+                                    padding: 12,
+                                    cursor: "pointer",
+                                    outline: selectedComponentId === comp.id ? "2px solid hsl(var(--border))" : "none",
+                                    outlineOffset: 0,
+                                }}
+                            >
                                 <div style={{
                                     fontSize: 14,
                                     fontWeight: 600,
@@ -932,15 +1099,21 @@ function ProjectViewShell({
                             <div>Captures</div>
                         </div>
                         {mockComponents.map((comp) => (
-                            <div key={comp.id} style={{
-                                display: "grid",
-                                gridTemplateColumns: "2fr 1fr 80px 100px 1fr 80px",
-                                gap: 12,
-                                padding: "12px",
-                                borderBottom: "1px solid hsl(var(--border))",
-                                fontSize: 14,
-                                color: "hsl(var(--foreground))",
-                            }}>
+                            <div
+                                key={comp.id}
+                                onClick={() => handleComponentClick(comp.id)}
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "2fr 1fr 80px 100px 1fr 80px",
+                                    gap: 12,
+                                    padding: "12px",
+                                    borderBottom: "1px solid hsl(var(--border))",
+                                    fontSize: 14,
+                                    color: "hsl(var(--foreground))",
+                                    background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
                                 <div style={{ fontWeight: 500 }}>{comp.name}</div>
                                 <div style={{ color: "hsl(var(--muted-foreground))" }}>{comp.category}</div>
                                 <div style={{
@@ -976,12 +1149,19 @@ function ProjectViewShell({
                         gap: 12,
                     }}>
                         {mockStyles.map((style) => (
-                            <div key={style.id} style={{
-                                border: "1px solid hsl(var(--border))",
-                                background: "hsl(var(--background))",
-                                borderRadius: "var(--radius)",
-                                padding: 12,
-                            }}>
+                            <div
+                                key={style.id}
+                                onClick={() => handleStyleClick(style.id)}
+                                style={{
+                                    border: "1px solid hsl(var(--border))",
+                                    background: selectedStyleId === style.id ? "hsl(var(--muted))" : "hsl(var(--background))",
+                                    borderRadius: "var(--radius)",
+                                    padding: 12,
+                                    cursor: "pointer",
+                                    outline: selectedStyleId === style.id ? "2px solid hsl(var(--border))" : "none",
+                                    outlineOffset: 0,
+                                }}
+                            >
                                 <div style={{
                                     fontSize: 13,
                                     fontFamily: "monospace",
@@ -1049,15 +1229,21 @@ function ProjectViewShell({
                             <div>Source</div>
                         </div>
                         {mockStyles.map((style) => (
-                            <div key={style.id} style={{
-                                display: "grid",
-                                gridTemplateColumns: "2fr 2fr 100px 80px 1fr",
-                                gap: 12,
-                                padding: "12px",
-                                borderBottom: "1px solid hsl(var(--border))",
-                                fontSize: 14,
-                                color: "hsl(var(--foreground))",
-                            }}>
+                            <div
+                                key={style.id}
+                                onClick={() => handleStyleClick(style.id)}
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "2fr 2fr 100px 80px 1fr",
+                                    gap: 12,
+                                    padding: "12px",
+                                    borderBottom: "1px solid hsl(var(--border))",
+                                    fontSize: 14,
+                                    color: "hsl(var(--foreground))",
+                                    background: selectedStyleId === style.id ? "hsl(var(--muted))" : "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
                                 <div style={{
                                     fontFamily: "monospace",
                                     fontSize: 13,
@@ -1090,6 +1276,251 @@ function ProjectViewShell({
                     </div>
                 )}
             </div>
+
+            {/* Drawer overlay and panel (IA-only) */}
+            {drawerOpen && (
+                <>
+                    {/* Overlay */}
+                    <div
+                        onClick={handleCloseDrawer}
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            background: "hsl(var(--foreground) / 0.08)",
+                            zIndex: 50,
+                        }}
+                    />
+                    {/* Drawer panel */}
+                    <div
+                        style={{
+                            position: "fixed",
+                            top: 0,
+                            right: 0,
+                            height: "100vh",
+                            width: 420,
+                            maxWidth: "90vw",
+                            background: "hsl(var(--background))",
+                            borderLeft: "1px solid hsl(var(--border))",
+                            padding: 24,
+                            overflowY: "auto",
+                            zIndex: 51,
+                        }}
+                    >
+                        {/* Close button */}
+                        <button
+                            onClick={handleCloseDrawer}
+                            style={{
+                                position: "absolute",
+                                top: 16,
+                                right: 16,
+                                padding: "4px 8px",
+                                fontSize: 14,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            ✕
+                        </button>
+
+                        {/* Drawer content */}
+                        {selectedComponent && (
+                            <div>
+                                {/* Component header */}
+                                <h2 style={{
+                                    fontSize: 20,
+                                    fontWeight: 600,
+                                    margin: 0,
+                                    marginBottom: 4,
+                                    color: "hsl(var(--foreground))",
+                                }}>
+                                    {selectedComponent.name}
+                                </h2>
+                                <div style={{
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 24,
+                                }}>
+                                    {selectedComponent.category} • {selectedComponent.type} • {selectedComponent.status}
+                                </div>
+
+                                {/* Overview section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Overview
+                                    </h3>
+                                    <p style={{
+                                        fontSize: 14,
+                                        color: "hsl(var(--muted-foreground))",
+                                        margin: 0,
+                                    }}>
+                                        Placeholder: Component overview and description will appear here.
+                                    </p>
+                                </div>
+
+                                {/* Captures section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Captures ({selectedComponent.capturesCount})
+                                    </h3>
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                    }}>
+                                        Placeholder: List of captures will appear here
+                                    </div>
+                                </div>
+
+                                {/* Properties section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Properties
+                                    </h3>
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                    }}>
+                                        Placeholder: Component properties will appear here
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedStyle && (
+                            <div>
+                                {/* Style header */}
+                                <h2 style={{
+                                    fontSize: 18,
+                                    fontWeight: 600,
+                                    fontFamily: "monospace",
+                                    margin: 0,
+                                    marginBottom: 4,
+                                    color: "hsl(var(--foreground))",
+                                }}>
+                                    {selectedStyle.token}
+                                </h2>
+                                <div style={{
+                                    fontSize: 14,
+                                    fontFamily: "monospace",
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 24,
+                                    padding: "4px 8px",
+                                    background: "hsl(var(--muted))",
+                                    borderRadius: "var(--radius)",
+                                    display: "inline-block",
+                                }}>
+                                    {selectedStyle.value}
+                                </div>
+
+                                {/* Usage section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Usage ({selectedStyle.usageCount} times)
+                                    </h3>
+                                    <p style={{
+                                        fontSize: 14,
+                                        color: "hsl(var(--muted-foreground))",
+                                        margin: 0,
+                                    }}>
+                                        Placeholder: Usage details will appear here.
+                                    </p>
+                                </div>
+
+                                {/* Where it appears section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Where it appears
+                                    </h3>
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                    }}>
+                                        Placeholder: List of pages/components using this style
+                                    </div>
+                                </div>
+
+                                {/* Related components section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        marginTop: 0,
+                                        marginBottom: 8,
+                                        color: "hsl(var(--foreground))",
+                                    }}>
+                                        Related components
+                                    </h3>
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                    }}>
+                                        Placeholder: Related components will appear here
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {!selectedComponent && !selectedStyle && (
+                            <div style={{
+                                fontSize: 14,
+                                color: "hsl(var(--muted-foreground))",
+                                textAlign: "center",
+                                marginTop: 48,
+                            }}>
+                                Nothing selected
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
