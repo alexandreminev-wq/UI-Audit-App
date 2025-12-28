@@ -464,24 +464,100 @@ function ProjectViewShell({
     onBack: () => void;
 }) {
     return (
-        <div style={{ padding: 24 }}>
-            <button
-                onClick={onBack}
-                style={{
-                    padding: "8px 16px",
-                    fontSize: 14,
-                    background: "hsl(var(--secondary))",
-                    color: "hsl(var(--secondary-foreground))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "var(--radius)",
-                    cursor: "pointer",
-                    marginBottom: 24,
-                }}
-            >
-                ← Back to Projects
-            </button>
-            <h1 style={{ fontSize: 24, margin: "0 0 16px 0" }}>{projectName}</h1>
-            <p style={{ color: "hsl(var(--muted-foreground))" }}>Project view coming next</p>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* Header */}
+            <div style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid hsl(var(--border))",
+                background: "hsl(var(--background))",
+            }}>
+                {/* Top row: Back button + Project info on left, Search + Export on right */}
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 24,
+                }}>
+                    {/* Left side: Back button + Project info */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+                        <button
+                            onClick={onBack}
+                            style={{
+                                padding: "6px 12px",
+                                fontSize: 14,
+                                background: "hsl(var(--secondary))",
+                                color: "hsl(var(--secondary-foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                                flexShrink: 0,
+                            }}
+                        >
+                            ← Back
+                        </button>
+                        <div style={{ minWidth: 0 }}>
+                            <h1 style={{
+                                fontSize: 20,
+                                fontWeight: 600,
+                                margin: 0,
+                                color: "hsl(var(--foreground))",
+                            }}>
+                                {projectName}
+                            </h1>
+                            <div style={{
+                                fontSize: 13,
+                                color: "hsl(var(--muted-foreground))",
+                                marginTop: 2,
+                            }}>
+                                6 captures • 30 unique styles
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right side: Search + Export */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <input
+                            type="text"
+                            placeholder="Search components and styles"
+                            style={{
+                                padding: "6px 12px",
+                                fontSize: 14,
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                width: 280,
+                            }}
+                        />
+                        <button
+                            onClick={() => console.log("Export clicked")}
+                            style={{
+                                padding: "6px 16px",
+                                fontSize: 14,
+                                background: "hsl(var(--primary))",
+                                color: "hsl(var(--primary-foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                                fontWeight: 500,
+                            }}
+                        >
+                            Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Body placeholder (tabs/filters/content will come in next slices) */}
+            <div style={{
+                flex: 1,
+                padding: 24,
+                overflowY: "auto",
+            }}>
+                <p style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Project workspace content coming next
+                </p>
+            </div>
         </div>
     );
 }
