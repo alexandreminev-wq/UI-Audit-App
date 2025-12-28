@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import * as Popover from "@radix-ui/react-popover";
+import * as Dialog from "@radix-ui/react-dialog";
 import "./index.css";
 
 // ─────────────────────────────────────────────────────────────
@@ -1297,11 +1298,19 @@ function ProjectViewShell({
                 )}
             </div>
 
-            {/* Drawer overlay and panel (IA-only) */}
-            {drawerOpen && (
-                <>
-                    {/* Overlay */}
-                    <div
+            {/* Drawer with Radix Dialog (IA-only) */}
+            <Dialog.Root
+                open={drawerOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        handleCloseDrawer();
+                    } else {
+                        setDrawerOpen(true);
+                    }
+                }}
+            >
+                <Dialog.Portal>
+                    <Dialog.Overlay
                         onClick={handleCloseDrawer}
                         style={{
                             position: "fixed",
@@ -1310,8 +1319,7 @@ function ProjectViewShell({
                             zIndex: 50,
                         }}
                     />
-                    {/* Drawer panel */}
-                    <div
+                    <Dialog.Content
                         style={{
                             position: "fixed",
                             top: 0,
@@ -1327,23 +1335,25 @@ function ProjectViewShell({
                         }}
                     >
                         {/* Close button */}
-                        <button
-                            onClick={handleCloseDrawer}
-                            style={{
-                                position: "absolute",
-                                top: 16,
-                                right: 16,
-                                padding: "4px 8px",
-                                fontSize: 14,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
-                            ✕
-                        </button>
+                        <Dialog.Close asChild>
+                            <button
+                                onClick={handleCloseDrawer}
+                                style={{
+                                    position: "absolute",
+                                    top: 16,
+                                    right: 16,
+                                    padding: "4px 8px",
+                                    fontSize: 14,
+                                    background: "hsl(var(--background))",
+                                    color: "hsl(var(--foreground))",
+                                    border: "1px solid hsl(var(--border))",
+                                    borderRadius: "var(--radius)",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </Dialog.Close>
 
                         {/* Drawer content */}
                         {selectedComponent && (
@@ -1538,9 +1548,9 @@ function ProjectViewShell({
                                 Nothing selected
                             </div>
                         )}
-                    </div>
-                </>
-            )}
+                    </Dialog.Content>
+                </Dialog.Portal>
+            </Dialog.Root>
         </div>
     );
 }
