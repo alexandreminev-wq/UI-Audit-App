@@ -64,6 +64,26 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// URL navigation helpers (Milestone 7.2.1)
+// ─────────────────────────────────────────────────────────────
+
+function getSelectedProjectIdFromUrl(): string | null {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("project");
+    return projectId && projectId.trim() !== "" ? projectId : null;
+}
+
+function setSelectedProjectIdInUrl(id: string | null): void {
+    const url = new URL(window.location.href);
+    if (id === null) {
+        url.searchParams.delete("project");
+    } else {
+        url.searchParams.set("project", id);
+    }
+    window.history.pushState({}, "", url.pathname + url.search + url.hash);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Grouping Helpers
 // ─────────────────────────────────────────────────────────────
 
@@ -1581,9 +1601,14 @@ function ViewerApp() {
     // Live refresh state (Milestone 5 - Slice 5.1 - polling)
     const capturesLoadInFlightRef = useRef(false);
 
-    // Milestone 7.2.1: Routing state
-    const [route, setRoute] = useState<ViewerRoute>("projects");
-    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    // Milestone 7.2.1: Routing state (initialized from URL)
+    const [route, setRoute] = useState<ViewerRoute>(() => {
+        const projectId = getSelectedProjectIdFromUrl();
+        return projectId ? "project" : "projects";
+    });
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+        return getSelectedProjectIdFromUrl();
+    });
 
     // TEMP: UI-only mock projects (will be replaced with real data in 7.4)
     const [projects] = useState<Project[]>([
@@ -1641,6 +1666,25 @@ function ViewerApp() {
             if (exportResetTimerRef.current !== null) {
                 clearTimeout(exportResetTimerRef.current);
             }
+        };
+    }, []);
+
+    // Handle browser back/forward buttons (Milestone 7.2.1)
+    useEffect(() => {
+        const handlePopState = () => {
+            const projectId = getSelectedProjectIdFromUrl();
+            if (projectId) {
+                setRoute("project");
+                setSelectedProjectId(projectId);
+            } else {
+                setRoute("projects");
+                setSelectedProjectId(null);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => {
+            window.removeEventListener("popstate", handlePopState);
         };
     }, []);
 
@@ -2365,6 +2409,7 @@ function ViewerApp() {
                 onSelectProject={(projectId) => {
                     setSelectedProjectId(projectId);
                     setRoute("project");
+                    setSelectedProjectIdInUrl(projectId);
                 }}
             />
         );
@@ -2373,13 +2418,17 @@ function ViewerApp() {
     if (route === "project") {
         // Safe fallback: if selectedProjectId is missing, show projects home
         if (!selectedProjectId) {
-            return <ProjectsHome projects={projects} onSelectProject={(projectId) => { setSelectedProjectId(projectId); setRoute("project"); }} />;
+            return <ProjectsHome projects={projects} onSelectProject={(projectId) => { setSelectedProjectId(projectId); setRoute("project"); setSelectedProjectIdInUrl(projectId); }} />;
         }
         const project = projects.find((p) => p.id === selectedProjectId);
         return (
             <ProjectViewShell
                 projectName={project?.name || "Unknown Project"}
-                onBack={() => { setRoute("projects"); setSelectedProjectId(null); }}
+                onBack={() => {
+                    setRoute("projects");
+                    setSelectedProjectId(null);
+                    setSelectedProjectIdInUrl(null);
+                }}
             />
         );
     }
