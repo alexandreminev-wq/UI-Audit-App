@@ -1201,10 +1201,10 @@ function ViewerApp() {
             <div
                 style={{
                     width: 300,
-                    borderRight: "1px solid #ddd",
+                    borderRight: "1px solid hsl(var(--border))",
                     padding: 16,
                     overflowY: "auto",
-                    background: "#f9f9f9",
+                    background: "hsl(var(--muted))",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
