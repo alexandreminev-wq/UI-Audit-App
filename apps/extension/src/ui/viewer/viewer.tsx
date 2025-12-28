@@ -489,137 +489,208 @@ function ProjectViewShell({
     const hasComponents = mockComponents.length > 0;
     const hasStyles = mockStyles.length > 0;
 
+    // Style map for header and toolbar (reduces inline clutter)
+    const styles = {
+        header: {
+            padding: "16px 24px",
+            borderBottom: "1px solid hsl(var(--border))",
+            background: "hsl(var(--background))",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+        },
+        topRow: {
+            display: "flex",
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+            gap: 12,
+            rowGap: 12,
+        },
+        topLeftGroup: {
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            minWidth: 280,
+            flex: "2 1 360px",
+        },
+        topSearchGroup: {
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flex: "3 1 420px",
+            minWidth: 260,
+            maxWidth: 720,
+            width: "100%",
+        },
+        backButton: {
+            padding: "6px 12px",
+            fontSize: 14,
+            background: "hsl(var(--muted))",
+            color: "hsl(var(--foreground))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "var(--radius)",
+            cursor: "pointer",
+            flexShrink: 0,
+        },
+        projectTitleContainer: {
+            minWidth: 0,
+        },
+        projectTitle: {
+            fontSize: 20,
+            fontWeight: 600,
+            margin: 0,
+            color: "hsl(var(--foreground))",
+        },
+        projectMeta: {
+            fontSize: 13,
+            color: "hsl(var(--muted-foreground))",
+            marginTop: 2,
+        },
+        searchInput: {
+            padding: "6px 12px",
+            fontSize: 14,
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "var(--radius)",
+            background: "hsl(var(--background))",
+            color: "hsl(var(--foreground))",
+            flex: 1,
+            minWidth: 180,
+        },
+        exportButton: {
+            padding: "6px 16px",
+            fontSize: 14,
+            background: "hsl(var(--primary))",
+            color: "hsl(var(--primary-foreground))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "var(--radius)",
+            cursor: "pointer",
+            fontWeight: 500,
+            flexShrink: 0,
+        },
+        secondRow: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            rowGap: 12,
+            marginTop: 12,
+        },
+        segmentedContainer: {
+            display: "inline-flex",
+            padding: 2,
+            background: "hsl(var(--muted))",
+            borderRadius: "var(--radius)",
+            flex: "0 0 auto",
+        },
+        segmentedButtonBase: {
+            padding: "6px 16px",
+            fontSize: 14,
+            border: "none",
+            borderRadius: "calc(var(--radius) - 2px)",
+            cursor: "pointer",
+        },
+        segmentedButtonView: {
+            padding: "6px 12px",
+            fontSize: 14,
+            border: "none",
+            borderRadius: "calc(var(--radius) - 2px)",
+            cursor: "pointer",
+        },
+        filterRow: {
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            rowGap: 8,
+            marginTop: 12,
+        },
+        filterGroupLeft: {
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            rowGap: 8,
+        },
+        filterButton: {
+            padding: "4px 10px",
+            fontSize: 13,
+            background: "hsl(var(--background))",
+            color: "hsl(var(--foreground))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "var(--radius)",
+            cursor: "pointer",
+        },
+        filterSeparator: {
+            width: 1,
+            height: 20,
+            background: "hsl(var(--border))",
+            margin: "0 4px",
+        },
+        utilityButtonBase: {
+            padding: "4px 10px",
+            fontSize: 13,
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "var(--radius)",
+            cursor: "pointer",
+        },
+        filterSpacer: {
+            flex: 1,
+        },
+        filterGroupRight: {
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            rowGap: 8,
+        },
+    } satisfies Record<string, React.CSSProperties>;
+
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Header */}
-            <div style={{
-                padding: "16px 24px",
-                borderBottom: "1px solid hsl(var(--border))",
-                background: "hsl(var(--background))",
-                position: "sticky",
-                top: 0,
-                zIndex: 10,
-            }}>
+            <div style={styles.header}>
                 {/* Top row: Back button + Project info on left, Search + Export on right */}
-                <div style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    rowGap: 12,
-                }}>
+                <div style={styles.topRow}>
                     {/* Left side: Back button + Project info */}
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        minWidth: 220,
-                        flex: "1 1 240px",
-                    }}>
-                        <button
-                            onClick={onBack}
-                            style={{
-                                padding: "6px 12px",
-                                fontSize: 14,
-                                background: "hsl(var(--secondary))",
-                                color: "hsl(var(--secondary-foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                                flexShrink: 0,
-                            }}
-                        >
+                    <div style={styles.topLeftGroup}>
+                        <button onClick={onBack} style={styles.backButton}>
                             ← Back
                         </button>
-                        <div style={{ minWidth: 0 }}>
-                            <h1 style={{
-                                fontSize: 20,
-                                fontWeight: 600,
-                                margin: 0,
-                                color: "hsl(var(--foreground))",
-                            }}>
+                        <div style={styles.projectTitleContainer}>
+                            <h1 style={styles.projectTitle}>
                                 {projectName}
                             </h1>
-                            <div style={{
-                                fontSize: 13,
-                                color: "hsl(var(--muted-foreground))",
-                                marginTop: 2,
-                            }}>
+                            <div style={styles.projectMeta}>
                                 6 captures • 30 unique styles
                             </div>
                         </div>
                     </div>
 
                     {/* Right side: Search + Export */}
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        flex: "999 1 320px",
-                        minWidth: 240,
-                    }}>
+                    <div style={styles.topSearchGroup}>
                         <input
                             type="text"
                             placeholder="Search components and styles"
-                            style={{
-                                padding: "6px 12px",
-                                fontSize: 14,
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                flex: 1,
-                                minWidth: 180,
-                            }}
+                            style={styles.searchInput}
                         />
-                        <button
-                            onClick={() => console.log("Export clicked")}
-                            style={{
-                                padding: "6px 16px",
-                                fontSize: 14,
-                                background: "hsl(var(--primary))",
-                                color: "hsl(var(--primary-foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                                fontWeight: 500,
-                                flexShrink: 0,
-                            }}
-                        >
+                        <button style={styles.exportButton}>
                             Export
                         </button>
                     </div>
                 </div>
 
                 {/* Second row: Tab selector (Components/Styles) + View toggle (Grid/Table) */}
-                <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    rowGap: 12,
-                    marginTop: 12,
-                }}>
+                <div style={styles.secondRow}>
                     {/* Left: Components/Styles tabs */}
-                    <div style={{
-                        display: "inline-flex",
-                        padding: 2,
-                        background: "hsl(var(--muted))",
-                        borderRadius: "var(--radius)",
-                        flex: "0 0 auto",
-                    }}>
+                    <div style={styles.segmentedContainer}>
                         <button
                             onClick={() => setActiveTab("components")}
                             style={{
-                                padding: "6px 16px",
-                                fontSize: 14,
-                                fontWeight: 500,
+                                ...styles.segmentedButtonBase,
                                 background: activeTab === "components" ? "hsl(var(--background))" : "transparent",
                                 color: activeTab === "components" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                border: "none",
-                                borderRadius: "calc(var(--radius) - 2px)",
-                                cursor: "pointer",
+                                fontWeight: activeTab === "components" ? 600 : 500,
                             }}
                         >
                             Components
@@ -627,14 +698,10 @@ function ProjectViewShell({
                         <button
                             onClick={() => setActiveTab("styles")}
                             style={{
-                                padding: "6px 16px",
-                                fontSize: 14,
-                                fontWeight: 500,
+                                ...styles.segmentedButtonBase,
                                 background: activeTab === "styles" ? "hsl(var(--background))" : "transparent",
                                 color: activeTab === "styles" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                border: "none",
-                                borderRadius: "calc(var(--radius) - 2px)",
-                                cursor: "pointer",
+                                fontWeight: activeTab === "styles" ? 600 : 500,
                             }}
                         >
                             Styles
@@ -642,23 +709,14 @@ function ProjectViewShell({
                     </div>
 
                     {/* Right: Grid/Table view toggle */}
-                    <div style={{
-                        display: "inline-flex",
-                        padding: 2,
-                        background: "hsl(var(--muted))",
-                        borderRadius: "var(--radius)",
-                        flex: "0 0 auto",
-                    }}>
+                    <div style={styles.segmentedContainer}>
                         <button
                             onClick={() => setActiveView("grid")}
                             style={{
-                                padding: "6px 12px",
-                                fontSize: 14,
+                                ...styles.segmentedButtonView,
                                 background: activeView === "grid" ? "hsl(var(--background))" : "transparent",
                                 color: activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                border: "none",
-                                borderRadius: "calc(var(--radius) - 2px)",
-                                cursor: "pointer",
+                                fontWeight: activeView === "grid" ? 600 : 500,
                             }}
                         >
                             Grid
@@ -666,13 +724,10 @@ function ProjectViewShell({
                         <button
                             onClick={() => setActiveView("table")}
                             style={{
-                                padding: "6px 12px",
-                                fontSize: 14,
+                                ...styles.segmentedButtonView,
                                 background: activeView === "table" ? "hsl(var(--background))" : "transparent",
                                 color: activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                border: "none",
-                                borderRadius: "calc(var(--radius) - 2px)",
-                                cursor: "pointer",
+                                fontWeight: activeView === "table" ? 600 : 500,
                             }}
                         >
                             Table
@@ -681,109 +736,36 @@ function ProjectViewShell({
                 </div>
 
                 {/* Third row: Filters toolbar (visual only) */}
-                <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    rowGap: 8,
-                    marginTop: 12,
-                }}>
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        rowGap: 8,
-                    }}>
-                        <button
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
+                <div style={styles.filterRow}>
+                    <div style={styles.filterGroupLeft}>
+                        <button style={styles.filterButton}>
                             Category ▾
                         </button>
-                        <button
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
+                        <button style={styles.filterButton}>
                             Type ▾
                         </button>
-                        <button
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
+                        <button style={styles.filterButton}>
                             Status ▾
                         </button>
-                        <button
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
+                        <button style={styles.filterButton}>
                             Source ▾
                         </button>
-                        <div style={{ width: 1, height: 20, background: "hsl(var(--border))", margin: "0 4px" }} />
+                        <div style={styles.filterSeparator} />
                         <button
                             onClick={() => setUnknownOnly(!unknownOnly)}
                             style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
+                                ...styles.utilityButtonBase,
                                 background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
                                 color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
+                                fontWeight: unknownOnly ? 600 : 500,
                             }}
                         >
                             Unknown only
                         </button>
                     </div>
-                    <div style={{ flex: 1 }} />
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        rowGap: 8,
-                        marginLeft: "auto",
-                    }}>
-                        <button
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 13,
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "var(--radius)",
-                                cursor: "pointer",
-                            }}
-                        >
+                    <div style={styles.filterSpacer} />
+                    <div style={styles.filterGroupRight}>
+                        <button style={styles.filterButton}>
                             Visible properties
                         </button>
                     </div>
