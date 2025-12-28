@@ -1311,7 +1311,12 @@ function ViewerApp() {
             </div>
 
             {/* Captures grid */}
-            <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
+            <div style={{
+                flex: 1,
+                padding: 16,
+                overflowY: "auto",
+                background: "hsl(var(--background))"
+            }}>
                 {!selectedSessionId ? (
                     <div style={{ textAlign: "center", marginTop: 100, color: "#999" }}>
                         Select a session to view captures
