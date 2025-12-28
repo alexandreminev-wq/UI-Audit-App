@@ -486,6 +486,9 @@ function ProjectViewShell({
         { id: "s6", token: "--color-error", value: "0 84% 60%", kind: "color", usageCount: 12, source: "Validation" },
     ];
 
+    const hasComponents = mockComponents.length > 0;
+    const hasStyles = mockStyles.length > 0;
+
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Header */}
@@ -493,16 +496,26 @@ function ProjectViewShell({
                 padding: "16px 24px",
                 borderBottom: "1px solid hsl(var(--border))",
                 background: "hsl(var(--background))",
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
             }}>
                 {/* Top row: Back button + Project info on left, Search + Export on right */}
                 <div style={{
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 24,
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    rowGap: 12,
                 }}>
                     {/* Left side: Back button + Project info */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        minWidth: 220,
+                        flex: "1 1 240px",
+                    }}>
                         <button
                             onClick={onBack}
                             style={{
@@ -538,7 +551,13 @@ function ProjectViewShell({
                     </div>
 
                     {/* Right side: Search + Export */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        flex: "999 1 320px",
+                        minWidth: 240,
+                    }}>
                         <input
                             type="text"
                             placeholder="Search components and styles"
@@ -549,7 +568,8 @@ function ProjectViewShell({
                                 borderRadius: "var(--radius)",
                                 background: "hsl(var(--background))",
                                 color: "hsl(var(--foreground))",
-                                width: 280,
+                                flex: 1,
+                                minWidth: 180,
                             }}
                         />
                         <button
@@ -563,6 +583,7 @@ function ProjectViewShell({
                                 borderRadius: "var(--radius)",
                                 cursor: "pointer",
                                 fontWeight: 500,
+                                flexShrink: 0,
                             }}
                         >
                             Export
@@ -575,7 +596,10 @@ function ProjectViewShell({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginTop: 16,
+                    flexWrap: "wrap",
+                    gap: 12,
+                    rowGap: 12,
+                    marginTop: 12,
                 }}>
                     {/* Left: Components/Styles tabs */}
                     <div style={{
@@ -583,6 +607,7 @@ function ProjectViewShell({
                         padding: 2,
                         background: "hsl(var(--muted))",
                         borderRadius: "var(--radius)",
+                        flex: "0 0 auto",
                     }}>
                         <button
                             onClick={() => setActiveTab("components")}
@@ -622,6 +647,7 @@ function ProjectViewShell({
                         padding: 2,
                         background: "hsl(var(--muted))",
                         borderRadius: "var(--radius)",
+                        flex: "0 0 auto",
                     }}>
                         <button
                             onClick={() => setActiveView("grid")}
@@ -658,90 +684,109 @@ function ProjectViewShell({
                 <div style={{
                     display: "flex",
                     alignItems: "center",
+                    flexWrap: "wrap",
                     gap: 8,
+                    rowGap: 8,
                     marginTop: 12,
                 }}>
-                    <button
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: "hsl(var(--background))",
-                            color: "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Category ▾
-                    </button>
-                    <button
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: "hsl(var(--background))",
-                            color: "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Type ▾
-                    </button>
-                    <button
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: "hsl(var(--background))",
-                            color: "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Status ▾
-                    </button>
-                    <button
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: "hsl(var(--background))",
-                            color: "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Source ▾
-                    </button>
-                    <div style={{ width: 1, height: 20, background: "hsl(var(--border))", margin: "0 4px" }} />
-                    <button
-                        onClick={() => setUnknownOnly(!unknownOnly)}
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
-                            color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Unknown only
-                    </button>
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        rowGap: 8,
+                    }}>
+                        <button
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Category ▾
+                        </button>
+                        <button
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Type ▾
+                        </button>
+                        <button
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Status ▾
+                        </button>
+                        <button
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Source ▾
+                        </button>
+                        <div style={{ width: 1, height: 20, background: "hsl(var(--border))", margin: "0 4px" }} />
+                        <button
+                            onClick={() => setUnknownOnly(!unknownOnly)}
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
+                                color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Unknown only
+                        </button>
+                    </div>
                     <div style={{ flex: 1 }} />
-                    <button
-                        style={{
-                            padding: "4px 10px",
-                            fontSize: 13,
-                            background: "hsl(var(--background))",
-                            color: "hsl(var(--foreground))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Visible properties
-                    </button>
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        rowGap: 8,
+                        marginLeft: "auto",
+                    }}>
+                        <button
+                            style={{
+                                padding: "4px 10px",
+                                fontSize: 13,
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "var(--radius)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Visible properties
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -762,8 +807,58 @@ function ProjectViewShell({
                     </div>
                 )}
 
+                {/* Empty state: Components */}
+                {activeTab === "components" && !hasComponents && (
+                    <div style={{
+                        border: "1px dashed hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                        padding: 16,
+                        background: "hsl(var(--background))",
+                        textAlign: "center",
+                    }}>
+                        <div style={{
+                            fontWeight: 600,
+                            color: "hsl(var(--foreground))",
+                            marginBottom: 4,
+                        }}>
+                            No components captured yet
+                        </div>
+                        <div style={{
+                            fontSize: 13,
+                            color: "hsl(var(--muted-foreground))",
+                        }}>
+                            Capture UI elements in the sidepanel to see them here.
+                        </div>
+                    </div>
+                )}
+
+                {/* Empty state: Styles */}
+                {activeTab === "styles" && !hasStyles && (
+                    <div style={{
+                        border: "1px dashed hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                        padding: 16,
+                        background: "hsl(var(--background))",
+                        textAlign: "center",
+                    }}>
+                        <div style={{
+                            fontWeight: 600,
+                            color: "hsl(var(--foreground))",
+                            marginBottom: 4,
+                        }}>
+                            No styles captured yet
+                        </div>
+                        <div style={{
+                            fontSize: 13,
+                            color: "hsl(var(--muted-foreground))",
+                        }}>
+                            Captured styles will appear here once available.
+                        </div>
+                    </div>
+                )}
+
                 {/* Layout 1: Components / Grid */}
-                {activeTab === "components" && activeView === "grid" && (
+                {activeTab === "components" && hasComponents && activeView === "grid" && (
                     <div style={{
                         display: "grid",
                         gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
@@ -830,11 +925,12 @@ function ProjectViewShell({
                 )}
 
                 {/* Layout 2: Components / Table */}
-                {activeTab === "components" && activeView === "table" && (
+                {activeTab === "components" && hasComponents && activeView === "table" && (
                     <div style={{
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "var(--radius)",
                         overflow: "hidden",
+                        background: "hsl(var(--background))",
                     }}>
                         <div style={{
                             display: "grid",
@@ -891,7 +987,7 @@ function ProjectViewShell({
                 )}
 
                 {/* Layout 3: Styles / Grid */}
-                {activeTab === "styles" && activeView === "grid" && (
+                {activeTab === "styles" && hasStyles && activeView === "grid" && (
                     <div style={{
                         display: "grid",
                         gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
@@ -947,11 +1043,12 @@ function ProjectViewShell({
                 )}
 
                 {/* Layout 4: Styles / Table */}
-                {activeTab === "styles" && activeView === "table" && (
+                {activeTab === "styles" && hasStyles && activeView === "table" && (
                     <div style={{
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "var(--radius)",
                         overflow: "hidden",
+                        background: "hsl(var(--background))",
                     }}>
                         <div style={{
                             display: "grid",
