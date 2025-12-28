@@ -6,6 +6,10 @@ import "./index.css";
 // Types
 // ─────────────────────────────────────────────────────────────
 
+// Milestone 7.2.1: Viewer IA routing
+type ViewerRoute = "projects" | "project";
+type Project = { id: string; name: string; captureCount?: number; updatedAtLabel?: string }; // TEMP: UI-only mock
+
 type GroupingMode = "nameOnly" | "namePlusType" | "nameTypePrimitives";
 type DesignerCategory = "Action" | "Input" | "Navigation" | "Content" | "Media" | "Container" | "Other";
 
@@ -365,6 +369,124 @@ async function runExport(opts: {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Milestone 7.2.1: Projects IA screens
+// ─────────────────────────────────────────────────────────────
+
+function ProjectsHome({
+    projects,
+    onSelectProject,
+}: {
+    projects: Project[];
+    onSelectProject: (projectId: string) => void;
+}) {
+    return (
+        <div style={{
+            maxWidth: 800,
+            margin: "0 auto",
+            padding: "48px 24px",
+        }}>
+            <h1 style={{
+                fontSize: 32,
+                fontWeight: 600,
+                margin: "0 0 8px 0",
+                color: "hsl(var(--foreground))",
+            }}>
+                UI Audit Tool
+            </h1>
+            <p style={{
+                fontSize: 16,
+                color: "hsl(var(--muted-foreground))",
+                margin: "0 0 48px 0",
+            }}>
+                Review and organize your captured UI components
+            </p>
+
+            <h2 style={{
+                fontSize: 20,
+                fontWeight: 600,
+                margin: "0 0 16px 0",
+                color: "hsl(var(--foreground))",
+            }}>
+                Projects
+            </h2>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {projects.map((project) => (
+                    <button
+                        key={project.id}
+                        onClick={() => onSelectProject(project.id)}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "16px 20px",
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "calc(var(--radius) + 2px)",
+                            cursor: "pointer",
+                            textAlign: "left",
+                        }}
+                    >
+                        <div>
+                            <div style={{
+                                fontSize: 16,
+                                fontWeight: 500,
+                                color: "hsl(var(--foreground))",
+                                marginBottom: 4,
+                            }}>
+                                {project.name}
+                            </div>
+                            <div style={{
+                                fontSize: 13,
+                                color: "hsl(var(--muted-foreground))",
+                            }}>
+                                {project.updatedAtLabel} • {project.captureCount} captures
+                            </div>
+                        </div>
+                        <div style={{
+                            color: "hsl(var(--muted-foreground))",
+                            fontSize: 20,
+                        }}>
+                            ›
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ProjectViewShell({
+    projectName,
+    onBack,
+}: {
+    projectName: string;
+    onBack: () => void;
+}) {
+    return (
+        <div style={{ padding: 24 }}>
+            <button
+                onClick={onBack}
+                style={{
+                    padding: "8px 16px",
+                    fontSize: 14,
+                    background: "hsl(var(--secondary))",
+                    color: "hsl(var(--secondary-foreground))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                    cursor: "pointer",
+                    marginBottom: 24,
+                }}
+            >
+                ← Back to Projects
+            </button>
+            <h1 style={{ fontSize: 24, margin: "0 0 16px 0" }}>{projectName}</h1>
+            <p style={{ color: "hsl(var(--muted-foreground))" }}>Project view coming next</p>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main Viewer Component
 // ─────────────────────────────────────────────────────────────
 
@@ -420,6 +542,18 @@ function ViewerApp() {
     // Live refresh state (Milestone 5 - Slice 5.1 - polling)
     const capturesLoadInFlightRef = useRef(false);
 
+    // Milestone 7.2.1: Routing state
+    const [route, setRoute] = useState<ViewerRoute>("projects");
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+    // TEMP: UI-only mock projects (will be replaced with real data in 7.4)
+    const [projects] = useState<Project[]>([
+        { id: "p1", name: "E-commerce Redesign", captureCount: 47, updatedAtLabel: "about 1 year ago" },
+        { id: "p2", name: "Dashboard Components", captureCount: 23, updatedAtLabel: "about 1 year ago" },
+        { id: "p3", name: "Mobile App Audit", captureCount: 15, updatedAtLabel: "about 1 year ago" },
+    ]);
+
+    // Old sessions-based code below (will be removed in later slices)
     // Handle session selection with immediate UI update (prevents old-captures flash)
     const handleSelectSession = useCallback(
         (sessionId: string) => {
@@ -1184,6 +1318,34 @@ function ViewerApp() {
         return null;
     }, []);
 
+    // Milestone 7.2.1: Route to Projects or Project view
+    if (route === "projects") {
+        return (
+            <ProjectsHome
+                projects={projects}
+                onSelectProject={(projectId) => {
+                    setSelectedProjectId(projectId);
+                    setRoute("project");
+                }}
+            />
+        );
+    }
+
+    if (route === "project") {
+        // Safe fallback: if selectedProjectId is missing, show projects home
+        if (!selectedProjectId) {
+            return <ProjectsHome projects={projects} onSelectProject={(projectId) => { setSelectedProjectId(projectId); setRoute("project"); }} />;
+        }
+        const project = projects.find((p) => p.id === selectedProjectId);
+        return (
+            <ProjectViewShell
+                projectName={project?.name || "Unknown Project"}
+                onBack={() => { setRoute("projects"); setSelectedProjectId(null); }}
+            />
+        );
+    }
+
+    // Old sessions UI below (temporarily unreachable, will be removed in later slices)
     return (
         <>
             <style>{`
