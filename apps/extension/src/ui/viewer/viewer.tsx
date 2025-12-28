@@ -495,6 +495,15 @@ function ProjectViewShell({
     const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
 
+    // Reusable drawer section title style
+    const drawerSectionTitleStyle = {
+        fontSize: 14,
+        fontWeight: 600,
+        marginTop: 0,
+        marginBottom: 8,
+        color: "hsl(var(--foreground))",
+    } as const;
+
     // Unified menu/popover state (IA-only)
     const [openMenu, setOpenMenu] = useState<null | "category" | "type" | "status" | "source" | "properties">(null);
 
@@ -1748,6 +1757,7 @@ function ProjectViewShell({
                         {/* Close button */}
                         <Dialog.Close asChild>
                             <button
+                                type="button"
                                 onClick={handleCloseDrawer}
                                 style={{
                                     position: "absolute",
@@ -1782,40 +1792,57 @@ function ProjectViewShell({
                                 <div style={{
                                     fontSize: 13,
                                     color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 24,
+                                    marginBottom: 16,
                                 }}>
                                     {selectedComponent.category} • {selectedComponent.type} • {selectedComponent.status}
                                 </div>
 
+                                {/* Optional chips */}
+                                <div style={{
+                                    display: "flex",
+                                    gap: 6,
+                                    marginBottom: 24,
+                                    flexWrap: "wrap",
+                                }}>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "3px 8px",
+                                        background: "hsl(var(--muted))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {selectedComponent.source}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "3px 8px",
+                                        background: "hsl(var(--muted))",
+                                        color: selectedComponent.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
+                                        border: selectedComponent.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {selectedComponent.status}
+                                    </span>
+                                </div>
+
                                 {/* Overview section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
+                                    <h3 style={drawerSectionTitleStyle}>
                                         Overview
                                     </h3>
                                     <p style={{
                                         fontSize: 14,
                                         color: "hsl(var(--muted-foreground))",
                                         margin: 0,
+                                        lineHeight: 1.5,
                                     }}>
-                                        Placeholder: Component overview and description will appear here.
+                                        Placeholder: Component overview and description will appear here. This would include details about the component's purpose, usage guidelines, and any relevant design system documentation.
                                     </p>
                                 </div>
 
                                 {/* Captures section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
+                                    <h3 style={drawerSectionTitleStyle}>
                                         Captures ({selectedComponent.capturesCount})
                                     </h3>
                                     <div style={{
@@ -1825,32 +1852,86 @@ function ProjectViewShell({
                                         background: "hsl(var(--muted))",
                                         fontSize: 13,
                                         color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
                                     }}>
-                                        Placeholder: List of captures will appear here
+                                        Placeholder: List of {selectedComponent.capturesCount} captures will appear here with screenshots, page URLs, and visual context.
                                     </div>
                                 </div>
 
                                 {/* Properties section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
+                                    <h3 style={drawerSectionTitleStyle}>
                                         Properties
                                     </h3>
                                     <div style={{
-                                        padding: 12,
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        background: "hsl(var(--muted))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
                                     }}>
-                                        Placeholder: Component properties will appear here
+                                        {/* Placeholder property rows */}
+                                        {[
+                                            { label: "Background", value: "rgba(255, 255, 255, 1)" },
+                                            { label: "Text color", value: "rgba(0, 0, 0, 0.87)" },
+                                            { label: "Border radius", value: "4px" },
+                                            { label: "Padding", value: "12px 16px" },
+                                        ].map(({ label, value }) => (
+                                            <div
+                                                key={label}
+                                                style={{
+                                                    display: "flex",
+                                                    justifyContent: "space-between",
+                                                    padding: 8,
+                                                    background: "hsl(var(--muted))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    fontSize: 13,
+                                                }}
+                                            >
+                                                <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{label}</span>
+                                                <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{value}</span>
+                                            </div>
+                                        ))}
                                     </div>
+                                </div>
+
+                                {/* Actions row */}
+                                <div style={{
+                                    display: "flex",
+                                    gap: 8,
+                                    paddingTop: 12,
+                                    borderTop: "1px solid hsl(var(--border))",
+                                }}>
+                                    <button
+                                        type="button"
+                                        style={{
+                                            flex: 1,
+                                            padding: "8px 12px",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            background: "hsl(var(--background))",
+                                            color: "hsl(var(--foreground))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        style={{
+                                            flex: 1,
+                                            padding: "8px 12px",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            background: "hsl(var(--background))",
+                                            color: "hsl(var(--destructive))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -1863,7 +1944,7 @@ function ProjectViewShell({
                                     fontWeight: 600,
                                     fontFamily: "monospace",
                                     margin: 0,
-                                    marginBottom: 4,
+                                    marginBottom: 8,
                                     color: "hsl(var(--foreground))",
                                 }}>
                                     {selectedStyle.token}
@@ -1872,8 +1953,8 @@ function ProjectViewShell({
                                     fontSize: 14,
                                     fontFamily: "monospace",
                                     color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 24,
-                                    padding: "4px 8px",
+                                    marginBottom: 16,
+                                    padding: "6px 10px",
                                     background: "hsl(var(--muted))",
                                     borderRadius: "var(--radius)",
                                     display: "inline-block",
@@ -1881,70 +1962,134 @@ function ProjectViewShell({
                                     {selectedStyle.value}
                                 </div>
 
+                                {/* Meta line */}
+                                <div style={{
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 24,
+                                }}>
+                                    {selectedStyle.kind} • {selectedStyle.source} • {selectedStyle.usageCount} uses
+                                </div>
+
                                 {/* Usage section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
-                                        Usage ({selectedStyle.usageCount} times)
+                                    <h3 style={drawerSectionTitleStyle}>
+                                        Usage
                                     </h3>
                                     <p style={{
                                         fontSize: 14,
                                         color: "hsl(var(--muted-foreground))",
                                         margin: 0,
+                                        lineHeight: 1.5,
                                     }}>
-                                        Placeholder: Usage details will appear here.
+                                        Placeholder: This style is used {selectedStyle.usageCount} times across the application. Usage context, patterns, and guidelines will appear here.
                                     </p>
                                 </div>
 
                                 {/* Where it appears section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
+                                    <h3 style={drawerSectionTitleStyle}>
                                         Where it appears
                                     </h3>
                                     <div style={{
-                                        padding: 12,
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        background: "hsl(var(--muted))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
                                     }}>
-                                        Placeholder: List of pages/components using this style
+                                        {/* Placeholder list items */}
+                                        {[
+                                            "Homepage / Hero section",
+                                            "Product page / Card component",
+                                            "Dashboard / Stats widget",
+                                        ].map((location) => (
+                                            <div
+                                                key={location}
+                                                style={{
+                                                    padding: "8px 12px",
+                                                    background: "hsl(var(--muted))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    fontSize: 13,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                {location}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
                                 {/* Related components section */}
                                 <div style={{ marginBottom: 24 }}>
-                                    <h3 style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        marginTop: 0,
-                                        marginBottom: 8,
-                                        color: "hsl(var(--foreground))",
-                                    }}>
+                                    <h3 style={drawerSectionTitleStyle}>
                                         Related components
                                     </h3>
                                     <div style={{
-                                        padding: 12,
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        background: "hsl(var(--muted))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 6,
                                     }}>
-                                        Placeholder: Related components will appear here
+                                        {/* Placeholder component chips */}
+                                        {[
+                                            "Primary Button",
+                                            "Card Header",
+                                            "Navigation Link",
+                                        ].map((componentName) => (
+                                            <span
+                                                key={componentName}
+                                                style={{
+                                                    fontSize: 12,
+                                                    padding: "4px 10px",
+                                                    background: "hsl(var(--muted))",
+                                                    color: "hsl(var(--foreground))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    border: "1px solid hsl(var(--border))",
+                                                }}
+                                            >
+                                                {componentName}
+                                            </span>
+                                        ))}
                                     </div>
+                                </div>
+
+                                {/* Actions row */}
+                                <div style={{
+                                    display: "flex",
+                                    gap: 8,
+                                    paddingTop: 12,
+                                    borderTop: "1px solid hsl(var(--border))",
+                                }}>
+                                    <button
+                                        type="button"
+                                        style={{
+                                            flex: 1,
+                                            padding: "8px 12px",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            background: "hsl(var(--background))",
+                                            color: "hsl(var(--foreground))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Copy token
+                                    </button>
+                                    <button
+                                        type="button"
+                                        style={{
+                                            flex: 1,
+                                            padding: "8px 12px",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            background: "hsl(var(--background))",
+                                            color: "hsl(var(--foreground))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Copy value
+                                    </button>
                                 </div>
                             </div>
                         )}
