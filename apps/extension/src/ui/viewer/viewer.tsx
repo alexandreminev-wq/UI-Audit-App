@@ -463,6 +463,29 @@ function ProjectViewShell({
     projectName: string;
     onBack: () => void;
 }) {
+    const [activeTab, setActiveTab] = useState<"components" | "styles">("components");
+    const [activeView, setActiveView] = useState<"grid" | "table">("grid");
+    const [unknownOnly, setUnknownOnly] = useState(false);
+
+    // TEMP: Mock data for IA-only layouts (will be replaced with real data in later milestones)
+    const mockComponents = [
+        { id: "c1", name: "Primary Button", category: "Actions", type: "button", status: "Canonical", source: "Homepage", capturesCount: 12 },
+        { id: "c2", name: "Search Input", category: "Forms", type: "input", status: "Variant", source: "Dashboard", capturesCount: 8 },
+        { id: "c3", name: "Card Header", category: "Layout", type: "div", status: "Canonical", source: "Product Page", capturesCount: 5 },
+        { id: "c4", name: "Alert Banner", category: "Feedback", type: "div", status: "Unknown", source: "Checkout", capturesCount: 3 },
+        { id: "c5", name: "Navigation Link", category: "Navigation", type: "a", status: "Variant", source: "Header", capturesCount: 15 },
+        { id: "c6", name: "Checkbox", category: "Forms", type: "input", status: "Canonical", source: "Settings", capturesCount: 7 },
+    ];
+
+    const mockStyles = [
+        { id: "s1", token: "--color-primary", value: "217 91% 60%", kind: "color", usageCount: 47, source: "Design System" },
+        { id: "s2", token: "--spacing-md", value: "16px", kind: "spacing", usageCount: 132, source: "Layout Grid" },
+        { id: "s3", token: "--font-heading", value: "Inter, sans-serif", kind: "typography", usageCount: 23, source: "Theme" },
+        { id: "s4", token: "--shadow-sm", value: "0 1px 2px rgba(0,0,0,0.05)", kind: "shadow", usageCount: 18, source: "Cards" },
+        { id: "s5", token: "--radius-base", value: "8px", kind: "border", usageCount: 91, source: "Components" },
+        { id: "s6", token: "--color-error", value: "0 84% 60%", kind: "color", usageCount: 12, source: "Validation" },
+    ];
+
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Header */}
@@ -546,17 +569,447 @@ function ProjectViewShell({
                         </button>
                     </div>
                 </div>
+
+                {/* Second row: Tab selector (Components/Styles) + View toggle (Grid/Table) */}
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: 16,
+                }}>
+                    {/* Left: Components/Styles tabs */}
+                    <div style={{
+                        display: "inline-flex",
+                        padding: 2,
+                        background: "hsl(var(--muted))",
+                        borderRadius: "var(--radius)",
+                    }}>
+                        <button
+                            onClick={() => setActiveTab("components")}
+                            style={{
+                                padding: "6px 16px",
+                                fontSize: 14,
+                                fontWeight: 500,
+                                background: activeTab === "components" ? "hsl(var(--background))" : "transparent",
+                                color: activeTab === "components" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                border: "none",
+                                borderRadius: "calc(var(--radius) - 2px)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Components
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("styles")}
+                            style={{
+                                padding: "6px 16px",
+                                fontSize: 14,
+                                fontWeight: 500,
+                                background: activeTab === "styles" ? "hsl(var(--background))" : "transparent",
+                                color: activeTab === "styles" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                border: "none",
+                                borderRadius: "calc(var(--radius) - 2px)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Styles
+                        </button>
+                    </div>
+
+                    {/* Right: Grid/Table view toggle */}
+                    <div style={{
+                        display: "inline-flex",
+                        padding: 2,
+                        background: "hsl(var(--muted))",
+                        borderRadius: "var(--radius)",
+                    }}>
+                        <button
+                            onClick={() => setActiveView("grid")}
+                            style={{
+                                padding: "6px 12px",
+                                fontSize: 14,
+                                background: activeView === "grid" ? "hsl(var(--background))" : "transparent",
+                                color: activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                border: "none",
+                                borderRadius: "calc(var(--radius) - 2px)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Grid
+                        </button>
+                        <button
+                            onClick={() => setActiveView("table")}
+                            style={{
+                                padding: "6px 12px",
+                                fontSize: 14,
+                                background: activeView === "table" ? "hsl(var(--background))" : "transparent",
+                                color: activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                border: "none",
+                                borderRadius: "calc(var(--radius) - 2px)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Table
+                        </button>
+                    </div>
+                </div>
+
+                {/* Third row: Filters toolbar (visual only) */}
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 12,
+                }}>
+                    <button
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: "hsl(var(--background))",
+                            color: "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Category ▾
+                    </button>
+                    <button
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: "hsl(var(--background))",
+                            color: "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Type ▾
+                    </button>
+                    <button
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: "hsl(var(--background))",
+                            color: "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Status ▾
+                    </button>
+                    <button
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: "hsl(var(--background))",
+                            color: "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Source ▾
+                    </button>
+                    <div style={{ width: 1, height: 20, background: "hsl(var(--border))", margin: "0 4px" }} />
+                    <button
+                        onClick={() => setUnknownOnly(!unknownOnly)}
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
+                            color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Unknown only
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <button
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 13,
+                            background: "hsl(var(--background))",
+                            color: "hsl(var(--foreground))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Visible properties
+                    </button>
+                </div>
             </div>
 
-            {/* Body placeholder (tabs/filters/content will come in next slices) */}
+            {/* Body: Four distinct placeholder layouts based on activeTab/activeView */}
             <div style={{
                 flex: 1,
                 padding: 24,
                 overflowY: "auto",
             }}>
-                <p style={{ color: "hsl(var(--muted-foreground))" }}>
-                    Project workspace content coming next
-                </p>
+                {/* unknownOnly filter indicator */}
+                {unknownOnly && (
+                    <div style={{
+                        fontSize: 12,
+                        color: "hsl(var(--muted-foreground))",
+                        marginBottom: 12,
+                    }}>
+                        Filter: Unknown only
+                    </div>
+                )}
+
+                {/* Layout 1: Components / Grid */}
+                {activeTab === "components" && activeView === "grid" && (
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                        gap: 12,
+                    }}>
+                        {mockComponents.map((comp) => (
+                            <div key={comp.id} style={{
+                                border: "1px solid hsl(var(--border))",
+                                background: "hsl(var(--background))",
+                                borderRadius: "var(--radius)",
+                                padding: 12,
+                            }}>
+                                <div style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: "hsl(var(--foreground))",
+                                    marginBottom: 8,
+                                }}>
+                                    {comp.name}
+                                </div>
+                                <div style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: 4,
+                                    marginBottom: 8,
+                                }}>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: "hsl(var(--muted))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {comp.category}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: "hsl(var(--muted))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {comp.type}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted))",
+                                        color: comp.status === "Unknown" ? "hsl(var(--destructive-foreground))" : "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {comp.status}
+                                    </span>
+                                </div>
+                                <div style={{
+                                    fontSize: 12,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                    {comp.capturesCount} captures • {comp.source}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Layout 2: Components / Table */}
+                {activeTab === "components" && activeView === "table" && (
+                    <div style={{
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                        overflow: "hidden",
+                    }}>
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "2fr 1fr 80px 100px 1fr 80px",
+                            gap: 12,
+                            padding: "8px 12px",
+                            borderBottom: "1px solid hsl(var(--border))",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "hsl(var(--muted-foreground))",
+                        }}>
+                            <div>Name</div>
+                            <div>Category</div>
+                            <div>Type</div>
+                            <div>Status</div>
+                            <div>Source</div>
+                            <div>Captures</div>
+                        </div>
+                        {mockComponents.map((comp) => (
+                            <div key={comp.id} style={{
+                                display: "grid",
+                                gridTemplateColumns: "2fr 1fr 80px 100px 1fr 80px",
+                                gap: 12,
+                                padding: "12px",
+                                borderBottom: "1px solid hsl(var(--border))",
+                                fontSize: 14,
+                                color: "hsl(var(--foreground))",
+                            }}>
+                                <div style={{ fontWeight: 500 }}>{comp.name}</div>
+                                <div style={{ color: "hsl(var(--muted-foreground))" }}>{comp.category}</div>
+                                <div style={{
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                    {comp.type}
+                                </div>
+                                <div>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted))",
+                                        color: comp.status === "Unknown" ? "hsl(var(--destructive-foreground))" : "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {comp.status}
+                                    </span>
+                                </div>
+                                <div style={{ color: "hsl(var(--muted-foreground))" }}>{comp.source}</div>
+                                <div style={{ color: "hsl(var(--muted-foreground))" }}>{comp.capturesCount}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Layout 3: Styles / Grid */}
+                {activeTab === "styles" && activeView === "grid" && (
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+                        gap: 12,
+                    }}>
+                        {mockStyles.map((style) => (
+                            <div key={style.id} style={{
+                                border: "1px solid hsl(var(--border))",
+                                background: "hsl(var(--background))",
+                                borderRadius: "var(--radius)",
+                                padding: 12,
+                            }}>
+                                <div style={{
+                                    fontSize: 13,
+                                    fontFamily: "monospace",
+                                    fontWeight: 600,
+                                    color: "hsl(var(--foreground))",
+                                    marginBottom: 6,
+                                }}>
+                                    {style.token}
+                                </div>
+                                <div style={{
+                                    fontSize: 14,
+                                    fontFamily: "monospace",
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 8,
+                                    padding: "4px 6px",
+                                    background: "hsl(var(--muted))",
+                                    borderRadius: "calc(var(--radius) - 2px)",
+                                }}>
+                                    {style.value}
+                                </div>
+                                <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    fontSize: 12,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: "hsl(var(--muted))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {style.kind}
+                                    </span>
+                                    <span>{style.usageCount} uses</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Layout 4: Styles / Table */}
+                {activeTab === "styles" && activeView === "table" && (
+                    <div style={{
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                        overflow: "hidden",
+                    }}>
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "2fr 2fr 100px 80px 1fr",
+                            gap: 12,
+                            padding: "8px 12px",
+                            borderBottom: "1px solid hsl(var(--border))",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "hsl(var(--muted-foreground))",
+                        }}>
+                            <div>Token</div>
+                            <div>Value</div>
+                            <div>Kind</div>
+                            <div>Usage</div>
+                            <div>Source</div>
+                        </div>
+                        {mockStyles.map((style) => (
+                            <div key={style.id} style={{
+                                display: "grid",
+                                gridTemplateColumns: "2fr 2fr 100px 80px 1fr",
+                                gap: 12,
+                                padding: "12px",
+                                borderBottom: "1px solid hsl(var(--border))",
+                                fontSize: 14,
+                                color: "hsl(var(--foreground))",
+                            }}>
+                                <div style={{
+                                    fontFamily: "monospace",
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                }}>
+                                    {style.token}
+                                </div>
+                                <div style={{
+                                    fontFamily: "monospace",
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                    {style.value}
+                                </div>
+                                <div>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: "hsl(var(--muted))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                    }}>
+                                        {style.kind}
+                                    </span>
+                                </div>
+                                <div style={{ color: "hsl(var(--muted-foreground))" }}>{style.usageCount}</div>
+                                <div style={{ color: "hsl(var(--muted-foreground))" }}>{style.source}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
