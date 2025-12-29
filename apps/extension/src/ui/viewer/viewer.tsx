@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import * as Popover from "@radix-ui/react-popover";
 import "./index.css";
 import { DetailsDrawer } from "./components/DetailsDrawer";
+import { FilterPopover } from "./components/FilterPopover";
+import { CheckboxList } from "./components/CheckboxList";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -615,7 +617,7 @@ function ProjectViewShell({
         }
 
         return result;
-    }, [MOCK_COMPONENTS, selectedCategories, selectedTypes, selectedStatuses, selectedSources, unknownOnly, searchQuery]);
+    }, [selectedCategories, selectedTypes, selectedStatuses, selectedSources, unknownOnly, searchQuery]);
 
     const filteredStyles = useMemo(() => {
         let result = MOCK_STYLES;
@@ -642,7 +644,7 @@ function ProjectViewShell({
         }
 
         return result;
-    }, [MOCK_STYLES, selectedKinds, selectedStyleSources, searchQuery]);
+    }, [selectedKinds, selectedStyleSources, searchQuery]);
 
     const hasComponents = filteredComponents.length > 0;
     const hasStyles = filteredStyles.length > 0;
@@ -677,6 +679,21 @@ function ProjectViewShell({
             action();
         }
     };
+
+    // Close popovers when major UI context changes
+    useEffect(() => {
+        setOpenMenu(null);
+    }, [activeTab]);
+
+    useEffect(() => {
+        setOpenMenu(null);
+    }, [activeView]);
+
+    useEffect(() => {
+        if (drawerOpen) {
+            setOpenMenu(null);
+        }
+    }, [drawerOpen]);
 
     // Style map for header and toolbar (reduces inline clutter)
     const styles = {
@@ -936,129 +953,39 @@ function ProjectViewShell({
                         {/* Components tab filters */}
                         {activeTab === "components" && (
                             <>
-                                {/* Category filter with Radix popover */}
-                                <Popover.Root
-                            open={openMenu === "category"}
-                            onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "category" : null)}
-                        >
-                            <Popover.Trigger asChild>
-                                <button type="button"
-                                    style={{
-                                        ...styles.filterButton,
-                                        ...(openMenu === "category" ? {
-                                            background: "hsl(var(--muted))",
-                                            fontWeight: 600,
-                                        } : {}),
-                                    }}
+                                {/* Category filter */}
+                                <FilterPopover
+                                    open={openMenu === "category"}
+                                    onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "category" : null)}
+                                    ariaLabel="Category filter"
+                                    trigger={
+                                        <button type="button"
+                                            style={{
+                                                ...styles.filterButton,
+                                                ...(openMenu === "category" ? {
+                                                    background: "hsl(var(--muted))",
+                                                    fontWeight: 600,
+                                                } : {}),
+                                            }}
+                                        >
+                                            Category ▾
+                                        </button>
+                                    }
                                 >
-                                    Category ▾
-                                </button>
-                            </Popover.Trigger>
-                            <Popover.Portal>
-                                <Popover.Content
-                                    sideOffset={8}
-                                    side="bottom"
-                                    align="start"
-                                    collisionPadding={8}
-                                    onEscapeKeyDown={() => setOpenMenu(null)}
-                                    style={{
-                                        width: 220,
-                                        background: "hsl(var(--background))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                        padding: 12,
-                                        zIndex: 100,
-                                    }}
-                                >
-                                    <Popover.Arrow
-                                        style={{
-                                            fill: "hsl(var(--border))",
-                                        }}
+                                    <CheckboxList
+                                        title="Category"
+                                        options={uniqueCategories}
+                                        selected={selectedCategories}
+                                        onChange={setSelectedCategories}
                                     />
-                                    <div style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 8,
-                                    }}>
-                                        Category
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                        {uniqueCategories.map((category) => (
-                                            <label
-                                                key={category}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 8,
-                                                    cursor: "pointer",
-                                                    fontSize: 14,
-                                                    color: "hsl(var(--foreground))",
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedCategories.has(category)}
-                                                    onChange={(e) => {
-                                                        const newSet = new Set(selectedCategories);
-                                                        if (e.target.checked) {
-                                                            newSet.add(category);
-                                                        } else {
-                                                            newSet.delete(category);
-                                                        }
-                                                        setSelectedCategories(newSet);
-                                                    }}
-                                                    style={{ cursor: "pointer" }}
-                                                />
-                                                {category}
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedCategories(new Set())}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Clear
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedCategories(new Set(uniqueCategories))}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Select all
-                                        </button>
-                                    </div>
-                                </Popover.Content>
-                            </Popover.Portal>
-                        </Popover.Root>
+                                </FilterPopover>
 
-                        {/* Type filter with Radix popover */}
-                        <Popover.Root
+                        {/* Type filter */}
+                        <FilterPopover
                             open={openMenu === "type"}
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "type" : null)}
-                        >
-                            <Popover.Trigger asChild>
+                            ariaLabel="Type filter"
+                            trigger={
                                 <button type="button"
                                     style={{
                                         ...styles.filterButton,
@@ -1070,82 +997,22 @@ function ProjectViewShell({
                                 >
                                     Type ▾
                                 </button>
-                            </Popover.Trigger>
-                            <Popover.Portal>
-                                <Popover.Content
-                                    sideOffset={8}
-                                    side="bottom"
-                                    align="start"
-                                    collisionPadding={8}
-                                    onEscapeKeyDown={() => setOpenMenu(null)}
-                                    style={{
-                                        width: 220,
-                                        background: "hsl(var(--background))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                        padding: 12,
-                                        zIndex: 100,
-                                    }}
-                                >
-                                    <Popover.Arrow
-                                        style={{
-                                            fill: "hsl(var(--border))",
-                                        }}
-                                    />
-                                    <div style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 8,
-                                    }}>
-                                        Type
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                        {uniqueTypes.map((type) => (
-                                            <label
-                                                key={type}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 8,
-                                                    cursor: "pointer",
-                                                    fontSize: 14,
-                                                    color: "hsl(var(--foreground))",
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedTypes.has(type)}
-                                                    onChange={(e) => {
-                                                        const newSet = new Set(selectedTypes);
-                                                        if (e.target.checked) {
-                                                            newSet.add(type);
-                                                        } else {
-                                                            newSet.delete(type);
-                                                        }
-                                                        setSelectedTypes(newSet);
-                                                    }}
-                                                    style={{ cursor: "pointer" }}
-                                                />
-                                                {type}
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                        <button type="button" onClick={() => setSelectedTypes(new Set())} style={{ flex: 1, padding: "4px 8px", fontSize: 12, background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)", cursor: "pointer" }}>Clear</button>
-                                        <button type="button" onClick={() => setSelectedTypes(new Set(uniqueTypes))} style={{ flex: 1, padding: "4px 8px", fontSize: 12, background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)", cursor: "pointer" }}>Select all</button>
-                                    </div>
-                                </Popover.Content>
-                            </Popover.Portal>
-                        </Popover.Root>
+                            }
+                        >
+                            <CheckboxList
+                                title="Type"
+                                options={uniqueTypes}
+                                selected={selectedTypes}
+                                onChange={setSelectedTypes}
+                            />
+                        </FilterPopover>
 
-                        {/* Status filter with Radix popover */}
-                        <Popover.Root
+                        {/* Status filter */}
+                        <FilterPopover
                             open={openMenu === "status"}
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "status" : null)}
-                        >
-                            <Popover.Trigger asChild>
+                            ariaLabel="Status filter"
+                            trigger={
                                 <button type="button"
                                     style={{
                                         ...styles.filterButton,
@@ -1157,112 +1024,22 @@ function ProjectViewShell({
                                 >
                                     Status ▾
                                 </button>
-                            </Popover.Trigger>
-                            <Popover.Portal>
-                                <Popover.Content
-                                    sideOffset={8}
-                                    side="bottom"
-                                    align="start"
-                                    collisionPadding={8}
-                                    onEscapeKeyDown={() => setOpenMenu(null)}
-                                    style={{
-                                        width: 220,
-                                        background: "hsl(var(--background))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                        padding: 12,
-                                        zIndex: 100,
-                                    }}
-                                >
-                                    <Popover.Arrow
-                                        style={{
-                                            fill: "hsl(var(--border))",
-                                        }}
-                                    />
-                                    <div style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 8,
-                                    }}>
-                                        Status
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                        {uniqueStatuses.map((status) => (
-                                            <label
-                                                key={status}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 8,
-                                                    cursor: "pointer",
-                                                    fontSize: 14,
-                                                    color: "hsl(var(--foreground))",
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedStatuses.has(status)}
-                                                    onChange={(e) => {
-                                                        const newSet = new Set(selectedStatuses);
-                                                        if (e.target.checked) {
-                                                            newSet.add(status);
-                                                        } else {
-                                                            newSet.delete(status);
-                                                        }
-                                                        setSelectedStatuses(newSet);
-                                                    }}
-                                                    style={{ cursor: "pointer" }}
-                                                />
-                                                {status}
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedStatuses(new Set())}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Clear
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedStatuses(new Set(uniqueStatuses))}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Select all
-                                        </button>
-                                    </div>
-                                </Popover.Content>
-                            </Popover.Portal>
-                        </Popover.Root>
+                            }
+                        >
+                            <CheckboxList
+                                title="Status"
+                                options={uniqueStatuses}
+                                selected={selectedStatuses}
+                                onChange={setSelectedStatuses}
+                            />
+                        </FilterPopover>
 
-                        {/* Source filter with Radix popover */}
-                        <Popover.Root
+                        {/* Source filter */}
+                        <FilterPopover
                             open={openMenu === "source"}
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "source" : null)}
-                        >
-                            <Popover.Trigger asChild>
+                            ariaLabel="Source filter"
+                            trigger={
                                 <button type="button"
                                     style={{
                                         ...styles.filterButton,
@@ -1274,105 +1051,15 @@ function ProjectViewShell({
                                 >
                                     Source ▾
                                 </button>
-                            </Popover.Trigger>
-                            <Popover.Portal>
-                                <Popover.Content
-                                    sideOffset={8}
-                                    side="bottom"
-                                    align="start"
-                                    collisionPadding={8}
-                                    onEscapeKeyDown={() => setOpenMenu(null)}
-                                    style={{
-                                        width: 220,
-                                        background: "hsl(var(--background))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                        padding: 12,
-                                        zIndex: 100,
-                                    }}
-                                >
-                                    <Popover.Arrow
-                                        style={{
-                                            fill: "hsl(var(--border))",
-                                        }}
-                                    />
-                                    <div style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 8,
-                                    }}>
-                                        Source
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                        {uniqueSources.map((source) => (
-                                            <label
-                                                key={source}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 8,
-                                                    cursor: "pointer",
-                                                    fontSize: 14,
-                                                    color: "hsl(var(--foreground))",
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedSources.has(source)}
-                                                    onChange={(e) => {
-                                                        const newSet = new Set(selectedSources);
-                                                        if (e.target.checked) {
-                                                            newSet.add(source);
-                                                        } else {
-                                                            newSet.delete(source);
-                                                        }
-                                                        setSelectedSources(newSet);
-                                                    }}
-                                                    style={{ cursor: "pointer" }}
-                                                />
-                                                {source}
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedSources(new Set())}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Clear
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedSources(new Set(uniqueSources))}
-                                            style={{
-                                                flex: 1,
-                                                padding: "4px 8px",
-                                                fontSize: 12,
-                                                background: "hsl(var(--background))",
-                                                color: "hsl(var(--foreground))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            Select all
-                                        </button>
-                                    </div>
-                                </Popover.Content>
-                            </Popover.Portal>
-                        </Popover.Root>
+                            }
+                        >
+                            <CheckboxList
+                                title="Source"
+                                options={uniqueSources}
+                                selected={selectedSources}
+                                onChange={setSelectedSources}
+                            />
+                        </FilterPopover>
 
                                 <div style={styles.filterSeparator} />
                                 <button
@@ -1393,12 +1080,12 @@ function ProjectViewShell({
                         {/* Styles tab filters */}
                         {activeTab === "styles" && (
                             <>
-                                {/* Kind filter with Radix popover */}
-                                <Popover.Root
+                                {/* Kind filter */}
+                                <FilterPopover
                                     open={openMenu === "kind"}
                                     onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "kind" : null)}
-                                >
-                                    <Popover.Trigger asChild>
+                                    ariaLabel="Kind filter"
+                                    trigger={
                                         <button type="button"
                                             style={{
                                                 ...styles.filterButton,
@@ -1410,112 +1097,22 @@ function ProjectViewShell({
                                         >
                                             Kind ▾
                                         </button>
-                                    </Popover.Trigger>
-                                    <Popover.Portal>
-                                        <Popover.Content
-                                            sideOffset={8}
-                                            side="bottom"
-                                            align="start"
-                                            collisionPadding={8}
-                                            onEscapeKeyDown={() => setOpenMenu(null)}
-                                            style={{
-                                                width: 220,
-                                                background: "hsl(var(--background))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                                padding: 12,
-                                                zIndex: 100,
-                                            }}
-                                        >
-                                            <Popover.Arrow
-                                                style={{
-                                                    fill: "hsl(var(--border))",
-                                                }}
-                                            />
-                                            <div style={{
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                color: "hsl(var(--foreground))",
-                                                marginBottom: 8,
-                                            }}>
-                                                Kind
-                                            </div>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                                {uniqueKinds.map((kind) => (
-                                                    <label
-                                                        key={kind}
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            gap: 8,
-                                                            cursor: "pointer",
-                                                            fontSize: 14,
-                                                            color: "hsl(var(--foreground))",
-                                                        }}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedKinds.has(kind)}
-                                                            onChange={(e) => {
-                                                                const newSet = new Set(selectedKinds);
-                                                                if (e.target.checked) {
-                                                                    newSet.add(kind);
-                                                                } else {
-                                                                    newSet.delete(kind);
-                                                                }
-                                                                setSelectedKinds(newSet);
-                                                            }}
-                                                            style={{ cursor: "pointer" }}
-                                                        />
-                                                        {kind}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedKinds(new Set())}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: "4px 8px",
-                                                        fontSize: 12,
-                                                        background: "hsl(var(--background))",
-                                                        color: "hsl(var(--foreground))",
-                                                        border: "1px solid hsl(var(--border))",
-                                                        borderRadius: "var(--radius)",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Clear
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedKinds(new Set(uniqueKinds))}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: "4px 8px",
-                                                        fontSize: 12,
-                                                        background: "hsl(var(--background))",
-                                                        color: "hsl(var(--foreground))",
-                                                        border: "1px solid hsl(var(--border))",
-                                                        borderRadius: "var(--radius)",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Select all
-                                                </button>
-                                            </div>
-                                        </Popover.Content>
-                                    </Popover.Portal>
-                                </Popover.Root>
+                                    }
+                                >
+                                    <CheckboxList
+                                        title="Kind"
+                                        options={uniqueKinds}
+                                        selected={selectedKinds}
+                                        onChange={setSelectedKinds}
+                                    />
+                                </FilterPopover>
 
                                 {/* Source filter for Styles tab */}
-                                <Popover.Root
+                                <FilterPopover
                                     open={openMenu === "style-source"}
                                     onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "style-source" : null)}
-                                >
-                                    <Popover.Trigger asChild>
+                                    ariaLabel="Style source filter"
+                                    trigger={
                                         <button type="button"
                                             style={{
                                                 ...styles.filterButton,
@@ -1527,105 +1124,15 @@ function ProjectViewShell({
                                         >
                                             Source ▾
                                         </button>
-                                    </Popover.Trigger>
-                                    <Popover.Portal>
-                                        <Popover.Content
-                                            sideOffset={8}
-                                            side="bottom"
-                                            align="start"
-                                            collisionPadding={8}
-                                            onEscapeKeyDown={() => setOpenMenu(null)}
-                                            style={{
-                                                width: 220,
-                                                background: "hsl(var(--background))",
-                                                border: "1px solid hsl(var(--border))",
-                                                borderRadius: "var(--radius)",
-                                                boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
-                                                padding: 12,
-                                                zIndex: 100,
-                                            }}
-                                        >
-                                            <Popover.Arrow
-                                                style={{
-                                                    fill: "hsl(var(--border))",
-                                                }}
-                                            />
-                                            <div style={{
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                color: "hsl(var(--foreground))",
-                                                marginBottom: 8,
-                                            }}>
-                                                Source
-                                            </div>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                                                {uniqueStyleSources.map((source) => (
-                                                    <label
-                                                        key={source}
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            gap: 8,
-                                                            cursor: "pointer",
-                                                            fontSize: 14,
-                                                            color: "hsl(var(--foreground))",
-                                                        }}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedStyleSources.has(source)}
-                                                            onChange={(e) => {
-                                                                const newSet = new Set(selectedStyleSources);
-                                                                if (e.target.checked) {
-                                                                    newSet.add(source);
-                                                                } else {
-                                                                    newSet.delete(source);
-                                                                }
-                                                                setSelectedStyleSources(newSet);
-                                                            }}
-                                                            style={{ cursor: "pointer" }}
-                                                        />
-                                                        {source}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedStyleSources(new Set())}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: "4px 8px",
-                                                        fontSize: 12,
-                                                        background: "hsl(var(--background))",
-                                                        color: "hsl(var(--foreground))",
-                                                        border: "1px solid hsl(var(--border))",
-                                                        borderRadius: "var(--radius)",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Clear
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedStyleSources(new Set(uniqueStyleSources))}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: "4px 8px",
-                                                        fontSize: 12,
-                                                        background: "hsl(var(--background))",
-                                                        color: "hsl(var(--foreground))",
-                                                        border: "1px solid hsl(var(--border))",
-                                                        borderRadius: "var(--radius)",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Select all
-                                                </button>
-                                            </div>
-                                        </Popover.Content>
-                                    </Popover.Portal>
-                                </Popover.Root>
+                                    }
+                                >
+                                    <CheckboxList
+                                        title="Source"
+                                        options={uniqueStyleSources}
+                                        selected={selectedStyleSources}
+                                        onChange={setSelectedStyleSources}
+                                    />
+                                </FilterPopover>
                             </>
                         )}
                     </div>
@@ -1656,6 +1163,7 @@ function ProjectViewShell({
                                     align="end"
                                     collisionPadding={8}
                                     onEscapeKeyDown={() => setOpenMenu(null)}
+                                    aria-label="Visible properties"
                                     style={{
                                         width: 240,
                                         background: "hsl(var(--background))",
@@ -2066,7 +1574,7 @@ function ProjectViewShell({
                                         ))}
                                     </div>
                                     {/* Data rows */}
-                                    {filteredComponents.map((comp) => (
+                                    {filteredComponents.map((comp, idx) => (
                                         <div
                                             key={comp.id}
                                             onClick={() => handleComponentClick(comp.id)}
@@ -2079,7 +1587,7 @@ function ProjectViewShell({
                                                 gridTemplateColumns,
                                                 gap: 12,
                                                 padding: "12px",
-                                                borderBottom: "1px solid hsl(var(--border))",
+                                                borderBottom: idx === filteredComponents.length - 1 ? "none" : "1px solid hsl(var(--border))",
                                                 fontSize: 14,
                                                 color: "hsl(var(--foreground))",
                                                 background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "transparent",
@@ -2299,7 +1807,7 @@ function ProjectViewShell({
                                     </div>
 
                                     {/* Data rows */}
-                                    {filteredStyles.map((style) => (
+                                    {filteredStyles.map((style, idx) => (
                                         <div
                                             key={style.id}
                                             onClick={() => handleStyleClick(style.id)}
@@ -2312,7 +1820,7 @@ function ProjectViewShell({
                                                 gridTemplateColumns,
                                                 gap: 12,
                                                 padding: "12px",
-                                                borderBottom: "1px solid hsl(var(--border))",
+                                                borderBottom: idx === filteredStyles.length - 1 ? "none" : "1px solid hsl(var(--border))",
                                                 fontSize: 14,
                                                 color: "hsl(var(--foreground))",
                                                 background: selectedStyleId === style.id ? "hsl(var(--muted))" : "transparent",
