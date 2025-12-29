@@ -57,9 +57,14 @@ export interface ProjectDetailStorageData {
 export function deriveProjectsIndexFromStorage(
     raw: ProjectsIndexStorageData
 ): ViewerProject[] {
-    // STUB: Return empty array (no real data yet)
-    // In 7.4.x, this will compute captureCount and updatedAtLabel for each project
-    return [];
+    // 7.4.0: Basic implementation with placeholder counts/labels
+    // CONTRACT: VIEWER_DATA_CONTRACT.md §3.2
+    return raw.projects.map(project => ({
+        id: project.id,                    // Direct mapping (CONTRACT §3.2)
+        name: project.name,                // Direct mapping (CONTRACT §3.2)
+        captureCount: 0,                   // Placeholder (CONTRACT §3.2 - derived, deferred to 7.4.1)
+        updatedAtLabel: "—",               // Placeholder (CONTRACT §3.2 - derived, deferred to 7.4.1)
+    }));
 }
 
 /**
@@ -74,7 +79,7 @@ export function deriveProjectsIndexFromStorage(
  * @returns ViewerProjectDetail with components and styles
  */
 export function deriveProjectDetail(
-    raw: ProjectDetailStorageData
+    _raw: ProjectDetailStorageData
 ): ViewerProjectDetail {
     // STUB: Return empty arrays (no real data yet)
     // In 7.4.x, this will delegate to deriveComponentInventory and deriveStyleInventory
@@ -108,7 +113,7 @@ export function deriveProjectDetail(
  * @returns Array of ViewerComponent (deduplicated and categorized)
  */
 export function deriveComponentInventory(
-    captures: CaptureRecordV2[]
+    _captures: CaptureRecordV2[]
 ): ViewerComponent[] {
     // STUB: Return empty array (no grouping logic yet)
     // In 7.4.x, this will implement component grouping algorithm
@@ -139,7 +144,7 @@ export function deriveComponentInventory(
  * @returns Array of ViewerStyle (deduplicated and clustered)
  */
 export function deriveStyleInventory(
-    captures: CaptureRecordV2[]
+    _captures: CaptureRecordV2[]
 ): ViewerStyle[] {
     // STUB: Return empty array (no clustering logic yet)
     // In 7.4.x, this will implement style token extraction and grouping
@@ -159,7 +164,7 @@ export function deriveStyleInventory(
  * @param timestamp - Unix timestamp (ms since epoch)
  * @returns Human-readable relative time string
  */
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(_timestamp: number): string {
     // STUB: Return placeholder
     return "recently"; // In 7.4.x, compute actual relative time
 }
@@ -181,7 +186,7 @@ export function formatRelativeTime(timestamp: number): string {
  * @param element - Element core from capture
  * @returns Category string
  */
-export function inferCategory(element: CaptureRecordV2["element"]): string {
+export function inferCategory(_element: CaptureRecordV2["element"]): string {
     // STUB: Return placeholder
     return "Unknown"; // In 7.4.x, implement category inference rules
 }
@@ -203,8 +208,8 @@ export function inferCategory(element: CaptureRecordV2["element"]): string {
  * @returns Source label string
  */
 export function inferSource(
-    url: string,
-    scope?: CaptureRecordV2["scope"]
+    _url: string,
+    _scope?: CaptureRecordV2["scope"]
 ): string {
     // STUB: Return placeholder
     return "Unknown"; // In 7.4.x, implement URL → page label heuristic
@@ -223,7 +228,7 @@ export function inferSource(
  * @returns Status classification
  */
 export function inferStatus(
-    group: CaptureRecordV2[]
+    _group: CaptureRecordV2[]
 ): "Canonical" | "Variant" | "Unknown" {
     // STUB: Return placeholder
     return "Unknown"; // In 7.4.x, implement clustering-based status inference
@@ -246,7 +251,7 @@ export function inferStatus(
  * @returns CSS variable name (without "var()") or "—" if no token
  */
 export function extractToken(
-    sources?: CaptureRecordV2["styles"]["primitives"]["sources"]
+    _sources?: CaptureRecordV2["styles"]["primitives"]["sources"]
 ): string {
     // STUB: Return "—" (no extraction yet)
     // CONTRACT: Must return "—" when no token found (VIEWER_DATA_CONTRACT.md §5.3)
@@ -268,7 +273,7 @@ export function extractToken(
  * @returns Style kind classification
  */
 export function inferStyleKind(
-    primitiveKey: keyof CaptureRecordV2["styles"]["primitives"]
+    _primitiveKey: keyof CaptureRecordV2["styles"]["primitives"]
 ): ViewerStyle["kind"] {
     // STUB: Return placeholder
     return "unknown"; // In 7.4.x, implement primitive key → kind mapping
@@ -287,8 +292,8 @@ export function inferStyleKind(
  * @returns Source label string
  */
 export function inferStyleSource(
-    sources: CaptureRecordV2["styles"]["primitives"]["sources"] | undefined,
-    url: string
+    _sources: CaptureRecordV2["styles"]["primitives"]["sources"] | undefined,
+    _url: string
 ): string {
     // STUB: Return placeholder
     return "Unknown"; // In 7.4.x, implement source inference
@@ -304,7 +309,7 @@ export function inferStyleSource(
  * @param signature - Component grouping signature
  * @returns Stable component ID
  */
-export function generateComponentId(signature: string): string {
+export function generateComponentId(_signature: string): string {
     // STUB: Return placeholder
     return `component-stub-${Date.now()}`; // In 7.4.x, implement stable hash
 }
@@ -320,7 +325,7 @@ export function generateComponentId(signature: string): string {
  * @param tokenOrValue - Token name or raw value
  * @returns Stable style ID
  */
-export function generateStyleId(tokenOrValue: string): string {
+export function generateStyleId(_tokenOrValue: string): string {
     // STUB: Return placeholder
     return `style-stub-${Date.now()}`; // In 7.4.x, implement stable hash
 }

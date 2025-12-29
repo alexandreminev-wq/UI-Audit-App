@@ -1,4 +1,4 @@
-import type { Project } from "../types/projectViewerTypes";
+import type { ViewerProject } from "../types/projectViewerTypes";
 
 // ─────────────────────────────────────────────────────────────
 // ProjectsHome Component
@@ -8,7 +8,7 @@ export function ProjectsHome({
     projects,
     onSelectProject,
 }: {
-    projects: Project[];
+    projects: ViewerProject[];
     onSelectProject: (projectId: string) => void;
 }) {
     return (
