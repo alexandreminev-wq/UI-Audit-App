@@ -1034,6 +1034,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // async response
     }
 
+    // Milestone 7.4.1: Get captures for a specific project (Viewer use)
+    if (msg?.type === "UI/GET_PROJECT_DETAIL") {
+        (async () => {
+            try {
+                const projectId = msg.projectId;
+
+                if (!projectId || typeof projectId !== "string") {
+                    sendResponse({ ok: false, error: "projectId is required" });
+                    return;
+                }
+
+                // Load all session IDs linked to this project
+                const sessionIds = await listSessionIdsForProject(projectId);
+
+                // Load all captures across those sessions
+                const captures = await listCapturesBySessionIds(sessionIds);
+
+                sendResponse({ ok: true, projectId, sessionIds, captures });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get project detail:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
     if (msg?.type === "UI/GET_PROJECT_COMPONENT_COUNTS") {
         (async () => {
             try {

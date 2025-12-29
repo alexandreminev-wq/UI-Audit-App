@@ -113,11 +113,70 @@ export function deriveProjectDetail(
  * @returns Array of ViewerComponent (deduplicated and categorized)
  */
 export function deriveComponentInventory(
-    _captures: CaptureRecordV2[]
+    captures: CaptureRecordV2[]
 ): ViewerComponent[] {
-    // STUB: Return empty array (no grouping logic yet)
-    // In 7.4.x, this will implement component grouping algorithm
-    return [];
+    // 7.4.1: Deterministic component grouping (MVP)
+    // CONTRACT: VIEWER_DATA_CONTRACT.md §4
+
+    if (captures.length === 0) {
+        return [];
+    }
+
+    // Group captures by signature
+    const groups = new Map<string, CaptureRecordV2[]>();
+
+    for (const capture of captures) {
+        const signature = buildComponentSignature(capture);
+        const componentId = hashSignature(signature);
+
+        if (!groups.has(componentId)) {
+            groups.set(componentId, []);
+        }
+        groups.get(componentId)!.push(capture);
+    }
+
+    // Map groups to ViewerComponent[]
+    const components: ViewerComponent[] = [];
+
+    for (const [componentId, groupCaptures] of groups.entries()) {
+        const first = groupCaptures[0];
+        const element = first.element;
+
+        // Derive name (CONTRACT §4.3)
+        const name =
+            element.intent?.accessibleName ||
+            element.textPreview ||
+            `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}`;
+
+        // Derive category (CONTRACT §7)
+        const category = inferCategory(element);
+
+        // Derive type (CONTRACT §4.3)
+        const type = element.role || element.tagName.toLowerCase();
+
+        // Derive source (CONTRACT §4.3)
+        const source = inferSource(first.url, first.scope);
+
+        components.push({
+            id: componentId,
+            name,
+            category,
+            type,
+            status: "Unknown", // CONTRACT §6 - always Unknown in 7.4.x
+            source,
+            capturesCount: groupCaptures.length,
+        });
+    }
+
+    // Sort deterministically: capturesCount desc, then name asc (CONTRACT §4.2)
+    components.sort((a, b) => {
+        if (b.capturesCount !== a.capturesCount) {
+            return b.capturesCount - a.capturesCount;
+        }
+        return a.name.localeCompare(b.name);
+    });
+
+    return components;
 }
 
 /**
@@ -144,11 +203,205 @@ export function deriveComponentInventory(
  * @returns Array of ViewerStyle (deduplicated and clustered)
  */
 export function deriveStyleInventory(
-    _captures: CaptureRecordV2[]
+    captures: CaptureRecordV2[]
 ): ViewerStyle[] {
-    // STUB: Return empty array (no clustering logic yet)
-    // In 7.4.x, this will implement style token extraction and grouping
-    return [];
+    // 7.4.2: Deterministic style grouping (MVP)
+    // CONTRACT: VIEWER_DATA_CONTRACT.md §5
+
+    if (captures.length === 0) {
+        return [];
+    }
+
+    // Extract style records: { kind, value, token, sources, captureUrl }
+    interface StyleRecord {
+        kind: string;
+        value: string;
+        token: string;
+        sources: CaptureRecordV2["styles"]["primitives"]["sources"];
+        captureUrl: string;
+    }
+
+    const styleRecords: StyleRecord[] = [];
+
+    for (const capture of captures) {
+        const primitives = capture.styles.primitives;
+        const sources = primitives.sources;
+
+        // Colors
+        if (primitives.backgroundColor) {
+            styleRecords.push({
+                kind: "backgroundColor",
+                value: primitives.backgroundColor.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+        }
+        if (primitives.color) {
+            styleRecords.push({
+                kind: "color",
+                value: primitives.color.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+        }
+        if (primitives.borderColor) {
+            styleRecords.push({
+                kind: "borderColor",
+                value: primitives.borderColor.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+        }
+
+        // Spacing
+        styleRecords.push({
+            kind: "paddingTop",
+            value: primitives.spacing.paddingTop,
+            token: extractToken(sources),
+            sources,
+            captureUrl: capture.url,
+        });
+        styleRecords.push({
+            kind: "paddingRight",
+            value: primitives.spacing.paddingRight,
+            token: extractToken(sources),
+            sources,
+            captureUrl: capture.url,
+        });
+        styleRecords.push({
+            kind: "paddingBottom",
+            value: primitives.spacing.paddingBottom,
+            token: extractToken(sources),
+            sources,
+            captureUrl: capture.url,
+        });
+        styleRecords.push({
+            kind: "paddingLeft",
+            value: primitives.spacing.paddingLeft,
+            token: extractToken(sources),
+            sources,
+            captureUrl: capture.url,
+        });
+
+        // Typography (optional fields)
+        if (primitives.typography) {
+            styleRecords.push({
+                kind: "fontSize",
+                value: primitives.typography.fontSize,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "fontWeight",
+                value: primitives.typography.fontWeight,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "fontFamily",
+                value: primitives.typography.fontFamily,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "lineHeight",
+                value: primitives.typography.lineHeight,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+        }
+
+        // Shadow
+        styleRecords.push({
+            kind: "boxShadow",
+            value: primitives.shadow.boxShadowRaw,
+            token: extractToken(sources),
+            sources,
+            captureUrl: capture.url,
+        });
+
+        // Border radius (optional)
+        if (primitives.radius) {
+            styleRecords.push({
+                kind: "radiusTopLeft",
+                value: primitives.radius.topLeft,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "radiusTopRight",
+                value: primitives.radius.topRight,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "radiusBottomRight",
+                value: primitives.radius.bottomRight,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "radiusBottomLeft",
+                value: primitives.radius.bottomLeft,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+        }
+    }
+
+    // Group by kind+value
+    const groups = new Map<string, StyleRecord[]>();
+
+    for (const record of styleRecords) {
+        const groupKey = `${record.kind}|${record.value}`;
+        if (!groups.has(groupKey)) {
+            groups.set(groupKey, []);
+        }
+        groups.get(groupKey)!.push(record);
+    }
+
+    // Map groups to ViewerStyle[]
+    const styles: ViewerStyle[] = [];
+
+    for (const [, groupRecords] of groups.entries()) {
+        const first = groupRecords[0];
+        const kind = inferStyleKind(first.kind as any);
+        const source = inferStyleSource(first.sources, first.captureUrl);
+        const styleId = generateStyleId(`${first.kind}|${first.token}|${first.value}`);
+
+        styles.push({
+            id: styleId,
+            token: first.token, // CONTRACT §5.3 - real token or "—"
+            value: first.value,
+            kind,
+            usageCount: groupRecords.length,
+            source,
+        });
+    }
+
+    // Sort deterministically: usageCount desc, then kind asc, then value asc (CONTRACT §5.2)
+    styles.sort((a, b) => {
+        if (b.usageCount !== a.usageCount) {
+            return b.usageCount - a.usageCount;
+        }
+        if (a.kind !== b.kind) {
+            return a.kind.localeCompare(b.kind);
+        }
+        return a.value.localeCompare(b.value);
+    });
+
+    return styles;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -186,9 +439,31 @@ export function formatRelativeTime(_timestamp: number): string {
  * @param element - Element core from capture
  * @returns Category string
  */
-export function inferCategory(_element: CaptureRecordV2["element"]): string {
-    // STUB: Return placeholder
-    return "Unknown"; // In 7.4.x, implement category inference rules
+export function inferCategory(element: CaptureRecordV2["element"]): string {
+    // 7.4.1: Fixed taxonomy (CONTRACT §7)
+    const tag = element.tagName.toLowerCase();
+    const role = element.role?.toLowerCase();
+
+    // Actions
+    if (tag === "button" || role === "button") return "Actions";
+    if (tag === "a" || role === "link") return "Actions";
+
+    // Forms
+    if (tag === "input" || tag === "select" || tag === "textarea") return "Forms";
+    if (role === "textbox" || role === "combobox" || role === "checkbox" || role === "radio") return "Forms";
+
+    // Navigation
+    if (tag === "nav" || role === "navigation") return "Navigation";
+
+    // Feedback
+    if (role === "alert" || role === "status") return "Feedback";
+
+    // Media
+    if (tag === "img" || tag === "video" || tag === "svg") return "Media";
+    if (role === "img") return "Media";
+
+    // Layout (default fallback)
+    return "Layout";
 }
 
 /**
@@ -208,11 +483,32 @@ export function inferCategory(_element: CaptureRecordV2["element"]): string {
  * @returns Source label string
  */
 export function inferSource(
-    _url: string,
+    url: string,
     _scope?: CaptureRecordV2["scope"]
 ): string {
-    // STUB: Return placeholder
-    return "Unknown"; // In 7.4.x, implement URL → page label heuristic
+    // 7.4.1: Extract page name from URL (CONTRACT §6.3)
+    try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+
+        // Homepage
+        if (pathname === "/" || pathname === "") {
+            return "Homepage";
+        }
+
+        // Extract first path segment
+        const segments = pathname.split("/").filter(seg => seg.length > 0);
+        if (segments.length === 0) {
+            return "Homepage";
+        }
+
+        // Capitalize first segment (e.g., /dashboard → Dashboard)
+        const firstSegment = segments[0];
+        return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
+    } catch {
+        // Invalid URL, return hostname or Unknown
+        return "Unknown";
+    }
 }
 
 /**
@@ -251,11 +547,26 @@ export function inferStatus(
  * @returns CSS variable name (without "var()") or "—" if no token
  */
 export function extractToken(
-    _sources?: CaptureRecordV2["styles"]["primitives"]["sources"]
+    sources?: CaptureRecordV2["styles"]["primitives"]["sources"]
 ): string {
-    // STUB: Return "—" (no extraction yet)
-    // CONTRACT: Must return "—" when no token found (VIEWER_DATA_CONTRACT.md §5.3)
-    return "—"; // In 7.4.x, implement CSS var extraction, fallback to "—"
+    // 7.4.2: Extract CSS variable token from sources (CONTRACT §5.3)
+    if (!sources) {
+        return "—";
+    }
+
+    // Check all source properties for CSS variable references
+    for (const value of Object.values(sources)) {
+        if (typeof value === "string") {
+            // Match var(--token-name) pattern
+            const match = value.match(/var\((--[^)]+)\)/);
+            if (match) {
+                return match[1]; // Return just the --token-name part
+            }
+        }
+    }
+
+    // No CSS variable found
+    return "—";
 }
 
 /**
@@ -273,10 +584,37 @@ export function extractToken(
  * @returns Style kind classification
  */
 export function inferStyleKind(
-    _primitiveKey: keyof CaptureRecordV2["styles"]["primitives"]
+    primitiveKey: string
 ): ViewerStyle["kind"] {
-    // STUB: Return placeholder
-    return "unknown"; // In 7.4.x, implement primitive key → kind mapping
+    // 7.4.2: Map primitive key to style kind (CONTRACT §6.3)
+    const key = primitiveKey.toLowerCase();
+
+    // Colors
+    if (key === "backgroundcolor" || key === "color" || key === "bordercolor") {
+        return "color";
+    }
+
+    // Spacing
+    if (key.startsWith("padding") || key.startsWith("margin")) {
+        return "spacing";
+    }
+
+    // Typography
+    if (key === "fontsize" || key === "fontweight" || key === "fontfamily" || key === "lineheight") {
+        return "typography";
+    }
+
+    // Shadow
+    if (key === "boxshadow") {
+        return "shadow";
+    }
+
+    // Border (radius)
+    if (key.startsWith("radius")) {
+        return "border";
+    }
+
+    return "unknown";
 }
 
 /**
@@ -292,11 +630,21 @@ export function inferStyleKind(
  * @returns Source label string
  */
 export function inferStyleSource(
-    _sources: CaptureRecordV2["styles"]["primitives"]["sources"] | undefined,
-    _url: string
+    sources: CaptureRecordV2["styles"]["primitives"]["sources"] | undefined,
+    url: string
 ): string {
-    // STUB: Return placeholder
-    return "Unknown"; // In 7.4.x, implement source inference
+    // 7.4.2: Infer source from CSS var or URL (CONTRACT §6.3)
+    // If sources has CSS var → "Design System"
+    if (sources) {
+        for (const value of Object.values(sources)) {
+            if (typeof value === "string" && value.includes("var(--")) {
+                return "Design System";
+            }
+        }
+    }
+
+    // Otherwise → page label from URL
+    return inferSource(url);
 }
 
 /**
@@ -325,7 +673,90 @@ export function generateComponentId(_signature: string): string {
  * @param tokenOrValue - Token name or raw value
  * @returns Stable style ID
  */
-export function generateStyleId(_tokenOrValue: string): string {
-    // STUB: Return placeholder
-    return `style-stub-${Date.now()}`; // In 7.4.x, implement stable hash
+export function generateStyleId(tokenOrValue: string): string {
+    // 7.4.2: Generate stable hash for style ID
+    let hash = 5381;
+    for (let i = 0; i < tokenOrValue.length; i++) {
+        hash = ((hash << 5) + hash) + tokenOrValue.charCodeAt(i); // hash * 33 + c
+    }
+    return `style_${(hash >>> 0).toString(16)}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Component Signature Helpers (7.4.1)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Build component signature from capture (deterministic)
+ *
+ * Signature includes (CONTRACT §4.2):
+ * - tagName
+ * - role (or inferred fallback)
+ * - accessibleName
+ * - style fingerprint (subset of primitives)
+ *
+ * @param capture - Capture record
+ * @returns Signature string for hashing
+ */
+function buildComponentSignature(capture: CaptureRecordV2): string {
+    const element = capture.element;
+    const styles = capture.styles.primitives;
+
+    // Core element identity
+    const tagName = element.tagName.toLowerCase();
+    const role = element.role || inferRoleFromTag(tagName);
+    const accessibleName = element.intent?.accessibleName || element.textPreview || "";
+
+    // Style fingerprint (stable subset)
+    const bg = styles.backgroundColor?.raw || "—";
+    const border = styles.borderColor?.raw || "—";
+    const radius = styles.radius
+        ? `${styles.radius.topLeft}|${styles.radius.topRight}|${styles.radius.bottomRight}|${styles.radius.bottomLeft}`
+        : "—";
+    const padding = `${styles.spacing.paddingTop}|${styles.spacing.paddingRight}|${styles.spacing.paddingBottom}|${styles.spacing.paddingLeft}`;
+    const color = styles.color?.raw || "—";
+
+    return `${tagName}|${role}|${accessibleName}|bg:${bg}|bd:${border}|br:${radius}|pd:${padding}|c:${color}`;
+}
+
+/**
+ * Simple djb2 hash for stable component IDs
+ *
+ * @param str - Signature string
+ * @returns Hash as hex string
+ */
+function hashSignature(str: string): string {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash) + str.charCodeAt(i); // hash * 33 + c
+    }
+    // Convert to unsigned 32-bit and return as hex
+    return `comp_${(hash >>> 0).toString(16)}`;
+}
+
+/**
+ * Infer role from tag name (fallback when role is missing)
+ *
+ * @param tagName - HTML tag name
+ * @returns Inferred role
+ */
+function inferRoleFromTag(tagName: string): string {
+    const tag = tagName.toLowerCase();
+    // Basic HTML5 implicit roles
+    if (tag === "button") return "button";
+    if (tag === "a") return "link";
+    if (tag === "input") return "textbox"; // generic fallback
+    if (tag === "select") return "combobox";
+    if (tag === "textarea") return "textbox";
+    if (tag === "img") return "img";
+    if (tag === "nav") return "navigation";
+    if (tag === "main") return "main";
+    if (tag === "header") return "banner";
+    if (tag === "footer") return "contentinfo";
+    if (tag === "aside") return "complementary";
+    if (tag === "form") return "form";
+    if (tag === "article") return "article";
+    if (tag === "section") return "region";
+    if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") return "heading";
+    return "generic"; // fallback
 }

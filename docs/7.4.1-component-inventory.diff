@@ -1,0 +1,508 @@
+diff --git a/apps/extension/src/background/serviceWorker.ts b/apps/extension/src/background/serviceWorker.ts
+index a42ae3c..4ceb35b 100644
+--- a/apps/extension/src/background/serviceWorker.ts
++++ b/apps/extension/src/background/serviceWorker.ts
+@@ -1034,6 +1034,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+         return true; // async response
+     }
+ 
++    // Milestone 7.4.1: Get captures for a specific project (Viewer use)
++    if (msg?.type === "UI/GET_PROJECT_DETAIL") {
++        (async () => {
++            try {
++                const projectId = msg.projectId;
++
++                if (!projectId || typeof projectId !== "string") {
++                    sendResponse({ ok: false, error: "projectId is required" });
++                    return;
++                }
++
++                // Load all session IDs linked to this project
++                const sessionIds = await listSessionIdsForProject(projectId);
++
++                // Load all captures across those sessions
++                const captures = await listCapturesBySessionIds(sessionIds);
++
++                sendResponse({ ok: true, projectId, sessionIds, captures });
++            } catch (err) {
++                console.error("[UI Inventory] Failed to get project detail:", err);
++                sendResponse({ ok: false, error: String(err) });
++            }
++        })();
++
++        return true; // async response
++    }
++
+     if (msg?.type === "UI/GET_PROJECT_COMPONENT_COUNTS") {
+         (async () => {
+             try {
+diff --git a/apps/extension/src/ui/viewer/adapters/deriveViewerModels.ts b/apps/extension/src/ui/viewer/adapters/deriveViewerModels.ts
+index 8f3fd07..847ab66 100644
+--- a/apps/extension/src/ui/viewer/adapters/deriveViewerModels.ts
++++ b/apps/extension/src/ui/viewer/adapters/deriveViewerModels.ts
+@@ -113,11 +113,70 @@ export function deriveProjectDetail(
+  * @returns Array of ViewerComponent (deduplicated and categorized)
+  */
+ export function deriveComponentInventory(
+-    _captures: CaptureRecordV2[]
++    captures: CaptureRecordV2[]
+ ): ViewerComponent[] {
+-    // STUB: Return empty array (no grouping logic yet)
+-    // In 7.4.x, this will implement component grouping algorithm
+-    return [];
++    // 7.4.1: Deterministic component grouping (MVP)
++    // CONTRACT: VIEWER_DATA_CONTRACT.md §4
++
++    if (captures.length === 0) {
++        return [];
++    }
++
++    // Group captures by signature
++    const groups = new Map<string, CaptureRecordV2[]>();
++
++    for (const capture of captures) {
++        const signature = buildComponentSignature(capture);
++        const componentId = hashSignature(signature);
++
++        if (!groups.has(componentId)) {
++            groups.set(componentId, []);
++        }
++        groups.get(componentId)!.push(capture);
++    }
++
++    // Map groups to ViewerComponent[]
++    const components: ViewerComponent[] = [];
++
++    for (const [componentId, groupCaptures] of groups.entries()) {
++        const first = groupCaptures[0];
++        const element = first.element;
++
++        // Derive name (CONTRACT §4.3)
++        const name =
++            element.intent?.accessibleName ||
++            element.textPreview ||
++            `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}`;
++
++        // Derive category (CONTRACT §7)
++        const category = inferCategory(element);
++
++        // Derive type (CONTRACT §4.3)
++        const type = element.role || element.tagName.toLowerCase();
++
++        // Derive source (CONTRACT §4.3)
++        const source = inferSource(first.url, first.scope);
++
++        components.push({
++            id: componentId,
++            name,
++            category,
++            type,
++            status: "Unknown", // CONTRACT §6 - always Unknown in 7.4.x
++            source,
++            capturesCount: groupCaptures.length,
++        });
++    }
++
++    // Sort deterministically: capturesCount desc, then name asc (CONTRACT §4.2)
++    components.sort((a, b) => {
++        if (b.capturesCount !== a.capturesCount) {
++            return b.capturesCount - a.capturesCount;
++        }
++        return a.name.localeCompare(b.name);
++    });
++
++    return components;
+ }
+ 
+ /**
+@@ -186,9 +245,31 @@ export function formatRelativeTime(_timestamp: number): string {
+  * @param element - Element core from capture
+  * @returns Category string
+  */
+-export function inferCategory(_element: CaptureRecordV2["element"]): string {
+-    // STUB: Return placeholder
+-    return "Unknown"; // In 7.4.x, implement category inference rules
++export function inferCategory(element: CaptureRecordV2["element"]): string {
++    // 7.4.1: Fixed taxonomy (CONTRACT §7)
++    const tag = element.tagName.toLowerCase();
++    const role = element.role?.toLowerCase();
++
++    // Actions
++    if (tag === "button" || role === "button") return "Actions";
++    if (tag === "a" || role === "link") return "Actions";
++
++    // Forms
++    if (tag === "input" || tag === "select" || tag === "textarea") return "Forms";
++    if (role === "textbox" || role === "combobox" || role === "checkbox" || role === "radio") return "Forms";
++
++    // Navigation
++    if (tag === "nav" || role === "navigation") return "Navigation";
++
++    // Feedback
++    if (role === "alert" || role === "status") return "Feedback";
++
++    // Media
++    if (tag === "img" || tag === "video" || tag === "svg") return "Media";
++    if (role === "img") return "Media";
++
++    // Layout (default fallback)
++    return "Layout";
+ }
+ 
+ /**
+@@ -208,11 +289,32 @@ export function inferCategory(_element: CaptureRecordV2["element"]): string {
+  * @returns Source label string
+  */
+ export function inferSource(
+-    _url: string,
++    url: string,
+     _scope?: CaptureRecordV2["scope"]
+ ): string {
+-    // STUB: Return placeholder
+-    return "Unknown"; // In 7.4.x, implement URL → page label heuristic
++    // 7.4.1: Extract page name from URL (CONTRACT §6.3)
++    try {
++        const urlObj = new URL(url);
++        const pathname = urlObj.pathname;
++
++        // Homepage
++        if (pathname === "/" || pathname === "") {
++            return "Homepage";
++        }
++
++        // Extract first path segment
++        const segments = pathname.split("/").filter(seg => seg.length > 0);
++        if (segments.length === 0) {
++            return "Homepage";
++        }
++
++        // Capitalize first segment (e.g., /dashboard → Dashboard)
++        const firstSegment = segments[0];
++        return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
++    } catch {
++        // Invalid URL, return hostname or Unknown
++        return "Unknown";
++    }
+ }
+ 
+ /**
+@@ -329,3 +431,82 @@ export function generateStyleId(_tokenOrValue: string): string {
+     // STUB: Return placeholder
+     return `style-stub-${Date.now()}`; // In 7.4.x, implement stable hash
+ }
++
++// ─────────────────────────────────────────────────────────────
++// Component Signature Helpers (7.4.1)
++// ─────────────────────────────────────────────────────────────
++
++/**
++ * Build component signature from capture (deterministic)
++ *
++ * Signature includes (CONTRACT §4.2):
++ * - tagName
++ * - role (or inferred fallback)
++ * - accessibleName
++ * - style fingerprint (subset of primitives)
++ *
++ * @param capture - Capture record
++ * @returns Signature string for hashing
++ */
++function buildComponentSignature(capture: CaptureRecordV2): string {
++    const element = capture.element;
++    const styles = capture.styles.primitives;
++
++    // Core element identity
++    const tagName = element.tagName.toLowerCase();
++    const role = element.role || inferRoleFromTag(tagName);
++    const accessibleName = element.intent?.accessibleName || element.textPreview || "";
++
++    // Style fingerprint (stable subset)
++    const bg = styles.backgroundColor?.raw || "—";
++    const border = styles.borderColor?.raw || "—";
++    const radius = styles.radius
++        ? `${styles.radius.topLeft}|${styles.radius.topRight}|${styles.radius.bottomRight}|${styles.radius.bottomLeft}`
++        : "—";
++    const padding = `${styles.spacing.paddingTop}|${styles.spacing.paddingRight}|${styles.spacing.paddingBottom}|${styles.spacing.paddingLeft}`;
++    const color = styles.color?.raw || "—";
++
++    return `${tagName}|${role}|${accessibleName}|bg:${bg}|bd:${border}|br:${radius}|pd:${padding}|c:${color}`;
++}
++
++/**
++ * Simple djb2 hash for stable component IDs
++ *
++ * @param str - Signature string
++ * @returns Hash as hex string
++ */
++function hashSignature(str: string): string {
++    let hash = 5381;
++    for (let i = 0; i < str.length; i++) {
++        hash = ((hash << 5) + hash) + str.charCodeAt(i); // hash * 33 + c
++    }
++    // Convert to unsigned 32-bit and return as hex
++    return `comp_${(hash >>> 0).toString(16)}`;
++}
++
++/**
++ * Infer role from tag name (fallback when role is missing)
++ *
++ * @param tagName - HTML tag name
++ * @returns Inferred role
++ */
++function inferRoleFromTag(tagName: string): string {
++    const tag = tagName.toLowerCase();
++    // Basic HTML5 implicit roles
++    if (tag === "button") return "button";
++    if (tag === "a") return "link";
++    if (tag === "input") return "textbox"; // generic fallback
++    if (tag === "select") return "combobox";
++    if (tag === "textarea") return "textbox";
++    if (tag === "img") return "img";
++    if (tag === "nav") return "navigation";
++    if (tag === "main") return "main";
++    if (tag === "header") return "banner";
++    if (tag === "footer") return "contentinfo";
++    if (tag === "aside") return "complementary";
++    if (tag === "form") return "form";
++    if (tag === "article") return "article";
++    if (tag === "section") return "region";
++    if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") return "heading";
++    return "generic"; // fallback
++}
+diff --git a/apps/extension/src/ui/viewer/components/ProjectViewShell.tsx b/apps/extension/src/ui/viewer/components/ProjectViewShell.tsx
+index d398c46..00a2f82 100644
+--- a/apps/extension/src/ui/viewer/components/ProjectViewShell.tsx
++++ b/apps/extension/src/ui/viewer/components/ProjectViewShell.tsx
+@@ -7,7 +7,8 @@ import { ComponentsGrid } from "./ComponentsGrid";
+ import { ComponentsTable } from "./ComponentsTable";
+ import { StylesGrid } from "./StylesGrid";
+ import { StylesTable } from "./StylesTable";
+-import { MOCK_COMPONENTS, MOCK_STYLES } from "../mock/projectMockData";
++import { MOCK_STYLES } from "../mock/projectMockData";
++import type { ViewerComponent } from "../types/projectViewerTypes";
+ 
+ // ─────────────────────────────────────────────────────────────
+ // Types
+@@ -64,9 +65,15 @@ type ViewerUiState = {
+ 
+ export function ProjectViewShell({
+     projectName,
++    components,
++    componentsLoading,
++    componentsError,
+     onBack,
+ }: {
+     projectName: string;
++    components: ViewerComponent[];
++    componentsLoading: boolean;
++    componentsError: string | null;
+     onBack: () => void;
+ }) {
+     // Filter state (NOT moved to ui state - still separate Sets)
+@@ -125,22 +132,22 @@ export function ProjectViewShell({
+         },
+     });
+ 
+-    // Derive available filter options from datasets (stable deps)
++    // Derive available filter options from datasets (7.4.1: use real components)
+     const uniqueCategories = useMemo(() =>
+-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.category))).sort(),
+-        []
++        Array.from(new Set(components.map(c => c.category))).sort(),
++        [components]
+     );
+     const uniqueTypes = useMemo(() =>
+-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.type))).sort(),
+-        []
++        Array.from(new Set(components.map(c => c.type))).sort(),
++        [components]
+     );
+     const uniqueStatuses = useMemo(() =>
+-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.status))).sort(),
+-        []
++        Array.from(new Set(components.map(c => c.status))).sort(),
++        [components]
+     );
+     const uniqueSources = useMemo(() =>
+-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.source))).sort(),
+-        []
++        Array.from(new Set(components.map(c => c.source))).sort(),
++        [components]
+     );
+     const uniqueKinds = useMemo(() =>
+         Array.from(new Set(MOCK_STYLES.map(s => s.kind))).sort(),
+@@ -151,9 +158,9 @@ export function ProjectViewShell({
+         []
+     );
+ 
+-    // Filtered datasets
++    // Filtered datasets (7.4.1: use real components)
+     const filteredComponents = useMemo(() => {
+-        let result = MOCK_COMPONENTS;
++        let result = components;
+ 
+         // Apply category filter
+         if (selectedCategories.size > 0) {
+@@ -193,7 +200,7 @@ export function ProjectViewShell({
+         }
+ 
+         return result;
+-    }, [selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
++    }, [components, selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
+ 
+     const filteredStyles = useMemo(() => {
+         let result = MOCK_STYLES;
+@@ -225,8 +232,8 @@ export function ProjectViewShell({
+     const hasComponents = filteredComponents.length > 0;
+     const hasStyles = filteredStyles.length > 0;
+ 
+-    // Selected item lookup (IA-only)
+-    const selectedComponent = ui.drawer.selectedComponentId ? MOCK_COMPONENTS.find(c => c.id === ui.drawer.selectedComponentId) : null;
++    // Selected item lookup (7.4.1: use real components)
++    const selectedComponent = ui.drawer.selectedComponentId ? components.find(c => c.id === ui.drawer.selectedComponentId) : null;
+     const selectedStyle = ui.drawer.selectedStyleId ? MOCK_STYLES.find(s => s.id === ui.drawer.selectedStyleId) : null;
+ 
+     // Click handlers for opening drawer
+@@ -814,8 +821,45 @@ export function ProjectViewShell({
+                     </div>
+                 )}
+ 
++                {/* Components Loading State (7.4.1) */}
++                {ui.route.activeTab === "components" && componentsLoading && (
++                    <div style={{
++                        padding: "3rem",
++                        textAlign: "center",
++                        color: "hsl(var(--muted-foreground))",
++                    }}>
++                        Loading components...
++                    </div>
++                )}
++
++                {/* Components Error State (7.4.1) */}
++                {ui.route.activeTab === "components" && !componentsLoading && componentsError && (
++                    <div style={{
++                        padding: "3rem",
++                        textAlign: "center",
++                    }}>
++                        <div style={{ color: "hsl(var(--destructive))", marginBottom: "0.5rem" }}>
++                            Failed to load components
++                        </div>
++                        <div style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.875rem" }}>
++                            {componentsError}
++                        </div>
++                    </div>
++                )}
++
++                {/* Components Empty State (7.4.1) */}
++                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && !hasComponents && (
++                    <div style={{
++                        padding: "3rem",
++                        textAlign: "center",
++                        color: "hsl(var(--muted-foreground))",
++                    }}>
++                        No components found. Capture some UI elements to get started.
++                    </div>
++                )}
++
+                 {/* Layout 1: Components / Grid */}
+-                {ui.route.activeTab === "components" && hasComponents && ui.route.activeView === "grid" && (
++                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "grid" && (
+                     <ComponentsGrid
+                         items={filteredComponents}
+                         visibleProps={ui.visibleProps.components}
+@@ -825,7 +869,7 @@ export function ProjectViewShell({
+                 )}
+ 
+                 {/* Layout 2: Components / Table */}
+-                {ui.route.activeTab === "components" && hasComponents && ui.route.activeView === "table" && (
++                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "table" && (
+                     <ComponentsTable
+                         items={filteredComponents}
+                         visibleProps={ui.visibleProps.components}
+diff --git a/apps/extension/src/ui/viewer/components/ViewerApp.tsx b/apps/extension/src/ui/viewer/components/ViewerApp.tsx
+index 60191bd..0584512 100644
+--- a/apps/extension/src/ui/viewer/components/ViewerApp.tsx
++++ b/apps/extension/src/ui/viewer/components/ViewerApp.tsx
+@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
+ import { ProjectsHome } from "./ProjectsHome";
+ import { ProjectViewShell } from "./ProjectViewShell";
+ import { LegacySessionsViewer } from "./LegacySessionsViewer";
+-import type { ViewerRoute, ViewerProject } from "../types/projectViewerTypes";
+-import { deriveProjectsIndexFromStorage } from "../adapters/deriveViewerModels";
++import type { ViewerRoute, ViewerProject, ViewerComponent } from "../types/projectViewerTypes";
++import { deriveProjectsIndexFromStorage, deriveComponentInventory } from "../adapters/deriveViewerModels";
+ 
+ // ─────────────────────────────────────────────────────────────
+ // URL navigation helpers (Milestone 7.2.1)
+@@ -44,6 +44,11 @@ export function ViewerApp() {
+     const [projectsError, setProjectsError] = useState<string | null>(null);
+     const [projects, setProjects] = useState<ViewerProject[]>([]);
+ 
++    // Milestone 7.4.1: Load components for selected project
++    const [componentsLoading, setComponentsLoading] = useState(false);
++    const [componentsError, setComponentsError] = useState<string | null>(null);
++    const [components, setComponents] = useState<ViewerComponent[]>([]);
++
+     // Milestone 7.4.0: Load projects on mount
+     useEffect(() => {
+         let isMounted = true;
+@@ -86,6 +91,49 @@ export function ViewerApp() {
+         }
+     }, [projectsLoading, projects, selectedProjectId]);
+ 
++    // Milestone 7.4.1: Load components when selectedProjectId changes
++    useEffect(() => {
++        if (!selectedProjectId) {
++            // No project selected, clear components
++            setComponents([]);
++            setComponentsError(null);
++            return;
++        }
++
++        let isMounted = true;
++        (async () => {
++            try {
++                if (!isMounted) return;
++                setComponentsError(null);
++                setComponentsLoading(true);
++
++                const response = await chrome.runtime.sendMessage({
++                    type: "UI/GET_PROJECT_DETAIL",
++                    projectId: selectedProjectId,
++                });
++
++                if (!isMounted) return;
++
++                if (response && response.ok) {
++                    const derived = deriveComponentInventory(response.captures);
++                    setComponents(derived);
++                } else {
++                    setComponentsError(response?.error || "Failed to load components");
++                }
++            } catch (err) {
++                if (!isMounted) return;
++                setComponentsError(String(err));
++            } finally {
++                if (!isMounted) return;
++                setComponentsLoading(false);
++            }
++        })();
++
++        return () => {
++            isMounted = false;
++        };
++    }, [selectedProjectId]);
++
+     // Handle browser back/forward buttons (Milestone 7.2.1)
+     useEffect(() => {
+         const handlePopState = () => {
+@@ -160,6 +208,9 @@ export function ViewerApp() {
+         return (
+             <ProjectViewShell
+                 projectName={project?.name || "Unknown Project"}
++                components={components}
++                componentsLoading={componentsLoading}
++                componentsError={componentsError}
+                 onBack={() => {
+                     setRoute("projects");
+                     setSelectedProjectId(null);

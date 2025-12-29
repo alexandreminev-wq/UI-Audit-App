@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { ProjectsHome } from "./ProjectsHome";
 import { ProjectViewShell } from "./ProjectViewShell";
 import { LegacySessionsViewer } from "./LegacySessionsViewer";
-import type { ViewerRoute, ViewerProject } from "../types/projectViewerTypes";
-import { deriveProjectsIndexFromStorage } from "../adapters/deriveViewerModels";
+import type { ViewerRoute, ViewerProject, ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
+import { deriveProjectsIndexFromStorage, deriveComponentInventory, deriveStyleInventory } from "../adapters/deriveViewerModels";
 
 // ─────────────────────────────────────────────────────────────
 // URL navigation helpers (Milestone 7.2.1)
@@ -43,6 +43,14 @@ export function ViewerApp() {
     const [projectsLoading, setProjectsLoading] = useState(true);
     const [projectsError, setProjectsError] = useState<string | null>(null);
     const [projects, setProjects] = useState<ViewerProject[]>([]);
+
+    // Milestone 7.4.1: Load components for selected project
+    const [componentsLoading, setComponentsLoading] = useState(false);
+    const [componentsError, setComponentsError] = useState<string | null>(null);
+    const [components, setComponents] = useState<ViewerComponent[]>([]);
+
+    // Milestone 7.4.2: Load styles for selected project (derived from same captures)
+    const [styles, setStyles] = useState<ViewerStyle[]>([]);
 
     // Milestone 7.4.0: Load projects on mount
     useEffect(() => {
@@ -85,6 +93,55 @@ export function ViewerApp() {
             }
         }
     }, [projectsLoading, projects, selectedProjectId]);
+
+    // Milestone 7.4.1+7.4.2: Load components and styles when selectedProjectId changes
+    useEffect(() => {
+        if (!selectedProjectId) {
+            // No project selected, clear data
+            setComponents([]);
+            setStyles([]);
+            setComponentsError(null);
+            return;
+        }
+
+        let isMounted = true;
+        (async () => {
+            try {
+                if (!isMounted) return;
+                setComponentsError(null);
+                setComponentsLoading(true);
+
+                const response = await chrome.runtime.sendMessage({
+                    type: "UI/GET_PROJECT_DETAIL",
+                    projectId: selectedProjectId,
+                });
+
+                if (!isMounted) return;
+
+                if (response && response.ok) {
+                    // 7.4.1: Derive components
+                    const derivedComponents = deriveComponentInventory(response.captures);
+                    setComponents(derivedComponents);
+
+                    // 7.4.2: Derive styles from same captures
+                    const derivedStyles = deriveStyleInventory(response.captures);
+                    setStyles(derivedStyles);
+                } else {
+                    setComponentsError(response?.error || "Failed to load project data");
+                }
+            } catch (err) {
+                if (!isMounted) return;
+                setComponentsError(String(err));
+            } finally {
+                if (!isMounted) return;
+                setComponentsLoading(false);
+            }
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedProjectId]);
 
     // Handle browser back/forward buttons (Milestone 7.2.1)
     useEffect(() => {
@@ -160,6 +217,10 @@ export function ViewerApp() {
         return (
             <ProjectViewShell
                 projectName={project?.name || "Unknown Project"}
+                components={components}
+                componentsLoading={componentsLoading}
+                componentsError={componentsError}
+                styleItems={styles}
                 onBack={() => {
                     setRoute("projects");
                     setSelectedProjectId(null);

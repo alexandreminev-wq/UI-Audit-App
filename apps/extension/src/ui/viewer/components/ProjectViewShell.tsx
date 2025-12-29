@@ -7,7 +7,7 @@ import { ComponentsGrid } from "./ComponentsGrid";
 import { ComponentsTable } from "./ComponentsTable";
 import { StylesGrid } from "./StylesGrid";
 import { StylesTable } from "./StylesTable";
-import { MOCK_COMPONENTS, MOCK_STYLES } from "../mock/projectMockData";
+import type { ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -64,9 +64,17 @@ type ViewerUiState = {
 
 export function ProjectViewShell({
     projectName,
+    components,
+    componentsLoading,
+    componentsError,
+    styleItems,
     onBack,
 }: {
     projectName: string;
+    components: ViewerComponent[];
+    componentsLoading: boolean;
+    componentsError: string | null;
+    styleItems: ViewerStyle[];
     onBack: () => void;
 }) {
     // Filter state (NOT moved to ui state - still separate Sets)
@@ -125,35 +133,35 @@ export function ProjectViewShell({
         },
     });
 
-    // Derive available filter options from datasets (stable deps)
+    // Derive available filter options from datasets (7.4.1: use real components)
     const uniqueCategories = useMemo(() =>
-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.category))).sort(),
-        []
+        Array.from(new Set(components.map(c => c.category))).sort(),
+        [components]
     );
     const uniqueTypes = useMemo(() =>
-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.type))).sort(),
-        []
+        Array.from(new Set(components.map(c => c.type))).sort(),
+        [components]
     );
     const uniqueStatuses = useMemo(() =>
-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.status))).sort(),
-        []
+        Array.from(new Set(components.map(c => c.status))).sort(),
+        [components]
     );
     const uniqueSources = useMemo(() =>
-        Array.from(new Set(MOCK_COMPONENTS.map(c => c.source))).sort(),
-        []
+        Array.from(new Set(components.map(c => c.source))).sort(),
+        [components]
     );
     const uniqueKinds = useMemo(() =>
-        Array.from(new Set(MOCK_STYLES.map(s => s.kind))).sort(),
-        []
+        Array.from(new Set(styleItems.map(s => s.kind))).sort(),
+        [styleItems]
     );
     const uniqueStyleSources = useMemo(() =>
-        Array.from(new Set(MOCK_STYLES.map(s => s.source))).sort(),
-        []
+        Array.from(new Set(styleItems.map(s => s.source))).sort(),
+        [styleItems]
     );
 
-    // Filtered datasets
+    // Filtered datasets (7.4.1: use real components)
     const filteredComponents = useMemo(() => {
-        let result = MOCK_COMPONENTS;
+        let result = components;
 
         // Apply category filter
         if (selectedCategories.size > 0) {
@@ -193,10 +201,11 @@ export function ProjectViewShell({
         }
 
         return result;
-    }, [selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
+    }, [components, selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
 
+    // Filtered datasets (7.4.2: use real styleItems)
     const filteredStyles = useMemo(() => {
-        let result = MOCK_STYLES;
+        let result = styleItems;
 
         // Apply kind filter
         if (selectedKinds.size > 0) {
@@ -220,14 +229,14 @@ export function ProjectViewShell({
         }
 
         return result;
-    }, [selectedKinds, selectedStyleSources, ui.filters.searchQuery]);
+    }, [styleItems, selectedKinds, selectedStyleSources, ui.filters.searchQuery]);
 
     const hasComponents = filteredComponents.length > 0;
     const hasStyles = filteredStyles.length > 0;
 
-    // Selected item lookup (IA-only)
-    const selectedComponent = ui.drawer.selectedComponentId ? MOCK_COMPONENTS.find(c => c.id === ui.drawer.selectedComponentId) : null;
-    const selectedStyle = ui.drawer.selectedStyleId ? MOCK_STYLES.find(s => s.id === ui.drawer.selectedStyleId) : null;
+    // Selected item lookup (7.4.1+7.4.2: use real data)
+    const selectedComponent = ui.drawer.selectedComponentId ? components.find(c => c.id === ui.drawer.selectedComponentId) : null;
+    const selectedStyle = ui.drawer.selectedStyleId ? styleItems.find(s => s.id === ui.drawer.selectedStyleId) : null;
 
     // Click handlers for opening drawer
     const handleComponentClick = (id: string) => {
@@ -279,7 +288,7 @@ export function ProjectViewShell({
     }, [ui.drawer.open]);
 
     // Style map for header and toolbar (reduces inline clutter)
-    const styles = {
+    const inlineStyles = {
         header: {
             padding: "16px 24px",
             borderBottom: "1px solid hsl(var(--border))",
@@ -438,48 +447,48 @@ export function ProjectViewShell({
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Header */}
-            <div style={styles.header}>
+            <div style={inlineStyles.header}>
                 {/* Top row: Back button + Project info on left, Search + Export on right */}
-                <div style={styles.topRow}>
+                <div style={inlineStyles.topRow}>
                     {/* Left side: Back button + Project info */}
-                    <div style={styles.topLeftGroup}>
-                        <button type="button" onClick={onBack} style={styles.backButton}>
+                    <div style={inlineStyles.topLeftGroup}>
+                        <button type="button" onClick={onBack} style={inlineStyles.backButton}>
                             ← Back
                         </button>
-                        <div style={styles.projectTitleContainer}>
-                            <h1 style={styles.projectTitle}>
+                        <div style={inlineStyles.projectTitleContainer}>
+                            <h1 style={inlineStyles.projectTitle}>
                                 {projectName}
                             </h1>
-                            <div style={styles.projectMeta}>
+                            <div style={inlineStyles.projectMeta}>
                                 6 captures • 30 unique styles
                             </div>
                         </div>
                     </div>
 
                     {/* Right side: Search + Export */}
-                    <div style={styles.topSearchGroup}>
+                    <div style={inlineStyles.topSearchGroup}>
                         <input
                             type="text"
                             placeholder="Search components and styles"
                             value={ui.filters.searchQuery}
                             onChange={(e) => setUi(prev => ({ ...prev, filters: { ...prev.filters, searchQuery: e.target.value } }))}
-                            style={styles.searchInput}
+                            style={inlineStyles.searchInput}
                         />
-                        <button type="button" style={styles.exportButton}>
+                        <button type="button" style={inlineStyles.exportButton}>
                             Export
                         </button>
                     </div>
                 </div>
 
                 {/* Second row: Tab selector (Components/Styles) + View toggle (Grid/Table) */}
-                <div style={styles.secondRow}>
+                <div style={inlineStyles.secondRow}>
                     {/* Left: Components/Styles tabs */}
-                    <div style={styles.segmentedContainer}>
+                    <div style={inlineStyles.segmentedContainer}>
                         <button
                             type="button"
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeTab: "components" } }))}
                             style={{
-                                ...styles.segmentedButtonBase,
+                                ...inlineStyles.segmentedButtonBase,
                                 background: ui.route.activeTab === "components" ? "hsl(var(--background))" : "transparent",
                                 color: ui.route.activeTab === "components" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "components" ? 600 : 500,
@@ -491,7 +500,7 @@ export function ProjectViewShell({
                             type="button"
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeTab: "styles" } }))}
                             style={{
-                                ...styles.segmentedButtonBase,
+                                ...inlineStyles.segmentedButtonBase,
                                 background: ui.route.activeTab === "styles" ? "hsl(var(--background))" : "transparent",
                                 color: ui.route.activeTab === "styles" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "styles" ? 600 : 500,
@@ -502,12 +511,12 @@ export function ProjectViewShell({
                     </div>
 
                     {/* Right: Grid/Table view toggle */}
-                    <div style={styles.segmentedContainer}>
+                    <div style={inlineStyles.segmentedContainer}>
                         <button
                             type="button"
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "grid" } }))}
                             style={{
-                                ...styles.segmentedButtonView,
+                                ...inlineStyles.segmentedButtonView,
                                 background: ui.route.activeView === "grid" ? "hsl(var(--background))" : "transparent",
                                 color: ui.route.activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeView === "grid" ? 600 : 500,
@@ -519,7 +528,7 @@ export function ProjectViewShell({
                             type="button"
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "table" } }))}
                             style={{
-                                ...styles.segmentedButtonView,
+                                ...inlineStyles.segmentedButtonView,
                                 background: ui.route.activeView === "table" ? "hsl(var(--background))" : "transparent",
                                 color: ui.route.activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeView === "table" ? 600 : 500,
@@ -531,8 +540,8 @@ export function ProjectViewShell({
                 </div>
 
                 {/* Third row: Filters toolbar (visual only) */}
-                <div style={styles.filterRow}>
-                    <div style={styles.filterGroupLeft}>
+                <div style={inlineStyles.filterRow}>
+                    <div style={inlineStyles.filterGroupLeft}>
                         {/* Components tab filters */}
                         {ui.route.activeTab === "components" && (
                             <>
@@ -544,7 +553,7 @@ export function ProjectViewShell({
                                     trigger={
                                         <button type="button"
                                             style={{
-                                                ...styles.filterButton,
+                                                ...inlineStyles.filterButton,
                                                 ...(ui.popovers.openMenu === "category" ? {
                                                     background: "hsl(var(--muted))",
                                                     fontWeight: 600,
@@ -571,7 +580,7 @@ export function ProjectViewShell({
                             trigger={
                                 <button type="button"
                                     style={{
-                                        ...styles.filterButton,
+                                        ...inlineStyles.filterButton,
                                         ...(ui.popovers.openMenu === "type" ? {
                                             background: "hsl(var(--muted))",
                                             fontWeight: 600,
@@ -598,7 +607,7 @@ export function ProjectViewShell({
                             trigger={
                                 <button type="button"
                                     style={{
-                                        ...styles.filterButton,
+                                        ...inlineStyles.filterButton,
                                         ...(ui.popovers.openMenu === "status" ? {
                                             background: "hsl(var(--muted))",
                                             fontWeight: 600,
@@ -625,7 +634,7 @@ export function ProjectViewShell({
                             trigger={
                                 <button type="button"
                                     style={{
-                                        ...styles.filterButton,
+                                        ...inlineStyles.filterButton,
                                         ...(ui.popovers.openMenu === "source" ? {
                                             background: "hsl(var(--muted))",
                                             fontWeight: 600,
@@ -644,12 +653,12 @@ export function ProjectViewShell({
                             />
                         </FilterPopover>
 
-                                <div style={styles.filterSeparator} />
+                                <div style={inlineStyles.filterSeparator} />
                                 <button
                                     type="button"
                                     onClick={() => setUi(prev => ({ ...prev, filters: { ...prev.filters, unknownOnly: !prev.filters.unknownOnly } }))}
                                     style={{
-                                        ...styles.utilityButtonBase,
+                                        ...inlineStyles.utilityButtonBase,
                                         background: ui.filters.unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
                                         color: ui.filters.unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
                                         fontWeight: ui.filters.unknownOnly ? 600 : 500,
@@ -671,7 +680,7 @@ export function ProjectViewShell({
                                     trigger={
                                         <button type="button"
                                             style={{
-                                                ...styles.filterButton,
+                                                ...inlineStyles.filterButton,
                                                 ...(ui.popovers.openMenu === "kind" ? {
                                                     background: "hsl(var(--muted))",
                                                     fontWeight: 600,
@@ -698,7 +707,7 @@ export function ProjectViewShell({
                                     trigger={
                                         <button type="button"
                                             style={{
-                                                ...styles.filterButton,
+                                                ...inlineStyles.filterButton,
                                                 ...(ui.popovers.openMenu === "style-source" ? {
                                                     background: "hsl(var(--muted))",
                                                     fontWeight: 600,
@@ -719,8 +728,8 @@ export function ProjectViewShell({
                             </>
                         )}
                     </div>
-                    <div style={styles.filterSpacer} />
-                    <div style={styles.filterGroupRight}>
+                    <div style={inlineStyles.filterSpacer} />
+                    <div style={inlineStyles.filterGroupRight}>
                         <VisiblePropertiesPopover
                             activeTab={ui.route.activeTab}
                             visibleComponentProps={ui.visibleProps.components}
@@ -741,7 +750,7 @@ export function ProjectViewShell({
                             }))}
                             openMenu={ui.popovers.openMenu}
                             setOpenMenu={(menu) => setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: menu } }))}
-                            filterButtonStyle={styles.filterButton}
+                            filterButtonStyle={inlineStyles.filterButton}
                         />
                     </div>
                 </div>
@@ -814,8 +823,45 @@ export function ProjectViewShell({
                     </div>
                 )}
 
+                {/* Components Loading State (7.4.1) */}
+                {ui.route.activeTab === "components" && componentsLoading && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                        color: "hsl(var(--muted-foreground))",
+                    }}>
+                        Loading components...
+                    </div>
+                )}
+
+                {/* Components Error State (7.4.1) */}
+                {ui.route.activeTab === "components" && !componentsLoading && componentsError && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                    }}>
+                        <div style={{ color: "hsl(var(--destructive))", marginBottom: "0.5rem" }}>
+                            Failed to load components
+                        </div>
+                        <div style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.875rem" }}>
+                            {componentsError}
+                        </div>
+                    </div>
+                )}
+
+                {/* Components Empty State (7.4.1) */}
+                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && !hasComponents && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                        color: "hsl(var(--muted-foreground))",
+                    }}>
+                        No components found. Capture some UI elements to get started.
+                    </div>
+                )}
+
                 {/* Layout 1: Components / Grid */}
-                {ui.route.activeTab === "components" && hasComponents && ui.route.activeView === "grid" && (
+                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "grid" && (
                     <ComponentsGrid
                         items={filteredComponents}
                         visibleProps={ui.visibleProps.components}
@@ -825,7 +871,7 @@ export function ProjectViewShell({
                 )}
 
                 {/* Layout 2: Components / Table */}
-                {ui.route.activeTab === "components" && hasComponents && ui.route.activeView === "table" && (
+                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "table" && (
                     <ComponentsTable
                         items={filteredComponents}
                         visibleProps={ui.visibleProps.components}
@@ -834,8 +880,45 @@ export function ProjectViewShell({
                     />
                 )}
 
+                {/* Styles Loading State (7.4.2 - reuses component loading state) */}
+                {ui.route.activeTab === "styles" && componentsLoading && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                        color: "hsl(var(--muted-foreground))",
+                    }}>
+                        Loading styles...
+                    </div>
+                )}
+
+                {/* Styles Error State (7.4.2 - reuses component error state) */}
+                {ui.route.activeTab === "styles" && !componentsLoading && componentsError && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                    }}>
+                        <div style={{ color: "hsl(var(--destructive))", marginBottom: "0.5rem" }}>
+                            Failed to load styles
+                        </div>
+                        <div style={{ color: "hsl(var(--muted-foreground))", fontSize: "0.875rem" }}>
+                            {componentsError}
+                        </div>
+                    </div>
+                )}
+
+                {/* Styles Empty State (7.4.2) */}
+                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && !hasStyles && (
+                    <div style={{
+                        padding: "3rem",
+                        textAlign: "center",
+                        color: "hsl(var(--muted-foreground))",
+                    }}>
+                        No styles found. Capture some UI elements to get started.
+                    </div>
+                )}
+
                 {/* Layout 3: Styles / Grid */}
-                {ui.route.activeTab === "styles" && hasStyles && ui.route.activeView === "grid" && (
+                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && ui.route.activeView === "grid" && (
                     <StylesGrid
                         items={filteredStyles}
                         visibleProps={ui.visibleProps.styles}
@@ -845,7 +928,7 @@ export function ProjectViewShell({
                 )}
 
                 {/* Layout 4: Styles / Table */}
-                {ui.route.activeTab === "styles" && hasStyles && ui.route.activeView === "table" && (
+                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && ui.route.activeView === "table" && (
                     <StylesTable
                         items={filteredStyles}
                         visibleProps={ui.visibleProps.styles}
