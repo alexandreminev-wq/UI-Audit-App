@@ -3,6 +3,10 @@ import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
 import { CheckboxList } from "./CheckboxList";
 import { VisiblePropertiesPopover } from "./VisiblePropertiesPopover";
+import { ComponentsGrid } from "./ComponentsGrid";
+import { ComponentsTable } from "./ComponentsTable";
+import { StylesGrid } from "./StylesGrid";
+import { StylesTable } from "./StylesTable";
 import { MOCK_COMPONENTS, MOCK_STYLES } from "../mock/projectMockData";
 
 // ─────────────────────────────────────────────────────────────
@@ -176,14 +180,6 @@ export function ProjectViewShell({
         setDrawerOpen(false);
         setSelectedComponentId(null);
         setSelectedStyleId(null);
-    };
-
-    // Keyboard navigation helper for clickable divs
-    const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
-        if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            action();
-        }
     };
 
     // Close popovers when major UI context changes
@@ -726,514 +722,44 @@ export function ProjectViewShell({
                 )}
 
                 {/* Layout 1: Components / Grid */}
-                {activeTab === "components" && hasComponents && activeView === "grid" && (() => {
-                    const hasAnyVisible = visibleComponentProps.name || visibleComponentProps.category || visibleComponentProps.type ||
-                                        visibleComponentProps.status || visibleComponentProps.source || visibleComponentProps.captures;
-
-                    return (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                            gap: 12,
-                        }}>
-                            {filteredComponents.map((comp) => {
-                                const hasChips = visibleComponentProps.category || visibleComponentProps.type || visibleComponentProps.status;
-                                const metaParts: string[] = [];
-                                if (visibleComponentProps.captures) metaParts.push(`${comp.capturesCount} captures`);
-                                if (visibleComponentProps.source) metaParts.push(comp.source);
-                                const hasMeta = metaParts.length > 0;
-
-                                return (
-                                    <div
-                                        key={comp.id}
-                                        onClick={() => handleComponentClick(comp.id)}
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => handleKeyDown(e, () => handleComponentClick(comp.id))}
-                                        aria-label={`Open details for ${comp.name}`}
-                                        style={{
-                                            border: "1px solid hsl(var(--border))",
-                                            background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "hsl(var(--background))",
-                                            borderRadius: "var(--radius)",
-                                            padding: 12,
-                                            cursor: "pointer",
-                                            outline: selectedComponentId === comp.id ? "2px solid hsl(var(--border))" : "none",
-                                            outlineOffset: 0,
-                                        }}
-                                    >
-                                        {!hasAnyVisible ? (
-                                            <div style={{
-                                                fontSize: 12,
-                                                color: "hsl(var(--muted-foreground))",
-                                            }}>
-                                                No visible properties selected
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {/* Title row */}
-                                                {visibleComponentProps.name && (
-                                                    <div style={{
-                                                        fontSize: 14,
-                                                        fontWeight: 600,
-                                                        color: "hsl(var(--foreground))",
-                                                        marginBottom: hasChips || hasMeta ? 8 : 0,
-                                                    }}>
-                                                        {comp.name}
-                                                    </div>
-                                                )}
-
-                                                {/* Chips row */}
-                                                {hasChips && (
-                                                    <div style={{
-                                                        display: "flex",
-                                                        flexWrap: "wrap",
-                                                        gap: 4,
-                                                        marginBottom: hasMeta ? 8 : 0,
-                                                    }}>
-                                                        {visibleComponentProps.category && (
-                                                            <span style={{
-                                                                fontSize: 11,
-                                                                padding: "2px 6px",
-                                                                background: "hsl(var(--muted))",
-                                                                color: "hsl(var(--muted-foreground))",
-                                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                            }}>
-                                                                {comp.category}
-                                                            </span>
-                                                        )}
-                                                        {visibleComponentProps.type && (
-                                                            <span style={{
-                                                                fontSize: 11,
-                                                                padding: "2px 6px",
-                                                                background: "hsl(var(--muted))",
-                                                                color: "hsl(var(--muted-foreground))",
-                                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                            }}>
-                                                                {comp.type}
-                                                            </span>
-                                                        )}
-                                                        {visibleComponentProps.status && (
-                                                            <span style={{
-                                                                fontSize: 11,
-                                                                padding: "2px 6px",
-                                                                background: "hsl(var(--muted))",
-                                                                color: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
-                                                                border: comp.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
-                                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                            }}>
-                                                                {comp.status}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* Meta row */}
-                                                {hasMeta && (
-                                                    <div style={{
-                                                        fontSize: 12,
-                                                        color: "hsl(var(--muted-foreground))",
-                                                    }}>
-                                                        {metaParts.join(" • ")}
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })()}
+                {activeTab === "components" && hasComponents && activeView === "grid" && (
+                    <ComponentsGrid
+                        items={filteredComponents}
+                        visibleProps={visibleComponentProps}
+                        selectedId={selectedComponentId}
+                        onSelect={handleComponentClick}
+                    />
+                )}
 
                 {/* Layout 2: Components / Table */}
-                {activeTab === "components" && hasComponents && activeView === "table" && (() => {
-                    // Column definitions for Components table
-                    const componentColumns = [
-                        {
-                            key: "name",
-                            label: "Name",
-                            visible: visibleComponentProps.name,
-                            width: "2fr",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{ fontWeight: 500 }}>{comp.name}</span>
-                            ),
-                        },
-                        {
-                            key: "category",
-                            label: "Category",
-                            visible: visibleComponentProps.category,
-                            width: "1fr",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.category}</span>
-                            ),
-                        },
-                        {
-                            key: "type",
-                            label: "Type",
-                            visible: visibleComponentProps.type,
-                            width: "80px",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{
-                                    fontFamily: "monospace",
-                                    fontSize: 12,
-                                    color: "hsl(var(--muted-foreground))",
-                                }}>
-                                    {comp.type}
-                                </span>
-                            ),
-                        },
-                        {
-                            key: "status",
-                            label: "Status",
-                            visible: visibleComponentProps.status,
-                            width: "100px",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{
-                                    fontSize: 11,
-                                    padding: "2px 6px",
-                                    background: "hsl(var(--muted))",
-                                    color: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
-                                    border: comp.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
-                                    borderRadius: "calc(var(--radius) - 2px)",
-                                }}>
-                                    {comp.status}
-                                </span>
-                            ),
-                        },
-                        {
-                            key: "source",
-                            label: "Source",
-                            visible: visibleComponentProps.source,
-                            width: "1fr",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.source}</span>
-                            ),
-                        },
-                        {
-                            key: "captures",
-                            label: "Captures",
-                            visible: visibleComponentProps.captures,
-                            width: "80px",
-                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
-                                <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.capturesCount}</span>
-                            ),
-                        },
-                    ];
-
-                    const visibleComponentColumns = componentColumns.filter(c => c.visible);
-
-                    // Compute grid template columns based on visible columns
-                    const gridTemplateColumns = visibleComponentColumns.map(col => col.width ?? "1fr").join(" ");
-
-                    return (
-                        <div style={{
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            overflow: "hidden",
-                            background: "hsl(var(--background))",
-                        }}>
-                            {visibleComponentColumns.length === 0 ? (
-                                // Empty state when no columns selected
-                                <div style={{
-                                    padding: 48,
-                                    textAlign: "center",
-                                }}>
-                                    <div style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 8,
-                                    }}>
-                                        No columns selected
-                                    </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Use Visible properties to choose which columns to show.
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Header row */}
-                                    <div style={{
-                                        display: "grid",
-                                        gridTemplateColumns,
-                                        gap: 12,
-                                        padding: "8px 12px",
-                                        borderBottom: "1px solid hsl(var(--border))",
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        {visibleComponentColumns.map((col) => (
-                                            <div key={col.key}>{col.label}</div>
-                                        ))}
-                                    </div>
-                                    {/* Data rows */}
-                                    {filteredComponents.map((comp, idx) => (
-                                        <div
-                                            key={comp.id}
-                                            onClick={() => handleComponentClick(comp.id)}
-                                            role="button"
-                                            tabIndex={0}
-                                            onKeyDown={(e) => handleKeyDown(e, () => handleComponentClick(comp.id))}
-                                            aria-label={`Open details for ${comp.name}`}
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns,
-                                                gap: 12,
-                                                padding: "12px",
-                                                borderBottom: idx === filteredComponents.length - 1 ? "none" : "1px solid hsl(var(--border))",
-                                                fontSize: 14,
-                                                color: "hsl(var(--foreground))",
-                                                background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "transparent",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            {visibleComponentColumns.map((col) => (
-                                                <div key={col.key}>{col.render(comp)}</div>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </>
-                            )}
-                        </div>
-                    );
-                })()}
+                {activeTab === "components" && hasComponents && activeView === "table" && (
+                    <ComponentsTable
+                        items={filteredComponents}
+                        visibleProps={visibleComponentProps}
+                        selectedId={selectedComponentId}
+                        onSelect={handleComponentClick}
+                    />
+                )}
 
                 {/* Layout 3: Styles / Grid */}
-                {activeTab === "styles" && hasStyles && activeView === "grid" && (() => {
-                    const hasAnyVisible = visibleStyleProps.token || visibleStyleProps.kind || visibleStyleProps.source || visibleStyleProps.uses;
-
-                    return (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                            gap: 12,
-                        }}>
-                            {filteredStyles.map((style) => {
-                                const hasKindChip = visibleStyleProps.kind;
-                                const metaParts: string[] = [];
-                                if (visibleStyleProps.uses) metaParts.push(`${style.usageCount} uses`);
-                                if (visibleStyleProps.source) metaParts.push(style.source);
-                                const hasMeta = metaParts.length > 0;
-
-                                return (
-                                    <div
-                                        key={style.id}
-                                        onClick={() => handleStyleClick(style.id)}
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => handleKeyDown(e, () => handleStyleClick(style.id))}
-                                        aria-label={`Open details for ${style.token}`}
-                                        style={{
-                                            border: "1px solid hsl(var(--border))",
-                                            background: selectedStyleId === style.id ? "hsl(var(--muted))" : "hsl(var(--background))",
-                                            borderRadius: "var(--radius)",
-                                            padding: 12,
-                                            cursor: "pointer",
-                                            outline: selectedStyleId === style.id ? "2px solid hsl(var(--border))" : "none",
-                                            outlineOffset: 0,
-                                        }}
-                                    >
-                                        {!hasAnyVisible ? (
-                                            <div style={{
-                                                fontSize: 12,
-                                                color: "hsl(var(--muted-foreground))",
-                                            }}>
-                                                No visible properties selected
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {/* Token (name) */}
-                                                {visibleStyleProps.token && (
-                                                    <div style={{
-                                                        fontSize: 13,
-                                                        fontFamily: "monospace",
-                                                        fontWeight: 600,
-                                                        color: "hsl(var(--foreground))",
-                                                        marginBottom: 6,
-                                                    }}>
-                                                        {style.token}
-                                                    </div>
-                                                )}
-
-                                                {/* Value (always shown for context, not controlled by visibleStyleProps) */}
-                                                <div style={{
-                                                    fontSize: 14,
-                                                    fontFamily: "monospace",
-                                                    color: "hsl(var(--muted-foreground))",
-                                                    marginBottom: hasKindChip || hasMeta ? 8 : 0,
-                                                    padding: "4px 6px",
-                                                    background: "hsl(var(--muted))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                }}>
-                                                    {style.value}
-                                                </div>
-
-                                                {/* Kind chip + meta row */}
-                                                {(hasKindChip || hasMeta) && (
-                                                    <div style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: 8,
-                                                        fontSize: 12,
-                                                        color: "hsl(var(--muted-foreground))",
-                                                    }}>
-                                                        {visibleStyleProps.kind && (
-                                                            <span style={{
-                                                                fontSize: 11,
-                                                                padding: "2px 6px",
-                                                                background: "hsl(var(--muted))",
-                                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                            }}>
-                                                                {style.kind}
-                                                            </span>
-                                                        )}
-                                                        {hasMeta && <span>{metaParts.join(" • ")}</span>}
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                })()}
+                {activeTab === "styles" && hasStyles && activeView === "grid" && (
+                    <StylesGrid
+                        items={filteredStyles}
+                        visibleProps={visibleStyleProps}
+                        selectedId={selectedStyleId}
+                        onSelect={handleStyleClick}
+                    />
+                )}
 
                 {/* Layout 4: Styles / Table */}
-                {activeTab === "styles" && hasStyles && activeView === "table" && (() => {
-                    // Column definitions for Styles table (only toggles that apply)
-                    const styleColumns = [
-                        {
-                            key: "token",
-                            label: "Token",
-                            visible: visibleStyleProps.token,
-                            width: "2fr",
-                            render: (style: typeof MOCK_STYLES[0]) => (
-                                <span style={{
-                                    fontFamily: "monospace",
-                                    fontSize: 13,
-                                    fontWeight: 500,
-                                }}>{style.token}</span>
-                            ),
-                        },
-                        {
-                            key: "kind",
-                            label: "Kind",
-                            visible: visibleStyleProps.kind,
-                            width: "1fr",
-                            render: (style: typeof MOCK_STYLES[0]) => (
-                                <span style={{
-                                    fontSize: 11,
-                                    padding: "2px 6px",
-                                    background: "hsl(var(--muted))",
-                                    color: "hsl(var(--muted-foreground))",
-                                    borderRadius: "calc(var(--radius) - 2px)",
-                                }}>{style.kind}</span>
-                            ),
-                        },
-                        {
-                            key: "source",
-                            label: "Source",
-                            visible: visibleStyleProps.source,
-                            width: "1fr",
-                            render: (style: typeof MOCK_STYLES[0]) => (
-                                <span style={{ color: "hsl(var(--muted-foreground))" }}>{style.source}</span>
-                            ),
-                        },
-                        {
-                            key: "uses",
-                            label: "Uses",
-                            visible: visibleStyleProps.uses,
-                            width: "80px",
-                            render: (style: typeof MOCK_STYLES[0]) => (
-                                <span style={{ color: "hsl(var(--muted-foreground))" }}>{style.usageCount}</span>
-                            ),
-                        },
-                    ];
-
-                    const visibleStyleColumns = styleColumns.filter(c => c.visible);
-                    const gridTemplateColumns = visibleStyleColumns.map(col => col.width ?? "1fr").join(" ");
-
-                    return (
-                        <div style={{
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "var(--radius)",
-                            overflow: "hidden",
-                            background: "hsl(var(--background))",
-                        }}>
-                            {visibleStyleColumns.length === 0 ? (
-                                <div style={{
-                                    padding: 24,
-                                    textAlign: "center",
-                                }}>
-                                    <div style={{
-                                        fontSize: 14,
-                                        fontWeight: 500,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 4,
-                                    }}>
-                                        No columns selected
-                                    </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Use Visible properties to choose which columns to show.
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Header row */}
-                                    <div style={{
-                                        display: "grid",
-                                        gridTemplateColumns,
-                                        gap: 12,
-                                        padding: "8px 12px",
-                                        borderBottom: "1px solid hsl(var(--border))",
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        {visibleStyleColumns.map(col => (
-                                            <div key={col.key}>{col.label}</div>
-                                        ))}
-                                    </div>
-
-                                    {/* Data rows */}
-                                    {filteredStyles.map((style, idx) => (
-                                        <div
-                                            key={style.id}
-                                            onClick={() => handleStyleClick(style.id)}
-                                            role="button"
-                                            tabIndex={0}
-                                            onKeyDown={(e) => handleKeyDown(e, () => handleStyleClick(style.id))}
-                                            aria-label={`Open details for ${style.token}`}
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns,
-                                                gap: 12,
-                                                padding: "12px",
-                                                borderBottom: idx === filteredStyles.length - 1 ? "none" : "1px solid hsl(var(--border))",
-                                                fontSize: 14,
-                                                color: "hsl(var(--foreground))",
-                                                background: selectedStyleId === style.id ? "hsl(var(--muted))" : "transparent",
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            {visibleStyleColumns.map(col => (
-                                                <div key={col.key}>{col.render(style)}</div>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </>
-                            )}
-                        </div>
-                    );
-                })()}
+                {activeTab === "styles" && hasStyles && activeView === "table" && (
+                    <StylesTable
+                        items={filteredStyles}
+                        visibleProps={visibleStyleProps}
+                        selectedId={selectedStyleId}
+                        onSelect={handleStyleClick}
+                    />
+                )}
             </div>
 
 
