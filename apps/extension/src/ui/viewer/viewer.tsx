@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import * as Popover from "@radix-ui/react-popover";
-import * as Dialog from "@radix-ui/react-dialog";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import "./index.css";
+import { DetailsDrawer } from "./components/DetailsDrawer";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -479,6 +478,29 @@ function ProjectsHome({
     );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Mock Data (file-level constants to prevent re-renders)
+// ─────────────────────────────────────────────────────────────
+
+// TEMP: Mock data for IA-only layouts (will be replaced with real data in later milestones)
+const MOCK_COMPONENTS = [
+    { id: "c1", name: "Primary Button", category: "Actions", type: "button", status: "Canonical", source: "Homepage", capturesCount: 12 },
+    { id: "c2", name: "Search Input", category: "Forms", type: "input", status: "Variant", source: "Dashboard", capturesCount: 8 },
+    { id: "c3", name: "Card Header", category: "Layout", type: "div", status: "Canonical", source: "Product Page", capturesCount: 5 },
+    { id: "c4", name: "Alert Banner", category: "Feedback", type: "div", status: "Unknown", source: "Checkout", capturesCount: 3 },
+    { id: "c5", name: "Navigation Link", category: "Navigation", type: "a", status: "Variant", source: "Header", capturesCount: 15 },
+    { id: "c6", name: "Checkbox", category: "Forms", type: "input", status: "Canonical", source: "Settings", capturesCount: 7 },
+];
+
+const MOCK_STYLES = [
+    { id: "s1", token: "--color-primary", value: "217 91% 60%", kind: "color", usageCount: 47, source: "Design System" },
+    { id: "s2", token: "--spacing-md", value: "16px", kind: "spacing", usageCount: 132, source: "Layout Grid" },
+    { id: "s3", token: "--font-heading", value: "Inter, sans-serif", kind: "typography", usageCount: 23, source: "Theme" },
+    { id: "s4", token: "--shadow-sm", value: "0 1px 2px rgba(0,0,0,0.05)", kind: "shadow", usageCount: 18, source: "Cards" },
+    { id: "s5", token: "--radius-base", value: "8px", kind: "border", usageCount: 91, source: "Components" },
+    { id: "s6", token: "--color-error", value: "0 84% 60%", kind: "color", usageCount: 12, source: "Validation" },
+];
+
 function ProjectViewShell({
     projectName,
     onBack,
@@ -495,17 +517,8 @@ function ProjectViewShell({
     const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
 
-    // Reusable drawer section title style
-    const drawerSectionTitleStyle = {
-        fontSize: 14,
-        fontWeight: 600,
-        marginTop: 0,
-        marginBottom: 8,
-        color: "hsl(var(--foreground))",
-    } as const;
-
     // Unified menu/popover state (IA-only)
-    const [openMenu, setOpenMenu] = useState<null | "category" | "type" | "status" | "source" | "properties">(null);
+    const [openMenu, setOpenMenu] = useState<null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties">(null);
 
     // Visible properties state: split per tab
     const [visibleComponentProps, setVisibleComponentProps] = useState({
@@ -523,31 +536,120 @@ function ProjectViewShell({
         uses: true,
     });
 
-    // TEMP: Mock data for IA-only layouts (will be replaced with real data in later milestones)
-    const mockComponents = [
-        { id: "c1", name: "Primary Button", category: "Actions", type: "button", status: "Canonical", source: "Homepage", capturesCount: 12 },
-        { id: "c2", name: "Search Input", category: "Forms", type: "input", status: "Variant", source: "Dashboard", capturesCount: 8 },
-        { id: "c3", name: "Card Header", category: "Layout", type: "div", status: "Canonical", source: "Product Page", capturesCount: 5 },
-        { id: "c4", name: "Alert Banner", category: "Feedback", type: "div", status: "Unknown", source: "Checkout", capturesCount: 3 },
-        { id: "c5", name: "Navigation Link", category: "Navigation", type: "a", status: "Variant", source: "Header", capturesCount: 15 },
-        { id: "c6", name: "Checkbox", category: "Forms", type: "input", status: "Canonical", source: "Settings", capturesCount: 7 },
-    ];
+    // Filter state
+    const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+    const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+    const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+    const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+    const [selectedKinds, setSelectedKinds] = useState<Set<string>>(new Set());
+    const [selectedStyleSources, setSelectedStyleSources] = useState<Set<string>>(new Set());
 
-    const mockStyles = [
-        { id: "s1", token: "--color-primary", value: "217 91% 60%", kind: "color", usageCount: 47, source: "Design System" },
-        { id: "s2", token: "--spacing-md", value: "16px", kind: "spacing", usageCount: 132, source: "Layout Grid" },
-        { id: "s3", token: "--font-heading", value: "Inter, sans-serif", kind: "typography", usageCount: 23, source: "Theme" },
-        { id: "s4", token: "--shadow-sm", value: "0 1px 2px rgba(0,0,0,0.05)", kind: "shadow", usageCount: 18, source: "Cards" },
-        { id: "s5", token: "--radius-base", value: "8px", kind: "border", usageCount: 91, source: "Components" },
-        { id: "s6", token: "--color-error", value: "0 84% 60%", kind: "color", usageCount: 12, source: "Validation" },
-    ];
+    // Search state
+    const [searchQuery, setSearchQuery] = useState("");
 
-    const hasComponents = mockComponents.length > 0;
-    const hasStyles = mockStyles.length > 0;
+    // Derive available filter options from datasets (stable deps)
+    const uniqueCategories = useMemo(() =>
+        Array.from(new Set(MOCK_COMPONENTS.map(c => c.category))).sort(),
+        []
+    );
+    const uniqueTypes = useMemo(() =>
+        Array.from(new Set(MOCK_COMPONENTS.map(c => c.type))).sort(),
+        []
+    );
+    const uniqueStatuses = useMemo(() =>
+        Array.from(new Set(MOCK_COMPONENTS.map(c => c.status))).sort(),
+        []
+    );
+    const uniqueSources = useMemo(() =>
+        Array.from(new Set(MOCK_COMPONENTS.map(c => c.source))).sort(),
+        []
+    );
+    const uniqueKinds = useMemo(() =>
+        Array.from(new Set(MOCK_STYLES.map(s => s.kind))).sort(),
+        []
+    );
+    const uniqueStyleSources = useMemo(() =>
+        Array.from(new Set(MOCK_STYLES.map(s => s.source))).sort(),
+        []
+    );
+
+    // Filtered datasets
+    const filteredComponents = useMemo(() => {
+        let result = MOCK_COMPONENTS;
+
+        // Apply category filter
+        if (selectedCategories.size > 0) {
+            result = result.filter(c => selectedCategories.has(c.category));
+        }
+
+        // Apply type filter
+        if (selectedTypes.size > 0) {
+            result = result.filter(c => selectedTypes.has(c.type));
+        }
+
+        // Apply status filter
+        if (selectedStatuses.size > 0) {
+            result = result.filter(c => selectedStatuses.has(c.status));
+        }
+
+        // Apply source filter
+        if (selectedSources.size > 0) {
+            result = result.filter(c => selectedSources.has(c.source));
+        }
+
+        // Apply unknownOnly filter (Components tab only)
+        if (unknownOnly) {
+            result = result.filter(c => c.status === "Unknown");
+        }
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(c =>
+                c.name.toLowerCase().includes(query) ||
+                c.category.toLowerCase().includes(query) ||
+                c.type.toLowerCase().includes(query) ||
+                c.status.toLowerCase().includes(query) ||
+                c.source.toLowerCase().includes(query)
+            );
+        }
+
+        return result;
+    }, [MOCK_COMPONENTS, selectedCategories, selectedTypes, selectedStatuses, selectedSources, unknownOnly, searchQuery]);
+
+    const filteredStyles = useMemo(() => {
+        let result = MOCK_STYLES;
+
+        // Apply kind filter
+        if (selectedKinds.size > 0) {
+            result = result.filter(s => selectedKinds.has(s.kind));
+        }
+
+        // Apply source filter
+        if (selectedStyleSources.size > 0) {
+            result = result.filter(s => selectedStyleSources.has(s.source));
+        }
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(s =>
+                s.token.toLowerCase().includes(query) ||
+                s.value.toLowerCase().includes(query) ||
+                s.kind.toLowerCase().includes(query) ||
+                s.source.toLowerCase().includes(query)
+            );
+        }
+
+        return result;
+    }, [MOCK_STYLES, selectedKinds, selectedStyleSources, searchQuery]);
+
+    const hasComponents = filteredComponents.length > 0;
+    const hasStyles = filteredStyles.length > 0;
 
     // Selected item lookup (IA-only)
-    const selectedComponent = selectedComponentId ? mockComponents.find(c => c.id === selectedComponentId) : null;
-    const selectedStyle = selectedStyleId ? mockStyles.find(s => s.id === selectedStyleId) : null;
+    const selectedComponent = selectedComponentId ? MOCK_COMPONENTS.find(c => c.id === selectedComponentId) : null;
+    const selectedStyle = selectedStyleId ? MOCK_STYLES.find(s => s.id === selectedStyleId) : null;
 
     // Click handlers for opening drawer
     const handleComponentClick = (id: string) => {
@@ -566,6 +668,14 @@ function ProjectViewShell({
         setDrawerOpen(false);
         setSelectedComponentId(null);
         setSelectedStyleId(null);
+    };
+
+    // Keyboard navigation helper for clickable divs
+    const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            action();
+        }
     };
 
     // Style map for header and toolbar (reduces inline clutter)
@@ -733,7 +843,7 @@ function ProjectViewShell({
                 <div style={styles.topRow}>
                     {/* Left side: Back button + Project info */}
                     <div style={styles.topLeftGroup}>
-                        <button onClick={onBack} style={styles.backButton}>
+                        <button type="button" onClick={onBack} style={styles.backButton}>
                             ← Back
                         </button>
                         <div style={styles.projectTitleContainer}>
@@ -751,9 +861,11 @@ function ProjectViewShell({
                         <input
                             type="text"
                             placeholder="Search components and styles"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             style={styles.searchInput}
                         />
-                        <button style={styles.exportButton}>
+                        <button type="button" style={styles.exportButton}>
                             Export
                         </button>
                     </div>
@@ -764,6 +876,7 @@ function ProjectViewShell({
                     {/* Left: Components/Styles tabs */}
                     <div style={styles.segmentedContainer}>
                         <button
+                            type="button"
                             onClick={() => setActiveTab("components")}
                             style={{
                                 ...styles.segmentedButtonBase,
@@ -775,6 +888,7 @@ function ProjectViewShell({
                             Components
                         </button>
                         <button
+                            type="button"
                             onClick={() => setActiveTab("styles")}
                             style={{
                                 ...styles.segmentedButtonBase,
@@ -790,6 +904,7 @@ function ProjectViewShell({
                     {/* Right: Grid/Table view toggle */}
                     <div style={styles.segmentedContainer}>
                         <button
+                            type="button"
                             onClick={() => setActiveView("grid")}
                             style={{
                                 ...styles.segmentedButtonView,
@@ -801,6 +916,7 @@ function ProjectViewShell({
                             Grid
                         </button>
                         <button
+                            type="button"
                             onClick={() => setActiveView("table")}
                             style={{
                                 ...styles.segmentedButtonView,
@@ -817,13 +933,16 @@ function ProjectViewShell({
                 {/* Third row: Filters toolbar (visual only) */}
                 <div style={styles.filterRow}>
                     <div style={styles.filterGroupLeft}>
-                        {/* Category filter with Radix popover */}
-                        <Popover.Root
+                        {/* Components tab filters */}
+                        {activeTab === "components" && (
+                            <>
+                                {/* Category filter with Radix popover */}
+                                <Popover.Root
                             open={openMenu === "category"}
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "category" : null)}
                         >
                             <Popover.Trigger asChild>
-                                <button
+                                <button type="button"
                                     style={{
                                         ...styles.filterButton,
                                         ...(openMenu === "category" ? {
@@ -838,7 +957,10 @@ function ProjectViewShell({
                             <Popover.Portal>
                                 <Popover.Content
                                     sideOffset={8}
+                                    side="bottom"
                                     align="start"
+                                    collisionPadding={8}
+                                    onEscapeKeyDown={() => setOpenMenu(null)}
                                     style={{
                                         width: 220,
                                         background: "hsl(var(--background))",
@@ -849,6 +971,11 @@ function ProjectViewShell({
                                         zIndex: 100,
                                     }}
                                 >
+                                    <Popover.Arrow
+                                        style={{
+                                            fill: "hsl(var(--border))",
+                                        }}
+                                    />
                                     <div style={{
                                         fontSize: 12,
                                         fontWeight: 600,
@@ -857,11 +984,70 @@ function ProjectViewShell({
                                     }}>
                                         Category
                                     </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Menu coming next (IA-only)
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                        {uniqueCategories.map((category) => (
+                                            <label
+                                                key={category}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    cursor: "pointer",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCategories.has(category)}
+                                                    onChange={(e) => {
+                                                        const newSet = new Set(selectedCategories);
+                                                        if (e.target.checked) {
+                                                            newSet.add(category);
+                                                        } else {
+                                                            newSet.delete(category);
+                                                        }
+                                                        setSelectedCategories(newSet);
+                                                    }}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {category}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCategories(new Set())}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Clear
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCategories(new Set(uniqueCategories))}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Select all
+                                        </button>
                                     </div>
                                 </Popover.Content>
                             </Popover.Portal>
@@ -873,7 +1059,7 @@ function ProjectViewShell({
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "type" : null)}
                         >
                             <Popover.Trigger asChild>
-                                <button
+                                <button type="button"
                                     style={{
                                         ...styles.filterButton,
                                         ...(openMenu === "type" ? {
@@ -888,7 +1074,10 @@ function ProjectViewShell({
                             <Popover.Portal>
                                 <Popover.Content
                                     sideOffset={8}
+                                    side="bottom"
                                     align="start"
+                                    collisionPadding={8}
+                                    onEscapeKeyDown={() => setOpenMenu(null)}
                                     style={{
                                         width: 220,
                                         background: "hsl(var(--background))",
@@ -899,6 +1088,11 @@ function ProjectViewShell({
                                         zIndex: 100,
                                     }}
                                 >
+                                    <Popover.Arrow
+                                        style={{
+                                            fill: "hsl(var(--border))",
+                                        }}
+                                    />
                                     <div style={{
                                         fontSize: 12,
                                         fontWeight: 600,
@@ -907,11 +1101,40 @@ function ProjectViewShell({
                                     }}>
                                         Type
                                     </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Menu coming next (IA-only)
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                        {uniqueTypes.map((type) => (
+                                            <label
+                                                key={type}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    cursor: "pointer",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTypes.has(type)}
+                                                    onChange={(e) => {
+                                                        const newSet = new Set(selectedTypes);
+                                                        if (e.target.checked) {
+                                                            newSet.add(type);
+                                                        } else {
+                                                            newSet.delete(type);
+                                                        }
+                                                        setSelectedTypes(newSet);
+                                                    }}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {type}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                        <button type="button" onClick={() => setSelectedTypes(new Set())} style={{ flex: 1, padding: "4px 8px", fontSize: 12, background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)", cursor: "pointer" }}>Clear</button>
+                                        <button type="button" onClick={() => setSelectedTypes(new Set(uniqueTypes))} style={{ flex: 1, padding: "4px 8px", fontSize: 12, background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)", cursor: "pointer" }}>Select all</button>
                                     </div>
                                 </Popover.Content>
                             </Popover.Portal>
@@ -923,7 +1146,7 @@ function ProjectViewShell({
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "status" : null)}
                         >
                             <Popover.Trigger asChild>
-                                <button
+                                <button type="button"
                                     style={{
                                         ...styles.filterButton,
                                         ...(openMenu === "status" ? {
@@ -938,7 +1161,10 @@ function ProjectViewShell({
                             <Popover.Portal>
                                 <Popover.Content
                                     sideOffset={8}
+                                    side="bottom"
                                     align="start"
+                                    collisionPadding={8}
+                                    onEscapeKeyDown={() => setOpenMenu(null)}
                                     style={{
                                         width: 220,
                                         background: "hsl(var(--background))",
@@ -949,6 +1175,11 @@ function ProjectViewShell({
                                         zIndex: 100,
                                     }}
                                 >
+                                    <Popover.Arrow
+                                        style={{
+                                            fill: "hsl(var(--border))",
+                                        }}
+                                    />
                                     <div style={{
                                         fontSize: 12,
                                         fontWeight: 600,
@@ -957,11 +1188,70 @@ function ProjectViewShell({
                                     }}>
                                         Status
                                     </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Menu coming next (IA-only)
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                        {uniqueStatuses.map((status) => (
+                                            <label
+                                                key={status}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    cursor: "pointer",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedStatuses.has(status)}
+                                                    onChange={(e) => {
+                                                        const newSet = new Set(selectedStatuses);
+                                                        if (e.target.checked) {
+                                                            newSet.add(status);
+                                                        } else {
+                                                            newSet.delete(status);
+                                                        }
+                                                        setSelectedStatuses(newSet);
+                                                    }}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {status}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedStatuses(new Set())}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Clear
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedStatuses(new Set(uniqueStatuses))}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Select all
+                                        </button>
                                     </div>
                                 </Popover.Content>
                             </Popover.Portal>
@@ -973,7 +1263,7 @@ function ProjectViewShell({
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "source" : null)}
                         >
                             <Popover.Trigger asChild>
-                                <button
+                                <button type="button"
                                     style={{
                                         ...styles.filterButton,
                                         ...(openMenu === "source" ? {
@@ -988,7 +1278,10 @@ function ProjectViewShell({
                             <Popover.Portal>
                                 <Popover.Content
                                     sideOffset={8}
+                                    side="bottom"
                                     align="start"
+                                    collisionPadding={8}
+                                    onEscapeKeyDown={() => setOpenMenu(null)}
                                     style={{
                                         width: 220,
                                         background: "hsl(var(--background))",
@@ -999,6 +1292,11 @@ function ProjectViewShell({
                                         zIndex: 100,
                                     }}
                                 >
+                                    <Popover.Arrow
+                                        style={{
+                                            fill: "hsl(var(--border))",
+                                        }}
+                                    />
                                     <div style={{
                                         fontSize: 12,
                                         fontWeight: 600,
@@ -1007,28 +1305,329 @@ function ProjectViewShell({
                                     }}>
                                         Source
                                     </div>
-                                    <div style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}>
-                                        Menu coming next (IA-only)
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                        {uniqueSources.map((source) => (
+                                            <label
+                                                key={source}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    cursor: "pointer",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedSources.has(source)}
+                                                    onChange={(e) => {
+                                                        const newSet = new Set(selectedSources);
+                                                        if (e.target.checked) {
+                                                            newSet.add(source);
+                                                        } else {
+                                                            newSet.delete(source);
+                                                        }
+                                                        setSelectedSources(newSet);
+                                                    }}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {source}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedSources(new Set())}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Clear
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedSources(new Set(uniqueSources))}
+                                            style={{
+                                                flex: 1,
+                                                padding: "4px 8px",
+                                                fontSize: 12,
+                                                background: "hsl(var(--background))",
+                                                color: "hsl(var(--foreground))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Select all
+                                        </button>
                                     </div>
                                 </Popover.Content>
                             </Popover.Portal>
                         </Popover.Root>
 
-                        <div style={styles.filterSeparator} />
-                        <button
-                            onClick={() => setUnknownOnly(!unknownOnly)}
-                            style={{
-                                ...styles.utilityButtonBase,
-                                background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
-                                color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
-                                fontWeight: unknownOnly ? 600 : 500,
-                            }}
-                        >
-                            Unknown only
-                        </button>
+                                <div style={styles.filterSeparator} />
+                                <button
+                                    type="button"
+                                    onClick={() => setUnknownOnly(!unknownOnly)}
+                                    style={{
+                                        ...styles.utilityButtonBase,
+                                        background: unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
+                                        color: unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
+                                        fontWeight: unknownOnly ? 600 : 500,
+                                    }}
+                                >
+                                    Unknown only
+                                </button>
+                            </>
+                        )}
+
+                        {/* Styles tab filters */}
+                        {activeTab === "styles" && (
+                            <>
+                                {/* Kind filter with Radix popover */}
+                                <Popover.Root
+                                    open={openMenu === "kind"}
+                                    onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "kind" : null)}
+                                >
+                                    <Popover.Trigger asChild>
+                                        <button type="button"
+                                            style={{
+                                                ...styles.filterButton,
+                                                ...(openMenu === "kind" ? {
+                                                    background: "hsl(var(--muted))",
+                                                    fontWeight: 600,
+                                                } : {}),
+                                            }}
+                                        >
+                                            Kind ▾
+                                        </button>
+                                    </Popover.Trigger>
+                                    <Popover.Portal>
+                                        <Popover.Content
+                                            sideOffset={8}
+                                            side="bottom"
+                                            align="start"
+                                            collisionPadding={8}
+                                            onEscapeKeyDown={() => setOpenMenu(null)}
+                                            style={{
+                                                width: 220,
+                                                background: "hsl(var(--background))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
+                                                padding: 12,
+                                                zIndex: 100,
+                                            }}
+                                        >
+                                            <Popover.Arrow
+                                                style={{
+                                                    fill: "hsl(var(--border))",
+                                                }}
+                                            />
+                                            <div style={{
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                marginBottom: 8,
+                                            }}>
+                                                Kind
+                                            </div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                                {uniqueKinds.map((kind) => (
+                                                    <label
+                                                        key={kind}
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: 8,
+                                                            cursor: "pointer",
+                                                            fontSize: 14,
+                                                            color: "hsl(var(--foreground))",
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedKinds.has(kind)}
+                                                            onChange={(e) => {
+                                                                const newSet = new Set(selectedKinds);
+                                                                if (e.target.checked) {
+                                                                    newSet.add(kind);
+                                                                } else {
+                                                                    newSet.delete(kind);
+                                                                }
+                                                                setSelectedKinds(newSet);
+                                                            }}
+                                                            style={{ cursor: "pointer" }}
+                                                        />
+                                                        {kind}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedKinds(new Set())}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "4px 8px",
+                                                        fontSize: 12,
+                                                        background: "hsl(var(--background))",
+                                                        color: "hsl(var(--foreground))",
+                                                        border: "1px solid hsl(var(--border))",
+                                                        borderRadius: "var(--radius)",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Clear
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedKinds(new Set(uniqueKinds))}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "4px 8px",
+                                                        fontSize: 12,
+                                                        background: "hsl(var(--background))",
+                                                        color: "hsl(var(--foreground))",
+                                                        border: "1px solid hsl(var(--border))",
+                                                        borderRadius: "var(--radius)",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Select all
+                                                </button>
+                                            </div>
+                                        </Popover.Content>
+                                    </Popover.Portal>
+                                </Popover.Root>
+
+                                {/* Source filter for Styles tab */}
+                                <Popover.Root
+                                    open={openMenu === "style-source"}
+                                    onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "style-source" : null)}
+                                >
+                                    <Popover.Trigger asChild>
+                                        <button type="button"
+                                            style={{
+                                                ...styles.filterButton,
+                                                ...(openMenu === "style-source" ? {
+                                                    background: "hsl(var(--muted))",
+                                                    fontWeight: 600,
+                                                } : {}),
+                                            }}
+                                        >
+                                            Source ▾
+                                        </button>
+                                    </Popover.Trigger>
+                                    <Popover.Portal>
+                                        <Popover.Content
+                                            sideOffset={8}
+                                            side="bottom"
+                                            align="start"
+                                            collisionPadding={8}
+                                            onEscapeKeyDown={() => setOpenMenu(null)}
+                                            style={{
+                                                width: 220,
+                                                background: "hsl(var(--background))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "var(--radius)",
+                                                boxShadow: "0 8px 24px hsl(var(--foreground) / 0.08)",
+                                                padding: 12,
+                                                zIndex: 100,
+                                            }}
+                                        >
+                                            <Popover.Arrow
+                                                style={{
+                                                    fill: "hsl(var(--border))",
+                                                }}
+                                            />
+                                            <div style={{
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                marginBottom: 8,
+                                            }}>
+                                                Source
+                                            </div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                                                {uniqueStyleSources.map((source) => (
+                                                    <label
+                                                        key={source}
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: 8,
+                                                            cursor: "pointer",
+                                                            fontSize: 14,
+                                                            color: "hsl(var(--foreground))",
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedStyleSources.has(source)}
+                                                            onChange={(e) => {
+                                                                const newSet = new Set(selectedStyleSources);
+                                                                if (e.target.checked) {
+                                                                    newSet.add(source);
+                                                                } else {
+                                                                    newSet.delete(source);
+                                                                }
+                                                                setSelectedStyleSources(newSet);
+                                                            }}
+                                                            style={{ cursor: "pointer" }}
+                                                        />
+                                                        {source}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: "flex", gap: 8, borderTop: "1px solid hsl(var(--border))", paddingTop: 8 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedStyleSources(new Set())}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "4px 8px",
+                                                        fontSize: 12,
+                                                        background: "hsl(var(--background))",
+                                                        color: "hsl(var(--foreground))",
+                                                        border: "1px solid hsl(var(--border))",
+                                                        borderRadius: "var(--radius)",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Clear
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedStyleSources(new Set(uniqueStyleSources))}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: "4px 8px",
+                                                        fontSize: 12,
+                                                        background: "hsl(var(--background))",
+                                                        color: "hsl(var(--foreground))",
+                                                        border: "1px solid hsl(var(--border))",
+                                                        borderRadius: "var(--radius)",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Select all
+                                                </button>
+                                            </div>
+                                        </Popover.Content>
+                                    </Popover.Portal>
+                                </Popover.Root>
+                            </>
+                        )}
                     </div>
                     <div style={styles.filterSpacer} />
                     <div style={styles.filterGroupRight}>
@@ -1038,7 +1637,7 @@ function ProjectViewShell({
                             onOpenChange={(nextOpen) => setOpenMenu(nextOpen ? "properties" : null)}
                         >
                             <Popover.Trigger asChild>
-                                <button
+                                <button type="button"
                                     style={{
                                         ...styles.filterButton,
                                         ...(openMenu === "properties" ? {
@@ -1053,7 +1652,10 @@ function ProjectViewShell({
                             <Popover.Portal>
                                 <Popover.Content
                                     sideOffset={8}
+                                    side="bottom"
                                     align="end"
+                                    collisionPadding={8}
+                                    onEscapeKeyDown={() => setOpenMenu(null)}
                                     style={{
                                         width: 240,
                                         background: "hsl(var(--background))",
@@ -1064,6 +1666,11 @@ function ProjectViewShell({
                                         zIndex: 100,
                                     }}
                                 >
+                                    <Popover.Arrow
+                                        style={{
+                                            fill: "hsl(var(--border))",
+                                        }}
+                                    />
                                     <div style={{
                                         fontSize: 12,
                                         fontWeight: 600,
@@ -1224,7 +1831,7 @@ function ProjectViewShell({
                             gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
                             gap: 12,
                         }}>
-                            {mockComponents.map((comp) => {
+                            {filteredComponents.map((comp) => {
                                 const hasChips = visibleComponentProps.category || visibleComponentProps.type || visibleComponentProps.status;
                                 const metaParts: string[] = [];
                                 if (visibleComponentProps.captures) metaParts.push(`${comp.capturesCount} captures`);
@@ -1235,6 +1842,10 @@ function ProjectViewShell({
                                     <div
                                         key={comp.id}
                                         onClick={() => handleComponentClick(comp.id)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => handleKeyDown(e, () => handleComponentClick(comp.id))}
+                                        aria-label={`Open details for ${comp.name}`}
                                         style={{
                                             border: "1px solid hsl(var(--border))",
                                             background: selectedComponentId === comp.id ? "hsl(var(--muted))" : "hsl(var(--background))",
@@ -1300,8 +1911,9 @@ function ProjectViewShell({
                                                             <span style={{
                                                                 fontSize: 11,
                                                                 padding: "2px 6px",
-                                                                background: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted))",
-                                                                color: comp.status === "Unknown" ? "hsl(var(--destructive-foreground))" : "hsl(var(--muted-foreground))",
+                                                                background: "hsl(var(--muted))",
+                                                                color: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
+                                                                border: comp.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
                                                                 borderRadius: "calc(var(--radius) - 2px)",
                                                             }}>
                                                                 {comp.status}
@@ -1337,7 +1949,7 @@ function ProjectViewShell({
                             label: "Name",
                             visible: visibleComponentProps.name,
                             width: "2fr",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{ fontWeight: 500 }}>{comp.name}</span>
                             ),
                         },
@@ -1346,7 +1958,7 @@ function ProjectViewShell({
                             label: "Category",
                             visible: visibleComponentProps.category,
                             width: "1fr",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.category}</span>
                             ),
                         },
@@ -1355,7 +1967,7 @@ function ProjectViewShell({
                             label: "Type",
                             visible: visibleComponentProps.type,
                             width: "80px",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{
                                     fontFamily: "monospace",
                                     fontSize: 12,
@@ -1370,12 +1982,13 @@ function ProjectViewShell({
                             label: "Status",
                             visible: visibleComponentProps.status,
                             width: "100px",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{
                                     fontSize: 11,
                                     padding: "2px 6px",
-                                    background: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted))",
-                                    color: comp.status === "Unknown" ? "hsl(var(--destructive-foreground))" : "hsl(var(--muted-foreground))",
+                                    background: "hsl(var(--muted))",
+                                    color: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
+                                    border: comp.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
                                     borderRadius: "calc(var(--radius) - 2px)",
                                 }}>
                                     {comp.status}
@@ -1387,7 +2000,7 @@ function ProjectViewShell({
                             label: "Source",
                             visible: visibleComponentProps.source,
                             width: "1fr",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.source}</span>
                             ),
                         },
@@ -1396,7 +2009,7 @@ function ProjectViewShell({
                             label: "Captures",
                             visible: visibleComponentProps.captures,
                             width: "80px",
-                            render: (comp: typeof mockComponents[0]) => (
+                            render: (comp: typeof MOCK_COMPONENTS[0]) => (
                                 <span style={{ color: "hsl(var(--muted-foreground))" }}>{comp.capturesCount}</span>
                             ),
                         },
@@ -1453,10 +2066,14 @@ function ProjectViewShell({
                                         ))}
                                     </div>
                                     {/* Data rows */}
-                                    {mockComponents.map((comp) => (
+                                    {filteredComponents.map((comp) => (
                                         <div
                                             key={comp.id}
                                             onClick={() => handleComponentClick(comp.id)}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => handleKeyDown(e, () => handleComponentClick(comp.id))}
+                                            aria-label={`Open details for ${comp.name}`}
                                             style={{
                                                 display: "grid",
                                                 gridTemplateColumns,
@@ -1490,7 +2107,7 @@ function ProjectViewShell({
                             gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
                             gap: 12,
                         }}>
-                            {mockStyles.map((style) => {
+                            {filteredStyles.map((style) => {
                                 const hasKindChip = visibleStyleProps.kind;
                                 const metaParts: string[] = [];
                                 if (visibleStyleProps.uses) metaParts.push(`${style.usageCount} uses`);
@@ -1501,6 +2118,10 @@ function ProjectViewShell({
                                     <div
                                         key={style.id}
                                         onClick={() => handleStyleClick(style.id)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => handleKeyDown(e, () => handleStyleClick(style.id))}
+                                        aria-label={`Open details for ${style.token}`}
                                         style={{
                                             border: "1px solid hsl(var(--border))",
                                             background: selectedStyleId === style.id ? "hsl(var(--muted))" : "hsl(var(--background))",
@@ -1586,7 +2207,7 @@ function ProjectViewShell({
                             label: "Token",
                             visible: visibleStyleProps.token,
                             width: "2fr",
-                            render: (style: typeof mockStyles[0]) => (
+                            render: (style: typeof MOCK_STYLES[0]) => (
                                 <span style={{
                                     fontFamily: "monospace",
                                     fontSize: 13,
@@ -1599,7 +2220,7 @@ function ProjectViewShell({
                             label: "Kind",
                             visible: visibleStyleProps.kind,
                             width: "1fr",
-                            render: (style: typeof mockStyles[0]) => (
+                            render: (style: typeof MOCK_STYLES[0]) => (
                                 <span style={{
                                     fontSize: 11,
                                     padding: "2px 6px",
@@ -1614,7 +2235,7 @@ function ProjectViewShell({
                             label: "Source",
                             visible: visibleStyleProps.source,
                             width: "1fr",
-                            render: (style: typeof mockStyles[0]) => (
+                            render: (style: typeof MOCK_STYLES[0]) => (
                                 <span style={{ color: "hsl(var(--muted-foreground))" }}>{style.source}</span>
                             ),
                         },
@@ -1623,7 +2244,7 @@ function ProjectViewShell({
                             label: "Uses",
                             visible: visibleStyleProps.uses,
                             width: "80px",
-                            render: (style: typeof mockStyles[0]) => (
+                            render: (style: typeof MOCK_STYLES[0]) => (
                                 <span style={{ color: "hsl(var(--muted-foreground))" }}>{style.usageCount}</span>
                             ),
                         },
@@ -1678,10 +2299,14 @@ function ProjectViewShell({
                                     </div>
 
                                     {/* Data rows */}
-                                    {mockStyles.map((style) => (
+                                    {filteredStyles.map((style) => (
                                         <div
                                             key={style.id}
                                             onClick={() => handleStyleClick(style.id)}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => handleKeyDown(e, () => handleStyleClick(style.id))}
+                                            aria-label={`Open details for ${style.token}`}
                                             style={{
                                                 display: "grid",
                                                 gridTemplateColumns,
@@ -1706,407 +2331,14 @@ function ProjectViewShell({
                 })()}
             </div>
 
-            {/* Drawer with Radix Dialog (IA-only) */}
-            <Dialog.Root
+
+            {/* Drawer with DetailsDrawer component */}
+            <DetailsDrawer
                 open={drawerOpen}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        handleCloseDrawer();
-                    } else {
-                        setDrawerOpen(true);
-                    }
-                }}
-            >
-                <Dialog.Portal>
-                    <Dialog.Overlay
-                        onClick={handleCloseDrawer}
-                        style={{
-                            position: "fixed",
-                            inset: 0,
-                            background: "hsl(var(--foreground) / 0.08)",
-                            zIndex: 50,
-                        }}
-                    />
-                    <Dialog.Content
-                        style={{
-                            position: "fixed",
-                            top: 0,
-                            right: 0,
-                            height: "100vh",
-                            width: 420,
-                            maxWidth: "90vw",
-                            background: "hsl(var(--background))",
-                            borderLeft: "1px solid hsl(var(--border))",
-                            padding: 24,
-                            overflowY: "auto",
-                            zIndex: 51,
-                        }}
-                    >
-                        {/* Accessibility: visually hidden title */}
-                        <VisuallyHidden.Root>
-                            <Dialog.Title>
-                                {selectedComponent ? selectedComponent.name : selectedStyle ? selectedStyle.token : "Details"}
-                            </Dialog.Title>
-                        </VisuallyHidden.Root>
-
-                        {/* Accessibility: visually hidden description */}
-                        <VisuallyHidden.Root>
-                            <Dialog.Description>Details panel for the selected item.</Dialog.Description>
-                        </VisuallyHidden.Root>
-
-                        {/* Close button */}
-                        <Dialog.Close asChild>
-                            <button
-                                type="button"
-                                onClick={handleCloseDrawer}
-                                style={{
-                                    position: "absolute",
-                                    top: 16,
-                                    right: 16,
-                                    padding: "4px 8px",
-                                    fontSize: 14,
-                                    background: "hsl(var(--background))",
-                                    color: "hsl(var(--foreground))",
-                                    border: "1px solid hsl(var(--border))",
-                                    borderRadius: "var(--radius)",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                ✕
-                            </button>
-                        </Dialog.Close>
-
-                        {/* Drawer content */}
-                        {selectedComponent && (
-                            <div>
-                                {/* Component header */}
-                                <h2 style={{
-                                    fontSize: 20,
-                                    fontWeight: 600,
-                                    margin: 0,
-                                    marginBottom: 4,
-                                    color: "hsl(var(--foreground))",
-                                }}>
-                                    {selectedComponent.name}
-                                </h2>
-                                <div style={{
-                                    fontSize: 13,
-                                    color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 16,
-                                }}>
-                                    {selectedComponent.category} • {selectedComponent.type} • {selectedComponent.status}
-                                </div>
-
-                                {/* Optional chips */}
-                                <div style={{
-                                    display: "flex",
-                                    gap: 6,
-                                    marginBottom: 24,
-                                    flexWrap: "wrap",
-                                }}>
-                                    <span style={{
-                                        fontSize: 11,
-                                        padding: "3px 8px",
-                                        background: "hsl(var(--muted))",
-                                        color: "hsl(var(--muted-foreground))",
-                                        borderRadius: "calc(var(--radius) - 2px)",
-                                    }}>
-                                        {selectedComponent.source}
-                                    </span>
-                                    <span style={{
-                                        fontSize: 11,
-                                        padding: "3px 8px",
-                                        background: "hsl(var(--muted))",
-                                        color: selectedComponent.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
-                                        border: selectedComponent.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
-                                        borderRadius: "calc(var(--radius) - 2px)",
-                                    }}>
-                                        {selectedComponent.status}
-                                    </span>
-                                </div>
-
-                                {/* Overview section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Overview
-                                    </h3>
-                                    <p style={{
-                                        fontSize: 14,
-                                        color: "hsl(var(--muted-foreground))",
-                                        margin: 0,
-                                        lineHeight: 1.5,
-                                    }}>
-                                        Placeholder: Component overview and description will appear here. This would include details about the component's purpose, usage guidelines, and any relevant design system documentation.
-                                    </p>
-                                </div>
-
-                                {/* Captures section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Captures ({selectedComponent.capturesCount})
-                                    </h3>
-                                    <div style={{
-                                        padding: 12,
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        background: "hsl(var(--muted))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                        lineHeight: 1.5,
-                                    }}>
-                                        Placeholder: List of {selectedComponent.capturesCount} captures will appear here with screenshots, page URLs, and visual context.
-                                    </div>
-                                </div>
-
-                                {/* Properties section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Properties
-                                    </h3>
-                                    <div style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 8,
-                                    }}>
-                                        {/* Placeholder property rows */}
-                                        {[
-                                            { label: "Background", value: "rgba(255, 255, 255, 1)" },
-                                            { label: "Text color", value: "rgba(0, 0, 0, 0.87)" },
-                                            { label: "Border radius", value: "4px" },
-                                            { label: "Padding", value: "12px 16px" },
-                                        ].map(({ label, value }) => (
-                                            <div
-                                                key={label}
-                                                style={{
-                                                    display: "flex",
-                                                    justifyContent: "space-between",
-                                                    padding: 8,
-                                                    background: "hsl(var(--muted))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                    fontSize: 13,
-                                                }}
-                                            >
-                                                <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{label}</span>
-                                                <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Actions row */}
-                                <div style={{
-                                    display: "flex",
-                                    gap: 8,
-                                    paddingTop: 12,
-                                    borderTop: "1px solid hsl(var(--border))",
-                                }}>
-                                    <button
-                                        type="button"
-                                        style={{
-                                            flex: 1,
-                                            padding: "8px 12px",
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            background: "hsl(var(--background))",
-                                            color: "hsl(var(--foreground))",
-                                            border: "1px solid hsl(var(--border))",
-                                            borderRadius: "var(--radius)",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        type="button"
-                                        style={{
-                                            flex: 1,
-                                            padding: "8px 12px",
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            background: "hsl(var(--background))",
-                                            color: "hsl(var(--destructive))",
-                                            border: "1px solid hsl(var(--border))",
-                                            borderRadius: "var(--radius)",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {selectedStyle && (
-                            <div>
-                                {/* Style header */}
-                                <h2 style={{
-                                    fontSize: 18,
-                                    fontWeight: 600,
-                                    fontFamily: "monospace",
-                                    margin: 0,
-                                    marginBottom: 8,
-                                    color: "hsl(var(--foreground))",
-                                }}>
-                                    {selectedStyle.token}
-                                </h2>
-                                <div style={{
-                                    fontSize: 14,
-                                    fontFamily: "monospace",
-                                    color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 16,
-                                    padding: "6px 10px",
-                                    background: "hsl(var(--muted))",
-                                    borderRadius: "var(--radius)",
-                                    display: "inline-block",
-                                }}>
-                                    {selectedStyle.value}
-                                </div>
-
-                                {/* Meta line */}
-                                <div style={{
-                                    fontSize: 13,
-                                    color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 24,
-                                }}>
-                                    {selectedStyle.kind} • {selectedStyle.source} • {selectedStyle.usageCount} uses
-                                </div>
-
-                                {/* Usage section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Usage
-                                    </h3>
-                                    <p style={{
-                                        fontSize: 14,
-                                        color: "hsl(var(--muted-foreground))",
-                                        margin: 0,
-                                        lineHeight: 1.5,
-                                    }}>
-                                        Placeholder: This style is used {selectedStyle.usageCount} times across the application. Usage context, patterns, and guidelines will appear here.
-                                    </p>
-                                </div>
-
-                                {/* Where it appears section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Where it appears
-                                    </h3>
-                                    <div style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 8,
-                                    }}>
-                                        {/* Placeholder list items */}
-                                        {[
-                                            "Homepage / Hero section",
-                                            "Product page / Card component",
-                                            "Dashboard / Stats widget",
-                                        ].map((location) => (
-                                            <div
-                                                key={location}
-                                                style={{
-                                                    padding: "8px 12px",
-                                                    background: "hsl(var(--muted))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                    fontSize: 13,
-                                                    color: "hsl(var(--foreground))",
-                                                }}
-                                            >
-                                                {location}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Related components section */}
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>
-                                        Related components
-                                    </h3>
-                                    <div style={{
-                                        display: "flex",
-                                        flexWrap: "wrap",
-                                        gap: 6,
-                                    }}>
-                                        {/* Placeholder component chips */}
-                                        {[
-                                            "Primary Button",
-                                            "Card Header",
-                                            "Navigation Link",
-                                        ].map((componentName) => (
-                                            <span
-                                                key={componentName}
-                                                style={{
-                                                    fontSize: 12,
-                                                    padding: "4px 10px",
-                                                    background: "hsl(var(--muted))",
-                                                    color: "hsl(var(--foreground))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                    border: "1px solid hsl(var(--border))",
-                                                }}
-                                            >
-                                                {componentName}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Actions row */}
-                                <div style={{
-                                    display: "flex",
-                                    gap: 8,
-                                    paddingTop: 12,
-                                    borderTop: "1px solid hsl(var(--border))",
-                                }}>
-                                    <button
-                                        type="button"
-                                        style={{
-                                            flex: 1,
-                                            padding: "8px 12px",
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            background: "hsl(var(--background))",
-                                            color: "hsl(var(--foreground))",
-                                            border: "1px solid hsl(var(--border))",
-                                            borderRadius: "var(--radius)",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        Copy token
-                                    </button>
-                                    <button
-                                        type="button"
-                                        style={{
-                                            flex: 1,
-                                            padding: "8px 12px",
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            background: "hsl(var(--background))",
-                                            color: "hsl(var(--foreground))",
-                                            border: "1px solid hsl(var(--border))",
-                                            borderRadius: "var(--radius)",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        Copy value
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {!selectedComponent && !selectedStyle && (
-                            <div style={{
-                                fontSize: 14,
-                                color: "hsl(var(--muted-foreground))",
-                                textAlign: "center",
-                                marginTop: 48,
-                            }}>
-                                Nothing selected
-                            </div>
-                        )}
-                    </Dialog.Content>
-                </Dialog.Portal>
-            </Dialog.Root>
+                onClose={handleCloseDrawer}
+                selectedComponent={selectedComponent || null}
+                selectedStyle={selectedStyle || null}
+            />
         </div>
     );
 }
