@@ -188,13 +188,6 @@ export function DetailsDrawer({
         setNewTagInput("");
     };
 
-    // 7.7.2: Clear annotations locally (user must Save to persist)
-    const handleClear = () => {
-        setDraftNotes("");
-        setDraftTags([]);
-        setNewTagInput("");
-    };
-
     // 7.7.2: Add tag
     const handleAddTag = () => {
         const trimmed = newTagInput.trim();
@@ -318,7 +311,7 @@ export function DetailsDrawer({
                         flex: "1 1 auto",
                         overflowY: "auto",
                         overflowX: "hidden",
-                        padding: "16px 24px 24px 24px",
+                        padding: "16px 24px 88px 24px", // Extra bottom padding for sticky footer (72px footer + 16px gap)
                         maxWidth: "100%",
                         boxSizing: "border-box",
                     }}>
@@ -637,64 +630,6 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
-                            {/* Action buttons (7.7.2: Save/Cancel/Clear) */}
-                            <div style={{
-                                marginBottom: 24,
-                                display: "flex",
-                                gap: 8,
-                                borderTop: "1px solid hsl(var(--border))",
-                                paddingTop: 16,
-                            }}>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={!isDirty || isSaving}
-                                    style={{
-                                        flex: 1,
-                                        padding: "8px 16px",
-                                        background: (!isDirty || isSaving) ? "hsl(var(--muted))" : "hsl(var(--primary))",
-                                        color: (!isDirty || isSaving) ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
-                                        border: "none",
-                                        borderRadius: "var(--radius)",
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        cursor: (!isDirty || isSaving) ? "not-allowed" : "pointer",
-                                    }}
-                                >
-                                    {isSaving ? "Saving..." : "Save"}
-                                </button>
-                                <button
-                                    onClick={handleCancel}
-                                    disabled={!isDirty}
-                                    style={{
-                                        padding: "8px 16px",
-                                        background: "hsl(var(--background))",
-                                        color: !isDirty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        cursor: !isDirty ? "not-allowed" : "pointer",
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleClear}
-                                    style={{
-                                        padding: "8px 16px",
-                                        background: "hsl(var(--background))",
-                                        color: "hsl(var(--destructive))",
-                                        border: "1px solid hsl(var(--destructive))",
-                                        borderRadius: "var(--radius)",
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    Clear
-                                </button>
-                            </div>
-
                             {/* Source section (7.5.2b: captured from URLs) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
@@ -842,47 +777,6 @@ export function DetailsDrawer({
                                         })}
                                     </div>
                                 )}
-                            </div>
-
-                            {/* Actions row */}
-                            <div style={{
-                                display: "flex",
-                                gap: 8,
-                                paddingTop: 12,
-                                borderTop: "1px solid hsl(var(--border))",
-                            }}>
-                                <button
-                                    type="button"
-                                    style={{
-                                        flex: 1,
-                                        padding: "8px 12px",
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        background: "hsl(var(--background))",
-                                        color: "hsl(var(--foreground))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    type="button"
-                                    style={{
-                                        flex: 1,
-                                        padding: "8px 12px",
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        background: "hsl(var(--background))",
-                                        color: "hsl(var(--destructive))",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    Delete
-                                </button>
                             </div>
                         </div>
                     )}
@@ -1142,6 +1036,71 @@ export function DetailsDrawer({
                         </div>
                     )}
                     </div>
+
+                    {/* Sticky footer with actions (only shown when component is selected) */}
+                    {selectedComponent && (
+                        <div style={{
+                            position: "sticky",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: "hsl(var(--background))",
+                            borderTop: "1px solid hsl(var(--border))",
+                            padding: "16px 24px",
+                            display: "flex",
+                            gap: 8,
+                            zIndex: 10,
+                        }}>
+                            <button
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving}
+                                style={{
+                                    flex: 1,
+                                    padding: "10px 16px",
+                                    background: (!isDirty || isSaving) ? "hsl(var(--muted))" : "hsl(var(--primary))",
+                                    color: (!isDirty || isSaving) ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
+                                    border: "none",
+                                    borderRadius: "var(--radius)",
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    cursor: (!isDirty || isSaving) ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {isSaving ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                                onClick={handleCancel}
+                                disabled={!isDirty}
+                                style={{
+                                    padding: "10px 16px",
+                                    background: "hsl(var(--background))",
+                                    color: !isDirty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
+                                    border: "1px solid hsl(var(--border))",
+                                    borderRadius: "var(--radius)",
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: !isDirty ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                style={{
+                                    padding: "10px 16px",
+                                    background: "hsl(var(--background))",
+                                    color: "hsl(var(--destructive))",
+                                    border: "1px solid hsl(var(--border))",
+                                    borderRadius: "var(--radius)",
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    )}
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>
