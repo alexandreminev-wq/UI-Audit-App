@@ -72,6 +72,8 @@ export interface ComponentDetails {
     status: string;
     source: string;
     capturesCount: number;
+    notes?: string | null; // 7.6.3: aligns with Sidepanel comments field (future)
+    tags?: string[];       // 7.6.4: aligns with Sidepanel tags field (future)
 }
 
 export interface StyleDetails {
@@ -319,6 +321,181 @@ export function DetailsDrawer({
                                 );
                             })()}
 
+                            {/* Identity section (7.6.1: read-only metadata) */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Identity
+                                </h3>
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 8,
+                                    padding: 12,
+                                    background: "hsl(var(--muted))",
+                                    borderRadius: "var(--radius)",
+                                    fontSize: 13,
+                                }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Name</span>
+                                        <span style={{ color: "hsl(var(--foreground))", fontWeight: 500, textAlign: "right" }}>
+                                            {selectedComponent.name || "—"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Category</span>
+                                        <span style={{ color: "hsl(var(--foreground))", textAlign: "right" }}>
+                                            {selectedComponent.category || "—"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Type</span>
+                                        <span style={{ color: "hsl(var(--foreground))", textAlign: "right" }}>
+                                            {selectedComponent.type || "—"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Status</span>
+                                        <span style={{
+                                            color: selectedComponent.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--foreground))",
+                                            textAlign: "right"
+                                        }}>
+                                            {selectedComponent.status || "—"}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* HTML Structure section (7.6.2: collapsible, read-only) */}
+                            {(() => {
+                                // Use representative capture (same as Preview)
+                                const representativeCapture = componentCaptures[0];
+                                const htmlStructure = representativeCapture?.htmlStructure;
+
+                                return (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <details style={{ cursor: "pointer" }}>
+                                            <summary style={{
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                marginTop: 0,
+                                                marginBottom: 8,
+                                                color: "hsl(var(--foreground))",
+                                                listStyle: "none",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 6,
+                                            }}>
+                                                <span style={{
+                                                    display: "inline-block",
+                                                    transition: "transform 0.2s",
+                                                }}>▸</span>
+                                                HTML Structure
+                                            </summary>
+                                            <div style={{
+                                                marginTop: 8,
+                                                padding: 12,
+                                                background: "hsl(var(--muted))",
+                                                borderRadius: "var(--radius)",
+                                                border: "1px solid hsl(var(--border))",
+                                                fontSize: 13,
+                                                fontFamily: "monospace",
+                                                whiteSpace: "pre-wrap",
+                                                overflowWrap: "anywhere",
+                                                lineHeight: 1.5,
+                                                color: htmlStructure ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                            }}>
+                                                {htmlStructure || "No HTML available"}
+                                            </div>
+                                        </details>
+                                        <style>{`
+                                            details[open] > summary > span {
+                                                transform: rotate(90deg);
+                                            }
+                                        `}</style>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Notes section (7.6.3: read-only, aligns with Sidepanel) */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Notes
+                                </h3>
+                                {selectedComponent.notes ? (
+                                    <div style={{
+                                        padding: 12,
+                                        background: "hsl(var(--muted))",
+                                        borderRadius: "var(--radius)",
+                                        border: "1px solid hsl(var(--border))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--foreground))",
+                                        lineHeight: 1.5,
+                                        whiteSpace: "pre-wrap",
+                                        overflowWrap: "anywhere",
+                                    }}>
+                                        {selectedComponent.notes}
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        padding: 12,
+                                        background: "hsl(var(--muted))",
+                                        borderRadius: "var(--radius)",
+                                        border: "1px solid hsl(var(--border))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                        textAlign: "center",
+                                    }}>
+                                        No notes yet.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Tags section (7.6.4: read-only, aligns with Sidepanel) */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Tags
+                                </h3>
+                                {selectedComponent.tags && selectedComponent.tags.length > 0 ? (
+                                    <div style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 8,
+                                    }}>
+                                        {selectedComponent.tags.map((tag, index) => (
+                                            <span
+                                                key={index}
+                                                style={{
+                                                    display: "inline-block",
+                                                    padding: "4px 10px",
+                                                    fontSize: 12,
+                                                    background: "hsl(var(--muted))",
+                                                    color: "hsl(var(--foreground))",
+                                                    border: "1px solid hsl(var(--border))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    lineHeight: 1.4,
+                                                }}
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        padding: 12,
+                                        background: "hsl(var(--muted))",
+                                        borderRadius: "var(--radius)",
+                                        border: "1px solid hsl(var(--border))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                        textAlign: "center",
+                                    }}>
+                                        No tags yet.
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Source section (7.5.2b: captured from URLs) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
@@ -546,19 +723,50 @@ export function DetailsDrawer({
                                 {selectedStyle.kind} • {selectedStyle.source} • {selectedStyle.usageCount} uses
                             </div>
 
-                            {/* Usage section */}
+                            {/* Identity section (7.6.1: read-only metadata) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
-                                    Usage
+                                    Identity
                                 </h3>
-                                <p style={{
-                                    fontSize: 14,
-                                    color: "hsl(var(--muted-foreground))",
-                                    margin: 0,
-                                    lineHeight: 1.5,
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 8,
+                                    padding: 12,
+                                    background: "hsl(var(--muted))",
+                                    borderRadius: "var(--radius)",
+                                    fontSize: 13,
                                 }}>
-                                    Placeholder: This style is used {selectedStyle.usageCount} times across the application. Usage context, patterns, and guidelines will appear here.
-                                </p>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Token</span>
+                                        <span style={{
+                                            color: "hsl(var(--foreground))",
+                                            fontWeight: 500,
+                                            fontFamily: "monospace",
+                                            textAlign: "right",
+                                            wordBreak: "break-all"
+                                        }}>
+                                            {selectedStyle.token || "—"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Value</span>
+                                        <span style={{
+                                            color: "hsl(var(--foreground))",
+                                            fontFamily: "monospace",
+                                            textAlign: "right",
+                                            wordBreak: "break-all"
+                                        }}>
+                                            {selectedStyle.value || "—"}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Kind</span>
+                                        <span style={{ color: "hsl(var(--foreground))", textAlign: "right" }}>
+                                            {selectedStyle.kind || "—"}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Where it appears section (7.4.3: real data) */}

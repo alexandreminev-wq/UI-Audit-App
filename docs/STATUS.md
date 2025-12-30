@@ -1,147 +1,151 @@
 # STATUS
 
-*Last updated: 2025-12-27 (Europe/Madrid)*
+  # UI Inventory MVP — Project Status
 
-This document reflects the **current state of the UI Inventory App**: what is complete, what is in progress, and what is explicitly out of scope for now. It is intended to prevent rework, scope creep, and accidental regressions.
+  ## Overall Status
+  🟢 **Viewer parity audit complete**
 
----
+  Milestone 7.5.1 completed via comprehensive audit. Viewer drawer structure is semantically correct for inventory context. No implementation changes required.
 
-## Overall Project Status
+  ---
 
-**Phase:** Milestone 7 — Style Normalization + Finish Viewer  
-**Branch:** `m7-style-normalization`  
-**Confidence:** High (foundational systems are stable)
+  ## What Works Today
 
-The project has completed its **core capture, classification, and styling foundations** and is now focused on turning the Viewer into a production-ready audit workspace that matches the Sidepanel in visual language and conceptual model.
+  ### Capture (Sidepanel)
+  - UI elements are captured from live pages
+  - CaptureRecords written to IndexedDB
+  - Each capture includes:
+    - id
+    - projectId
+    - sessionId
+    - element metadata
+    - style primitives
+    - screenshot reference
+    - URL
+  - Sidepanel capture confirmed working end-to-end
 
----
+  ---
 
-## What Is Working Well
+  ### Viewer (Read-only)
+  - Viewer never writes to storage
+  - All data derived from IndexedDB captures
+  - Projects load correctly
+  - Component and Style inventories populate correctly
+  - Drawer shows real derived data
+  - Project scoping enforced at boundary
+  - Selection hygiene guarantees in place
 
-### Capture & Storage
-- Content script capture is stable.
-- Service Worker is the **only** IndexedDB accessor.
-- Capture records (`CaptureRecordV2`) include:
-  - structural context
-  - classifier outputs
-  - style primitives + evidence
-- Message passing patterns are reliable and understood.
+  ---
 
-### Sidepanel (Capture Cockpit)
-- Sidepanel shell is stable.
-- Visual Essentials UI is implemented.
-- Category / Type / naming improvements are in place.
-- Shared theme tokens are now the runtime source of truth.
-- Layout and Tailwind output are preserved after theme unification.
+  ## Recent Milestones
 
-### Styling Infrastructure (Major Win)
-- **Shared theme layer exists**:
-  - `apps/extension/src/ui/theme/theme.css`
-  - HSL tuple semantic tokens
-  - `:root` + `.dark` definitions
-- Sidepanel consumes shared theme correctly.
-- Legacy OKLCH tokens are neutralized.
-- Runtime verification via `getComputedStyle` confirms correctness.
-- CSS entry chain is now understood and documented.
-- Dark mode infrastructure exists (not enabled yet).
+  ### 7.4 — Viewer Correctness & Guardrails ✅
 
----
+  **Key Guarantees Now in Place:**
+  - **Strict project scoping**
+    - ViewerApp enforces project boundaries
+    - No cross-project capture leakage
+  - **Selection hygiene**
+    - Drawer selection clears only on projectId change
+    - No stale selections after navigation
+  - **Drawer safety**
+    - No crashes on empty or missing data
+    - Safe empty states
+  - **DEV-only diagnostics**
+    - Scoping mismatches
+    - Empty inventory regressions
+    - Stale selection warnings
 
-## What Is Explicitly Complete
+  No production console noise.
 
-### Milestones
-- Milestones 1–6: **Complete**
-- Milestone 7.0 (Guardrails & Styling Foundation): **Complete**
+  ---
 
-### Key Decisions Locked
-- Option C (shared theme primitives, no component refactor)
-- Viewer computes derived labels at runtime only
-- No persisted grouping/signature keys
-- No edits to `dist/**`
-- Prefer incremental, reversible diffs
+  ### 7.5.1 — Drawer Content Parity ✅ **(Completed via Audit)**
 
----
+  **Outcome:**
+  - Comprehensive audit of Viewer DetailsDrawer vs Sidepanel ComponentDetails
+  - **No code changes required** — drawer structure is semantically appropriate
+  - Viewer serves inventory browsing; Sidepanel serves single-component editing
+  - Differences are intentional and context-appropriate
 
-## What Is In Progress
+  **Parity Gaps Identified (Deferred):**
 
-### Milestone 7.1 — Viewer Shell Integration
-**Status:** Not started (next task)
+  | Feature | Status | Reason |
+  |---------|--------|--------|
+  | Screenshot thumbnails | → 7.5.2 | Requires blob handling + rendering logic |
+  | HTML Structure section | Deferred | Requires new section + data wiring |
+  | Comments field | Deferred | Viewer is read-only by design |
+  | Section reordering | Kept as-is | Current order is logical for inventory context |
 
-Planned work:
-- Import Viewer shell into extension repo.
-- Remove Viewer-local theme/token systems.
-- Consume shared `theme.css`.
-- Normalize visual primitives and layout scaffolding.
-- Ensure CSP-safe font usage.
+  ---
 
-No data wiring or feature parity work has begun yet.
+  ## Known Limitations (Accepted)
+  - Viewer is read-only (by design)
+  - Screenshot thumbnails not yet shown in Viewer (planned for 7.5.2)
+  - HTML structure not exposed in drawer (requires new wiring)
+  - Comments not available in Viewer (read-only constraint)
 
----
+  ---
 
-## Known Gaps (Intentional)
+  ## Next Planned Work
+  **Milestone 7.5.2 — Screenshot Thumbnails**
+  - Render thumbnails from existing screenshotBlobId
+  - Read-only display in drawer
+  - Graceful fallback if blob unavailable
 
-These are **not bugs** — they are deferred by design:
+  **Milestone 7.5.3 — Minor Interaction Polish**
+  - Toggle drawer on re-select
+  - Escape key to close drawer
+  - Small UX refinements
 
-- Viewer still uses mock/static data.
-- Viewer IA is not fully implemented.
-- No export from real data yet.
-- No dark mode toggle.
-- No bulk operations or automation.
-- No Figma export.
+  ---
 
----
+  ## Out of Scope (For Now)
+  - Capture schema changes
+  - Write-back from Viewer
+  - Advanced component intelligence
+  - Multi-project comparisons
+  - HTML structure display in drawer
+  - Comments/annotations in Viewer
 
-## Known Risks / Watchouts
+  ---
 
-- CSS entry points differ per surface; always verify runtime tokens.
-- Viewer integration must avoid importing prototype-only assumptions.
-- Avoid “helpful refactors” during styling normalization.
-- Do not persist derived Viewer labels or groupings.
-- Keep Sidepanel stable while Viewer evolves.
+  ## Confidence Level
+  ✅ High confidence in Viewer correctness and stability
+  ✅ Viewer drawer semantically aligned with Sidepanel
+  ✅ Safe to proceed with screenshot thumbnails and polish work
 
----
+  ---
 
-## Validation & Debugging Practices
+  ## Known Gaps (Intentional)
 
-**Theme validation**
-```js
-getComputedStyle(document.documentElement)
-  .getPropertyValue("--foreground")
-````
+  These are **not bugs** — they are deferred by design:
 
-Must return HSL tuple values.
+  - Screenshot thumbnails not yet rendered (7.5.2)
+  - HTML structure not shown in drawer (requires new section)
+  - No comments field in Viewer (read-only constraint)
+  - No export from real data yet
+  - No dark mode toggle
+  - No bulk operations or automation
+  - No Figma export
 
-**Build rules**
+  ---
 
-* Rebuild + reload extension after CSS changes.
-* Inspect compiled `sidepanel-*.css` only to debug, not to edit.
+  ## Known Risks / Watchouts
 
----
+  - CSS entry points differ per surface; always verify runtime tokens.
+  - Viewer integration must avoid importing prototype-only assumptions.
+  - Avoid "helpful refactors" during styling normalization.
+  - Do not persist derived Viewer labels or groupings.
+  - Keep Sidepanel stable while Viewer evolves.
+  - Screenshot blob handling must be read-only and safe.
 
-## What Success Looks Like for Milestone 7
 
-By the end of Milestone 7:
+  *This STATUS file should be updated whenever a milestone slice is completed or a major decision is locked.*
 
-* Sidepanel + Viewer feel like the same product.
-* Viewer IA is stable and matches intended workflows.
-* Viewer consumes real data through a canonical mapping layer.
-* Export reflects current Viewer filters deterministically.
-* Limitations are documented honestly.
-
----
-
-## Next Concrete Step
-
-👉 **Begin Milestone 7.1: Viewer Shell Integration**
-
-Focus:
-
-* UI foundation
-* Styling consistency
-* Layout normalization
-
-Do **not** start data wiring or export yet.
-
----
-
-*This STATUS file should be updated whenever a milestone slice is completed or a major decision is locked.*
+  ---
+  Both files are ready for copy/paste. The updates reflect:
+  - 7.5.1 completed via audit with no code changes
+  - Parity gaps documented and deferred appropriately
+  - Screenshot display moved to 7.5.2 scope
+  - Consistent wording with existing milestone style

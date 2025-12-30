@@ -32,6 +32,8 @@ export interface ViewerComponent {
     status: "Canonical" | "Variant" | "Unknown"; // Inferred from clustering
     source: string;                // Inferred from url or scope
     capturesCount: number;         // Count of captures in this component group
+    notes?: string | null;         // 7.6.3: aligns with Sidepanel comments field (future)
+    tags?: string[];               // 7.6.4: aligns with Sidepanel tags field (future)
 }
 
 /**
@@ -72,6 +74,7 @@ export interface ViewerComponentCapture {
     sourceLabel: string;           // Derived page label
     timestampLabel: string;        // Placeholder "—" for now
     screenshotBlobId?: string;     // Optional screenshot blob reference (7.5.2)
+    htmlStructure?: string;        // Optional HTML structure snippet (7.6.2)
 }
 
 /**

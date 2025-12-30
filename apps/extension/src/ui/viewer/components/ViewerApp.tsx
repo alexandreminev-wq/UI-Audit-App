@@ -4,6 +4,7 @@ import { ProjectViewShell } from "./ProjectViewShell";
 import { LegacySessionsViewer } from "./LegacySessionsViewer";
 import type { ViewerRoute, ViewerProject, ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
 import type { CaptureRecordV2 } from "../../../types/capture";
+import type { AnnotationRecord } from "../../../background/capturesDb";
 import { deriveProjectsIndexFromStorage, deriveComponentInventory, deriveStyleInventory, scopeCapturesToProject } from "../adapters/deriveViewerModels";
 
 // ─────────────────────────────────────────────────────────────
@@ -64,6 +65,9 @@ export function ViewerApp() {
     // Milestone 7.4.3: Store raw captures for drawer derivation
     const [rawCaptures, setRawCaptures] = useState<CaptureRecordV2[]>([]);
 
+    // 7.7.1: Annotations (Notes + Tags)
+    const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
+
     // Milestone 7.4.0: Load projects on mount
     useEffect(() => {
         let isMounted = true;
@@ -113,6 +117,7 @@ export function ViewerApp() {
             setComponents([]);
             setStyles([]);
             setRawCaptures([]);
+            setAnnotations([]); // 7.7.1: Clear annotations
             setComponentsError(null);
             return;
         }
@@ -175,6 +180,46 @@ export function ViewerApp() {
 
                     // 7.4.1: Derive components from scoped captures
                     const derivedComponents = deriveComponentInventory(scopedCaptures);
+
+                    // 7.7.1: Load annotations for this project
+                    const annotationsResponse = await chrome.runtime.sendMessage({
+                        type: "ANNOTATIONS/GET_PROJECT",
+                        projectId: selectedProjectId,
+                    });
+
+                    if (!isMounted) return;
+
+                    if (annotationsResponse && annotationsResponse.ok) {
+                        const loadedAnnotations = Array.isArray(annotationsResponse.annotations)
+                            ? annotationsResponse.annotations
+                            : [];
+                        setAnnotations(loadedAnnotations);
+
+                        // 7.7.1: Merge annotations into derived components
+                        const annotationsMap = new Map(
+                            loadedAnnotations.map((a: AnnotationRecord) => [a.componentKey, a])
+                        );
+
+                        for (const component of derivedComponents) {
+                            const annotation = annotationsMap.get(component.id);
+                            if (annotation) {
+                                component.notes = annotation.notes || null;
+                                component.tags = annotation.tags || [];
+                            }
+                        }
+
+                        devLog("[UI Inventory Viewer] Loaded annotations", {
+                            projectId: selectedProjectId,
+                            annotationsCount: loadedAnnotations.length,
+                        });
+                    } else {
+                        // Non-fatal: annotations are optional
+                        devWarn("[UI Inventory Viewer] Failed to load annotations", {
+                            error: annotationsResponse?.error,
+                        });
+                        setAnnotations([]);
+                    }
+
                     setComponents(derivedComponents);
 
                     // 7.4.2: Derive styles from scoped captures

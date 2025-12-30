@@ -807,13 +807,30 @@ export function deriveComponentCaptures(
     }
 
     // Map to ViewerComponentCapture[]
-    const result: ViewerComponentCapture[] = matchingCaptures.map((capture) => ({
-        id: capture.id,
-        url: capture.url || "—",
-        sourceLabel: inferSource(capture.url, capture.scope),
-        timestampLabel: "—", // Placeholder (no timestamp in v2.2 schema)
-        screenshotBlobId: capture.screenshot?.screenshotBlobId, // 7.5.2: optional thumbnail
-    }));
+    const result: ViewerComponentCapture[] = matchingCaptures.map((capture) => {
+        // Build HTML structure snippet (7.6.2)
+        let htmlStructure: string | undefined;
+        if (capture.element) {
+            const tag = capture.element.tagName?.toLowerCase() || "div";
+            const id = capture.element.id ? ` id="${capture.element.id}"` : "";
+            const classes = capture.element.classList?.length
+                ? ` class="${capture.element.classList.join(" ")}"`
+                : "";
+            const role = capture.element.role ? ` role="${capture.element.role}"` : "";
+            const text = capture.element.textPreview || "";
+
+            htmlStructure = `<${tag}${id}${classes}${role}>${text ? `\n  ${text}\n` : ""}</${tag}>`;
+        }
+
+        return {
+            id: capture.id,
+            url: capture.url || "—",
+            sourceLabel: inferSource(capture.url, capture.scope),
+            timestampLabel: "—", // Placeholder (no timestamp in v2.2 schema)
+            screenshotBlobId: capture.screenshot?.screenshotBlobId, // 7.5.2: optional thumbnail
+            htmlStructure, // 7.6.2: derived HTML structure
+        };
+    });
 
     // Sort by sourceLabel asc, then url asc (deterministic)
     result.sort((a, b) => {

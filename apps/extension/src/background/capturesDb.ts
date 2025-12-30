@@ -2,24 +2,39 @@
  * IndexedDB helper for persisting captures, sessions, blobs, projects, and project-session links
  *
  * DB: ui-inventory
- * Version: 3 (v2.2 schema + projects)
+ * Version: 4 (v2.2 schema + projects + annotations)
  * Stores:
  *   - captures (keyPath: id, indexes: byCreatedAt, byUrl)
  *   - sessions (keyPath: id, indexes: byCreatedAt, byStartUrl)
  *   - blobs (keyPath: id, indexes: byCreatedAt)
  *   - projects (keyPath: id, indexes: byUpdatedAt, byCreatedAt)
  *   - projectSessions (keyPath: id, indexes: byProjectId, bySessionId)
+ *   - annotations (keyPath: id, indexes: byProject) — 7.7.1: Notes + Tags
  */
 
 import type { CaptureRecord, CaptureRecordV2, SessionRecord, BlobRecord } from "../types/capture";
 
+// ─────────────────────────────────────────────────────────────
+// Annotation Record (7.7.1)
+// ─────────────────────────────────────────────────────────────
+
+export interface AnnotationRecord {
+    id: string;             // "${projectId}:${componentKey}"
+    projectId: string;      // Project scope
+    componentKey: string;   // ViewerComponent.id (deterministic grouping hash)
+    notes: string;          // User notes (default "")
+    tags: string[];         // User tags (default [])
+    updatedAt: number;      // Last modification timestamp (epoch ms)
+}
+
 const DB_NAME = "ui-inventory";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_CAPTURES = "captures";
 const STORE_SESSIONS = "sessions";
 const STORE_BLOBS = "blobs";
 const STORE_PROJECTS = "projects";
 const STORE_PROJECT_SESSIONS = "projectSessions";
+const STORE_ANNOTATIONS = "annotations";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -85,6 +100,13 @@ function openDb(): Promise<IDBDatabase> {
                 projectSessionsStore.createIndex("byProjectId", "projectId", { unique: false });
                 projectSessionsStore.createIndex("bySessionId", "sessionId", { unique: false });
                 console.log("[capturesDb] Created projectSessions store with indexes");
+            }
+
+            // Version 4: Add annotations store (7.7.1)
+            if (!db.objectStoreNames.contains(STORE_ANNOTATIONS)) {
+                const annotationsStore = db.createObjectStore(STORE_ANNOTATIONS, { keyPath: "id" });
+                annotationsStore.createIndex("byProject", "projectId", { unique: false });
+                console.log("[capturesDb] Created annotations store with indexes");
             }
         };
     });
@@ -663,4 +685,65 @@ export async function getProjectCaptureCount(projectId: string): Promise<number>
     }
 
     return totalCount;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Annotations (7.7.1: Notes + Tags)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Get annotation for a specific (projectId, componentKey)
+ * Returns null if no annotation exists
+ */
+export async function getAnnotation(
+    projectId: string,
+    componentKey: string
+): Promise<AnnotationRecord | null> {
+    if (!projectId || !componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_ANNOTATIONS, "readonly");
+        const store = tx.objectStore(STORE_ANNOTATIONS);
+        
+        const id = `${projectId}:${componentKey}`;
+        const request = store.get(id);
+
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to get annotation:", err);
+        return null;
+    }
+}
+
+/**
+ * List all annotations for a project
+ * Returns empty array if none found or on error
+ */
+export async function listAnnotationsForProject(projectId: string): Promise<AnnotationRecord[]> {
+    if (!projectId) {
+        throw new Error("projectId is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_ANNOTATIONS, "readonly");
+        const store = tx.objectStore(STORE_ANNOTATIONS);
+        const index = store.index("byProject");
+
+        return new Promise((resolve, reject) => {
+            const request = index.getAll(projectId);
+            
+            request.onsuccess = () => resolve(request.result || []);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to list annotations for project:", err);
+        return [];
+    }
 }

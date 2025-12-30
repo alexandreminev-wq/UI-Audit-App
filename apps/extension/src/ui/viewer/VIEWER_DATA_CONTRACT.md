@@ -46,6 +46,7 @@ The following IndexedDB v3 stores are the **only sources of truth**:
 - `sessions`
 - `captures`
 - `blobs`
+- `annotations` (7.7.1+: Notes + Tags)
 
 Rules:
 - Viewer is **read-only** in 7.4.x
@@ -231,9 +232,203 @@ No ML, learning, or persistence.
 
 ---
 
-## 8. Adapter Layer Contract
+## 8. Drawer-Derived Data (7.4.3+)
 
-### 8.1 Single Responsibility Rule
+### 8.1 Overview
+
+The DetailsDrawer shows additional derived data when a component or style is selected.
+These derivations are **read-only, in-memory, and scoped to the active project**.
+
+All drawer data is derived from the same raw captures used for component/style inventories.
+
+---
+
+### 8.2 Component Drawer: Capture List
+
+**Type:** `ViewerComponentCapture[]`
+
+**Purpose:** Shows all individual captures that belong to the selected component.
+
+**Derivation:**
+- Filter raw captures where signature-based grouping matches the selected component ID
+- Use the same signature logic from component inventory derivation (§4.2)
+- Sort by sourceLabel asc, then url asc (deterministic)
+
+**Fields:**
+| Field           | Source   | Rule |
+|----------------|----------|------|
+| `id`           | Capture  | `capture.id` |
+| `url`          | Capture  | `capture.url` or `"—"` |
+| `sourceLabel`  | Derived  | Page label from URL (§6.3 helper) |
+| `timestampLabel` | Placeholder | `"—"` (no timestamp in v2.2 schema) |
+
+**Constraints:**
+- Empty array if no captures found (not null)
+- Must be deterministic: same component → same list in same order
+- No limit on list length
+
+---
+
+### 8.3 Style Drawer: Location List
+
+**Type:** `ViewerStyleLocation[]`
+
+**Purpose:** Shows where the selected style appears, grouped by source (page).
+
+**Derivation:**
+- Find all captures that contain the selected style (kind + value match)
+- Group by `(sourceLabel, url)` tuple
+- Count uses per source
+- Sort by uses desc, then sourceLabel asc
+
+**Fields:**
+| Field         | Source   | Rule |
+|--------------|----------|------|
+| `id`         | Derived  | Stable hash of `sourceLabel\|url` |
+| `sourceLabel`| Derived  | Page label from URL |
+| `url`        | Capture  | Full URL or `"—"` |
+| `uses`       | Derived  | Count of captures at this source with this style |
+
+**Constraints:**
+- Empty array if style not found in any capture
+- Must be deterministic: same inputs → same list
+- No limit on list length
+- Grouping key is `sourceLabel + url` (not just sourceLabel, to handle duplicate labels)
+
+---
+
+### 8.4 Style Drawer: Related Components
+
+**Type:** `ViewerStyleRelatedComponent[]`
+
+**Purpose:** Shows components that use the selected style.
+
+**Derivation:**
+- For each component in the component inventory:
+  - Check if any member capture contains the selected style
+  - If yes, include component in results
+- Sort by component `capturesCount` desc (proxy for usage), then name asc
+- Limit to **12 items** maximum
+
+**Fields:**
+| Field         | Source   | Rule |
+|--------------|----------|------|
+| `componentId` | Component | From component inventory |
+| `name`        | Component | From component inventory |
+| `category`    | Component | From component inventory |
+| `type`        | Component | From component inventory |
+
+**Constraints:**
+- Empty array if no components use this style
+- Must be deterministic: same inputs → same 12 items in same order
+- **Hard limit: 12 items** (UI constraint)
+
+---
+
+### 8.5 Drawer Derivation Requirements
+
+All drawer derivations must:
+- Be **pure functions** (same inputs → same outputs)
+- Be **deterministic** (repeatable, no randomness)
+- Use **only** captures scoped to the active project (see §9)
+- Return **empty arrays** (not null) when no data available
+- Be recomputed on selection change (no cross-selection caching in 7.4.x)
+
+---
+
+## 9. Project Scoping Rules
+
+### 9.1 Core Principle
+
+**All viewer inventories and drawer derivations MUST be computed from captures scoped to the active project.**
+
+The Viewer must never mix captures across different projects.
+
+---
+
+### 9.2 Acceptable Scoping Mechanisms
+
+The Viewer uses **layered scoping** to determine which captures belong to a project:
+
+#### Preferred: Direct projectId
+- If `capture.projectId` is present and matches the active project ID, include the capture
+- This is the canonical mechanism (added post-v2.2)
+
+#### Fallback: Session linkage
+- If `capture.projectId` is missing (backward compatibility):
+  - Query `projectSessions` store to find sessions linked to the active project
+  - Include captures where `capture.sessionId` matches a linked session
+
+**Implementation note:**
+The service worker message `UI/GET_PROJECT_DETAIL` handles this scoping logic and returns only captures belonging to the requested project.
+
+---
+
+### 9.3 Scoping Enforcement
+
+Adapter functions (`deriveComponentInventory`, `deriveStyleInventory`, drawer derivations) receive **pre-scoped captures** as input.
+
+Adapters must **not**:
+- Query the database directly
+- Perform project filtering logic
+- Mix captures from multiple projects
+
+The scoping boundary is enforced at the **message handler layer**.
+
+---
+
+## 10. Interoperability with CaptureRecord Schema
+
+### 10.1 Consumed Fields
+
+The Viewer consumes the following fields from `CaptureRecordV2`:
+
+| Field                 | Purpose |
+|----------------------|---------|
+| `id`                 | Capture identity |
+| `sessionId`          | Fallback project scoping |
+| `projectId`          | Preferred project scoping (optional, post-v2.2) |
+| `url`                | Source page derivation |
+| `createdAt`          | Timestamp, representative capture selection |
+| `element`            | Component identity (tagName, role, intent, textPreview) |
+| `styles.primitives`  | Style inventory, visual essentials |
+| `styles.primitives.sources` | Token extraction (CSS variable names) |
+| `screenshot`         | Future: thumbnails in drawer (not used in 7.4.x) |
+
+---
+
+### 10.2 Token Extraction Semantics
+
+**Rule:** The Viewer extracts CSS variable tokens from `capture.styles.primitives.sources`.
+
+- If `sources` contains a reference like `var(--color-primary)`, extract `--color-primary`
+- Pattern: `/var\((--[^)]+)\)/`
+- If no CSS variable found, token is `"—"` (never null, never invented)
+
+This aligns with §5.3 (Style Inventory Token Semantics).
+
+**Critical:**
+- Do not invent tokens
+- Do not infer design-system structure
+- Do not generate placeholder token names
+
+---
+
+### 10.3 Schema Version Awareness
+
+The Viewer must tolerate missing fields for backward compatibility:
+
+- `projectId` may be undefined (pre-scoping captures)
+- `sources` may be undefined (older captures)
+- `typography`, `radius` may be undefined (optional fields)
+
+Use `"—"` or empty arrays as fallbacks, never crash.
+
+---
+
+## 11. Adapter Layer Contract
+
+### 11.1 Single Responsibility Rule
 
 All transforms between storage → Viewer models MUST live in:
 
@@ -250,13 +445,17 @@ Viewer components must never:
 
 ---
 
-### 8.2 Required Adapter Functions (Phase 3)
+### 11.2 Required Adapter Functions (Phase 3)
 
 ```ts
 deriveProjectsIndexFromStorage(...)
 deriveProjectDetail(...)
 deriveComponentInventory(...)
 deriveStyleInventory(...)
+deriveComponentCaptures(...)           // 7.4.3
+deriveStyleLocations(...)              // 7.4.3
+deriveRelatedComponentsForStyle(...)   // 7.4.3
+deriveVisualEssentialsFromCapture(...) // 7.4.4
 ````
 
 Each function must:
@@ -267,7 +466,7 @@ Each function must:
 
 ---
 
-## 9. Performance Contract
+## 12. Performance Contract
 
 For 7.4.x:
 
@@ -280,7 +479,82 @@ Persistence of derived data is a **future decision**.
 
 ---
 
-## 10. Explicit Out of Scope (7.4.x)
+## 13. Annotations (Notes + Tags) — Shared Across Surfaces (7.7.1+)
+
+### 13.1 Purpose
+
+Annotations provide a **shared, cross-surface layer** for user-created metadata (Notes and Tags) that applies to component groupings.
+
+- **Shared**: Both Viewer and Sidepanel read from the same storage
+- **Component-scoped**: Annotations apply to logical component groupings, not individual captures
+- **Keyed by componentKey**: Uses the deterministic `ViewerComponent.id` (component signature hash)
+
+### 13.2 AnnotationRecord Schema
+
+```typescript
+interface AnnotationRecord {
+    projectId: string;      // Project scope
+    componentKey: string;   // Equals ViewerComponent.id (deterministic grouping id)
+    notes: string;          // User notes (default "")
+    tags: string[];         // User tags (default [])
+    updatedAt: number;      // Last modification timestamp (epoch ms)
+}
+```
+
+### 13.3 Storage
+
+- **Store name**: `annotations`
+- **Primary key**: Compound key `${projectId}:${componentKey}`
+- **Secondary index**: `by-project` on `projectId` (for bulk project queries)
+
+### 13.4 Semantics
+
+**Key structure:**
+- `projectId`: Current project ID
+- `componentKey`: Equals `ViewerComponent.id` (the deterministic hash used for component grouping)
+
+**Data rules:**
+- If no annotation record exists: `notes = ""` and `tags = []`
+- Annotations are per-project, per-component
+- Multiple captures with same `componentKey` share one annotation
+
+**Cross-surface guarantee:**
+- Viewer and Sidepanel MUST render identical notes/tags for a given `(projectId, componentKey)`
+- Both surfaces read via Service Worker message API (single source of truth)
+
+### 13.5 Service Worker API (7.7.1: Read-Only)
+
+**GET_PROJECT** — Fetch all annotations for a project
+```typescript
+Request:  { type: "ANNOTATIONS/GET_PROJECT", projectId: string }
+Response: { ok: true, annotations: AnnotationRecord[] }
+       | { ok: false, error: string }
+```
+
+**GET_ONE** — Fetch single annotation
+```typescript
+Request:  { type: "ANNOTATIONS/GET_ONE", projectId: string, componentKey: string }
+Response: { ok: true, annotation: AnnotationRecord | null }
+       | { ok: false, error: string }
+```
+
+### 13.6 Non-Goals (7.7.1)
+
+- **No editing behavior** defined in 7.7.1 (read + display only)
+- **No conflict resolution** (single-user, single-device for now)
+- **No migration** of existing Sidepanel comments to annotations store
+- **No writes** via Service Worker in 7.7.1
+
+### 13.7 Future (7.7.2+)
+
+- Add `ANNOTATIONS/UPDATE` message for write operations
+- Add editing UI in both Viewer and Sidepanel
+- Add save/cancel patterns
+- Consider migration path for existing Sidepanel comments
+
+---
+
+## 14. Explicit Out of Scope (7.4.x)
 
 The following are **not allowed** in Phase 3:
 
@@ -293,7 +567,7 @@ The following are **not allowed** in Phase 3:
 
 ---
 
-## 11. Enforcement Rules
+## 15. Enforcement Rules
 
 If implementation encounters missing or ambiguous data:
 
@@ -303,7 +577,7 @@ If implementation encounters missing or ambiguous data:
 
 ---
 
-## 12. Phase 3 Exit Criteria
+## 16. Phase 3 Exit Criteria
 
 Phase 3 is complete when:
 

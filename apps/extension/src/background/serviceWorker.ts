@@ -18,6 +18,8 @@ import {
     listSessionIdsForProject,
     listCapturesBySessionIds,
     getProjectCaptureCount,
+    getAnnotation,
+    listAnnotationsForProject,
 } from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
@@ -487,8 +489,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Ensure session exists for this tab
             const sessionId = await ensureSession(tabId);
 
-            // Link session to active project if one is set for this tab (non-fatal)
+            // Get active project for this tab
             const projectId = activeProjectByTabId.get(tabId);
+
+            // Validate that a project is active (warn if missing, but allow capture)
+            if (!projectId) {
+                console.warn("[UI Inventory] AUDIT/CAPTURE: No active project for tab", tabId, "- capture will not be associated with a project");
+            }
+
+            // Link session to active project if one is set for this tab (non-fatal)
             if (projectId) {
                 try {
                     await linkSessionToProject(projectId, sessionId);
@@ -520,6 +529,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const recordV2: CaptureRecordV2 = {
                 id: recordV1.id,
                 sessionId,
+                projectId, // Include projectId (may be undefined if no active project)
                 captureSchemaVersion: 2,
                 stylePrimitiveVersion: 1,
 
@@ -568,6 +578,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Persist to IndexedDB with error handling
             try {
                 await saveCapture(recordV2);
+                // Debug log to verify projectId is saved
+                console.log("[UI Inventory] Saved capture to IndexedDB:", {
+                    captureId: recordV2.id,
+                    projectId: recordV2.projectId || "(none)",
+                    sessionId: recordV2.sessionId,
+                });
             } catch (err) {
                 console.error("[UI Inventory] Failed to save capture to IndexedDB:", err);
             }
@@ -1100,6 +1116,59 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 sendResponse({ ok: true });
             } catch (err) {
                 console.error("[UI Inventory] Failed to delete capture:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Annotations (7.7.1: Notes + Tags)
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "ANNOTATIONS/GET_PROJECT") {
+        (async () => {
+            const projectId = msg.projectId;
+            console.log("[UI Inventory] ANNOTATIONS/GET_PROJECT request for:", projectId);
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            try {
+                const annotations = await listAnnotationsForProject(projectId);
+                sendResponse({ ok: true, annotations });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to list annotations:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "ANNOTATIONS/GET_ONE") {
+        (async () => {
+            const { projectId, componentKey } = msg;
+            console.log("[UI Inventory] ANNOTATIONS/GET_ONE request for:", projectId, componentKey);
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            try {
+                const annotation = await getAnnotation(projectId, componentKey);
+                sendResponse({ ok: true, annotation });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get annotation:", err);
                 sendResponse({ ok: false, error: String(err) });
             }
         })();
