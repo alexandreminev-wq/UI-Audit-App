@@ -57,3 +57,63 @@ export interface ViewerProjectDetail {
 
 // Legacy type alias for backward compatibility (to be removed in 7.4.x)
 export type Project = ViewerProject;
+
+// ─────────────────────────────────────────────────────────────
+// Milestone 7.4.3: Drawer-focused view models
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Component capture item (for drawer)
+ * Minimal metadata about a capture that belongs to a component
+ */
+export interface ViewerComponentCapture {
+    id: string;                    // Capture id
+    url: string;                   // Full URL or "—"
+    sourceLabel: string;           // Derived page label
+    timestampLabel: string;        // Placeholder "—" for now
+    screenshotBlobId?: string;     // Optional screenshot blob reference (7.5.2)
+}
+
+/**
+ * Style location item (for drawer "Where it appears")
+ * Shows where a style appears, grouped by source
+ */
+export interface ViewerStyleLocation {
+    id: string;                    // Stable identifier
+    sourceLabel: string;           // Page label
+    url: string;                   // Full URL or "—"
+    uses: number;                  // Occurrences on that page/source
+    screenshotBlobId?: string;     // Optional screenshot from representative capture (7.5.2)
+}
+
+/**
+ * Style related component (for drawer)
+ * Minimal component info for styles drawer
+ */
+export interface ViewerStyleRelatedComponent {
+    componentId: string;           // Component id
+    name: string;                  // Component name
+    category: string;              // Component category
+    type: string;                  // Component type
+}
+
+// ─────────────────────────────────────────────────────────────
+// Milestone 7.4.4: Visual Essentials (derived from capture primitives)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Visual Essentials row (read-only property display)
+ */
+export interface ViewerVisualEssentialsRow {
+    section: "Text" | "Surface" | "Spacing" | "State";
+    label: string;
+    value: string;
+}
+
+/**
+ * Visual Essentials table (derived from a representative capture)
+ */
+export interface ViewerVisualEssentials {
+    rows: ViewerVisualEssentialsRow[];
+    derivedFromCaptureId: string | null;
+}

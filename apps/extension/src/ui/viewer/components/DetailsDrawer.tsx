@@ -6,6 +6,7 @@ import type {
     ViewerStyleRelatedComponent,
     ViewerVisualEssentials,
 } from "../types/projectViewerTypes";
+import { useBlobUrl } from "../hooks/useBlobUrl";
 
 // ─────────────────────────────────────────────────────────────
 // DEV-only logging helpers (7.4.5)
@@ -13,6 +14,51 @@ import type {
 
 const isDev = import.meta?.env?.DEV ?? false;
 const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args); };
+
+// ─────────────────────────────────────────────────────────────
+// Thumbnail Component (7.5.2)
+// ─────────────────────────────────────────────────────────────
+
+function CaptureThumbnail({ blobId }: { blobId?: string }) {
+    const { url } = useBlobUrl(blobId);
+
+    return (
+        <div
+            style={{
+                width: 44,
+                height: 44,
+                flexShrink: 0,
+                borderRadius: "calc(var(--radius) - 2px)",
+                border: "1px solid hsl(var(--border))",
+                background: "hsl(var(--muted))",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+            }}
+        >
+            {url ? (
+                <img
+                    src={url}
+                    alt="Capture screenshot"
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                    }}
+                />
+            ) : (
+                <div
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        background: "hsl(var(--muted))",
+                    }}
+                />
+            )}
+        </div>
+    );
+}
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -116,8 +162,10 @@ export function DetailsDrawer({
                         maxWidth: "90vw",
                         background: "hsl(var(--background))",
                         borderLeft: "1px solid hsl(var(--border))",
-                        padding: 24,
-                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        overflowX: "hidden",
+                        boxSizing: "border-box",
                         zIndex: 51,
                     }}
                 >
@@ -133,17 +181,14 @@ export function DetailsDrawer({
                         <Dialog.Description>Details panel for the selected item.</Dialog.Description>
                     </VisuallyHidden.Root>
 
-                    {/* Close button - sticky container to keep visible during scroll */}
+                    {/* Header (fixed at top) */}
                     <div style={{
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 1,
+                        flex: "0 0 auto",
+                        padding: "16px 24px 8px 24px",
                         background: "hsl(var(--background))",
-                        paddingTop: 0,
-                        paddingBottom: 8,
                         display: "flex",
                         justifyContent: "flex-end",
-                        marginBottom: 8,
+                        borderBottom: "1px solid hsl(var(--border))",
                     }}>
                         <Dialog.Close asChild>
                             <button
@@ -165,7 +210,15 @@ export function DetailsDrawer({
                         </Dialog.Close>
                     </div>
 
-                    {/* Drawer content */}
+                    {/* Body (scrollable content) */}
+                    <div style={{
+                        flex: "1 1 auto",
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                        padding: "16px 24px 24px 24px",
+                        maxWidth: "100%",
+                        boxSizing: "border-box",
+                    }}>
                     {selectedComponent && (
                         <div>
                             {/* Component header */}
@@ -214,25 +267,62 @@ export function DetailsDrawer({
                                 </span>
                             </div>
 
-                            {/* Overview section */}
-                            <div style={{ marginBottom: 24 }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Overview
-                                </h3>
-                                <p style={{
-                                    fontSize: 14,
-                                    color: "hsl(var(--muted-foreground))",
-                                    margin: 0,
-                                    lineHeight: 1.5,
-                                }}>
-                                    Placeholder: Component overview and description will appear here. This would include details about the component's purpose, usage guidelines, and any relevant design system documentation.
-                                </p>
-                            </div>
+                            {/* Preview section (7.5.2: hero screenshot) */}
+                            {(() => {
+                                // Choose representative capture (first item)
+                                const representativeCapture = componentCaptures[0];
+                                const { url: screenshotUrl } = useBlobUrl(representativeCapture?.screenshotBlobId);
 
-                            {/* Captures section (7.4.3: real data) */}
+                                return (
+                                    <div style={{ marginBottom: 24, maxWidth: "100%" }}>
+                                        <h3 style={drawerSectionTitleStyle}>
+                                            Preview
+                                        </h3>
+                                        <div style={{
+                                            width: "100%",
+                                            maxWidth: "100%",
+                                            maxHeight: 220,
+                                            minHeight: 180,
+                                            padding: 12,
+                                            borderRadius: "var(--radius)",
+                                            border: "1px solid hsl(var(--border))",
+                                            background: "hsl(var(--muted))",
+                                            overflow: "hidden",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            boxSizing: "border-box",
+                                        }}>
+                                            {screenshotUrl ? (
+                                                <img
+                                                    src={screenshotUrl}
+                                                    alt="Component screenshot"
+                                                    style={{
+                                                        width: "auto",
+                                                        height: "auto",
+                                                        maxWidth: "100%",
+                                                        maxHeight: "100%",
+                                                        display: "block",
+                                                        objectFit: "contain",
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{
+                                                    fontSize: 13,
+                                                    color: "hsl(var(--muted-foreground))",
+                                                }}>
+                                                    No screenshot yet
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Source section (7.5.2b: captured from URLs) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
-                                    Captures ({selectedComponent.capturesCount})
+                                    Source ({selectedComponent.capturesCount})
                                 </h3>
                                 {componentCaptures.length === 0 ? (
                                     <div style={{
@@ -244,7 +334,7 @@ export function DetailsDrawer({
                                         color: "hsl(var(--muted-foreground))",
                                         lineHeight: 1.5,
                                     }}>
-                                        No captures found.
+                                        No sources found.
                                     </div>
                                 ) : (
                                     <div style={{
@@ -252,35 +342,57 @@ export function DetailsDrawer({
                                         flexDirection: "column",
                                         gap: 8,
                                     }}>
-                                        {componentCaptures.map((capture) => (
-                                            <div
-                                                key={capture.id}
-                                                style={{
-                                                    padding: "8px 12px",
-                                                    background: "hsl(var(--muted))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                    fontSize: 13,
-                                                }}
-                                            >
-                                                <div style={{
-                                                    color: "hsl(var(--foreground))",
-                                                    fontWeight: 500,
-                                                    marginBottom: 4,
-                                                }}>
-                                                    {capture.sourceLabel}
-                                                </div>
-                                                <div style={{
-                                                    color: "hsl(var(--muted-foreground))",
-                                                    fontSize: 12,
-                                                    fontFamily: "monospace",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                }}>
-                                                    {capture.url}
-                                                </div>
-                                            </div>
-                                        ))}
+                                        {(() => {
+                                            // Dedupe by URL (7.5.2b)
+                                            const seenUrls = new Set<string>();
+                                            const uniqueCaptures = componentCaptures.filter((c) => {
+                                                if (seenUrls.has(c.url)) return false;
+                                                seenUrls.add(c.url);
+                                                return true;
+                                            });
+
+                                            return uniqueCaptures.map((capture) => {
+                                                // Extract hostname from URL
+                                                let hostname = "Captured from";
+                                                try {
+                                                    if (capture.url && capture.url !== "—") {
+                                                        hostname = new URL(capture.url).hostname;
+                                                    }
+                                                } catch {
+                                                    // Keep fallback
+                                                }
+
+                                                return (
+                                                    <div
+                                                        key={capture.id}
+                                                        style={{
+                                                            padding: "8px 12px",
+                                                            background: "hsl(var(--muted))",
+                                                            borderRadius: "calc(var(--radius) - 2px)",
+                                                            fontSize: 13,
+                                                        }}
+                                                    >
+                                                        <div style={{
+                                                            color: "hsl(var(--foreground))",
+                                                            fontWeight: 500,
+                                                            marginBottom: 4,
+                                                        }}>
+                                                            {hostname}
+                                                        </div>
+                                                        <div style={{
+                                                            color: "hsl(var(--muted-foreground))",
+                                                            fontSize: 12,
+                                                            fontFamily: "monospace",
+                                                            wordBreak: "break-all",
+                                                            overflowWrap: "anywhere",
+                                                            lineHeight: 1.4,
+                                                        }}>
+                                                            {capture.url}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
                                     </div>
                                 )}
                             </div>
@@ -476,44 +588,49 @@ export function DetailsDrawer({
                                             <div
                                                 key={location.id}
                                                 style={{
+                                                    display: "flex",
+                                                    gap: 12,
                                                     padding: "8px 12px",
                                                     background: "hsl(var(--muted))",
                                                     borderRadius: "calc(var(--radius) - 2px)",
                                                     fontSize: 13,
                                                 }}
                                             >
-                                                <div style={{
-                                                    display: "flex",
-                                                    justifyContent: "space-between",
-                                                    alignItems: "center",
-                                                    marginBottom: 4,
-                                                }}>
-                                                    <span style={{
-                                                        color: "hsl(var(--foreground))",
-                                                        fontWeight: 500,
+                                                <CaptureThumbnail blobId={location.screenshotBlobId} />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        alignItems: "center",
+                                                        marginBottom: 4,
                                                     }}>
-                                                        {location.sourceLabel}
-                                                    </span>
-                                                    <span style={{
-                                                        fontSize: 11,
-                                                        padding: "2px 6px",
-                                                        background: "hsl(var(--background))",
+                                                        <span style={{
+                                                            color: "hsl(var(--foreground))",
+                                                            fontWeight: 500,
+                                                        }}>
+                                                            {location.sourceLabel}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: 11,
+                                                            padding: "2px 6px",
+                                                            background: "hsl(var(--background))",
+                                                            color: "hsl(var(--muted-foreground))",
+                                                            borderRadius: "calc(var(--radius) - 2px)",
+                                                            border: "1px solid hsl(var(--border))",
+                                                        }}>
+                                                            {location.uses} uses
+                                                        </span>
+                                                    </div>
+                                                    <div style={{
                                                         color: "hsl(var(--muted-foreground))",
-                                                        borderRadius: "calc(var(--radius) - 2px)",
-                                                        border: "1px solid hsl(var(--border))",
+                                                        fontSize: 12,
+                                                        fontFamily: "monospace",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                        whiteSpace: "nowrap",
                                                     }}>
-                                                        {location.uses} uses
-                                                    </span>
-                                                </div>
-                                                <div style={{
-                                                    color: "hsl(var(--muted-foreground))",
-                                                    fontSize: 12,
-                                                    fontFamily: "monospace",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                }}>
-                                                    {location.url}
+                                                        {location.url}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -617,6 +734,7 @@ export function DetailsDrawer({
                             No item selected.
                         </div>
                     )}
+                    </div>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

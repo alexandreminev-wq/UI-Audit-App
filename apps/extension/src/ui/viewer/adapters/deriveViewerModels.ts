@@ -812,6 +812,7 @@ export function deriveComponentCaptures(
         url: capture.url || "—",
         sourceLabel: inferSource(capture.url, capture.scope),
         timestampLabel: "—", // Placeholder (no timestamp in v2.2 schema)
+        screenshotBlobId: capture.screenshot?.screenshotBlobId, // 7.5.2: optional thumbnail
     }));
 
     // Sort by sourceLabel asc, then url asc (deterministic)
@@ -852,6 +853,7 @@ export function deriveStyleLocations(
         sourceLabel: string;
         url: string;
         count: number;
+        representativeCapture?: CaptureRecordV2; // 7.5.2: for screenshot
     }
 
     const locationMap = new Map<string, LocationRecord>();
@@ -897,6 +899,7 @@ export function deriveStyleLocations(
                 sourceLabel,
                 url: capture.url || "—",
                 count: 0,
+                representativeCapture: capture, // 7.5.2: store first capture for screenshot
             });
         }
 
@@ -910,6 +913,7 @@ export function deriveStyleLocations(
             sourceLabel: record.sourceLabel,
             url: record.url,
             uses: record.count,
+            screenshotBlobId: record.representativeCapture?.screenshot?.screenshotBlobId, // 7.5.2: optional thumbnail
         })
     );
 
