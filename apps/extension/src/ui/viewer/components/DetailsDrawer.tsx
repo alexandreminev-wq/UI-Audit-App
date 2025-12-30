@@ -209,6 +209,11 @@ export function DetailsDrawer({
         setDraftTags(draftTags.filter(tag => tag !== tagToRemove));
     };
 
+    // 7.5.2: Compute representative capture and screenshot URL at TOP LEVEL (fixes Rules of Hooks)
+    const representativeCapture = componentCaptures?.[0];
+    const screenshotBlobId = representativeCapture?.screenshotBlobId;
+    const { url: screenshotUrl } = useBlobUrl(screenshotBlobId);
+
     // 7.4.5: DEV-only warnings for empty drawer data
     if (selectedComponent && (!componentCaptures || componentCaptures.length === 0)) {
         devWarn("[UI Inventory Viewer] Drawer: selected component has zero captures", {
@@ -358,56 +363,48 @@ export function DetailsDrawer({
                             </div>
 
                             {/* Preview section (7.5.2: hero screenshot) */}
-                            {(() => {
-                                // Choose representative capture (first item)
-                                const representativeCapture = componentCaptures[0];
-                                const { url: screenshotUrl } = useBlobUrl(representativeCapture?.screenshotBlobId);
-
-                                return (
-                                    <div style={{ marginBottom: 24, maxWidth: "100%" }}>
-                                        <h3 style={drawerSectionTitleStyle}>
-                                            Preview
-                                        </h3>
+                            <div style={{ marginBottom: 24, maxWidth: "100%" }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Preview
+                                </h3>
+                                <div style={{
+                                    width: "100%",
+                                    maxWidth: "100%",
+                                    maxHeight: 220,
+                                    minHeight: 180,
+                                    padding: 12,
+                                    borderRadius: "var(--radius)",
+                                    border: "1px solid hsl(var(--border))",
+                                    background: "hsl(var(--muted))",
+                                    overflow: "hidden",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxSizing: "border-box",
+                                }}>
+                                    {screenshotUrl ? (
+                                        <img
+                                            src={screenshotUrl}
+                                            alt="Component screenshot"
+                                            style={{
+                                                width: "auto",
+                                                height: "auto",
+                                                maxWidth: "100%",
+                                                maxHeight: "100%",
+                                                display: "block",
+                                                objectFit: "contain",
+                                            }}
+                                        />
+                                    ) : (
                                         <div style={{
-                                            width: "100%",
-                                            maxWidth: "100%",
-                                            maxHeight: 220,
-                                            minHeight: 180,
-                                            padding: 12,
-                                            borderRadius: "var(--radius)",
-                                            border: "1px solid hsl(var(--border))",
-                                            background: "hsl(var(--muted))",
-                                            overflow: "hidden",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            boxSizing: "border-box",
+                                            fontSize: 13,
+                                            color: "hsl(var(--muted-foreground))",
                                         }}>
-                                            {screenshotUrl ? (
-                                                <img
-                                                    src={screenshotUrl}
-                                                    alt="Component screenshot"
-                                                    style={{
-                                                        width: "auto",
-                                                        height: "auto",
-                                                        maxWidth: "100%",
-                                                        maxHeight: "100%",
-                                                        display: "block",
-                                                        objectFit: "contain",
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div style={{
-                                                    fontSize: 13,
-                                                    color: "hsl(var(--muted-foreground))",
-                                                }}>
-                                                    No screenshot yet
-                                                </div>
-                                            )}
+                                            No screenshot yet
                                         </div>
-                                    </div>
-                                );
-                            })()}
+                                    )}
+                                </div>
+                            </div>
 
                             {/* Identity section (7.6.1: read-only metadata) */}
                             <div style={{ marginBottom: 24 }}>
