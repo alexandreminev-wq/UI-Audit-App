@@ -81,6 +81,7 @@ export function ProjectViewShell({
     styleItems,
     rawCaptures,
     onBack,
+    onAnnotationsChanged,
 }: {
     projectId: string;
     projectName: string;
@@ -90,6 +91,7 @@ export function ProjectViewShell({
     styleItems: ViewerStyle[];
     rawCaptures: CaptureRecordV2[];
     onBack: () => void;
+    onAnnotationsChanged: () => void; // 7.7.2: Callback after annotation save
 }) {
     // 7.4.5: Stable project identifier (for effect dependencies)
     const activeProjectKey = projectId;
@@ -1063,6 +1065,7 @@ export function ProjectViewShell({
 
             {/* Drawer with DetailsDrawer component */}
             <DetailsDrawer
+                projectId={projectId}
                 open={ui.drawer.open}
                 onClose={handleCloseDrawer}
                 selectedComponent={selectedComponent || null}
@@ -1071,6 +1074,7 @@ export function ProjectViewShell({
                 styleLocations={drawerStyleLocations}
                 relatedComponents={drawerRelatedComponents}
                 visualEssentials={drawerVisualEssentials}
+                onAnnotationsChanged={onAnnotationsChanged}
             />
         </div>
     );

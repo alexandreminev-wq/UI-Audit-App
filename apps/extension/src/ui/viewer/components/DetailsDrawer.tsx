@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import type {
@@ -86,6 +87,7 @@ export interface StyleDetails {
 }
 
 interface DetailsDrawerProps {
+    projectId: string; // 7.7.2: Required for saving annotations
     open: boolean;
     onClose: () => void;
     selectedComponent: ComponentDetails | null;
@@ -96,6 +98,8 @@ interface DetailsDrawerProps {
     relatedComponents: ViewerStyleRelatedComponent[];
     // 7.4.4: Visual essentials
     visualEssentials: ViewerVisualEssentials;
+    // 7.7.2: Callback after annotation save
+    onAnnotationsChanged: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -103,6 +107,7 @@ interface DetailsDrawerProps {
 // ─────────────────────────────────────────────────────────────
 
 export function DetailsDrawer({
+    projectId,
     open,
     onClose,
     selectedComponent,
@@ -111,6 +116,7 @@ export function DetailsDrawer({
     styleLocations,
     relatedComponents,
     visualEssentials,
+    onAnnotationsChanged,
 }: DetailsDrawerProps) {
     // Reusable drawer section title style
     const drawerSectionTitleStyle = {
@@ -120,6 +126,88 @@ export function DetailsDrawer({
         marginBottom: 8,
         color: "hsl(var(--foreground))",
     } as const;
+
+    // 7.7.2: Editable annotations state
+    const [draftNotes, setDraftNotes] = useState<string>("");
+    const [draftTags, setDraftTags] = useState<string[]>([]);
+    const [newTagInput, setNewTagInput] = useState<string>("");
+    const [isSaving, setIsSaving] = useState<boolean>(false);
+
+    // 7.7.2: Initialize draft state when selectedComponent changes
+    useEffect(() => {
+        if (selectedComponent) {
+            setDraftNotes(selectedComponent.notes || "");
+            setDraftTags(selectedComponent.tags || []);
+            setNewTagInput("");
+        } else {
+            setDraftNotes("");
+            setDraftTags([]);
+            setNewTagInput("");
+        }
+    }, [selectedComponent?.id]); // Only re-init when component ID changes
+
+    // 7.7.2: Dirty tracking
+    const isDirty = selectedComponent
+        ? (draftNotes.trim() !== (selectedComponent.notes || "").trim() ||
+           JSON.stringify(draftTags.sort()) !== JSON.stringify((selectedComponent.tags || []).sort()))
+        : false;
+
+    // 7.7.2: Save annotations
+    const handleSave = async () => {
+        if (!selectedComponent || !isDirty) return;
+
+        setIsSaving(true);
+        try {
+            const response = await chrome.runtime.sendMessage({
+                type: "ANNOTATIONS/UPSERT",
+                projectId,
+                componentKey: selectedComponent.id,
+                notes: draftNotes.trim() === "" ? null : draftNotes.trim(),
+                tags: draftTags,
+            });
+
+            if (response && response.ok) {
+                // Success - trigger parent refresh for immediate UI update
+                console.log("[DetailsDrawer] Saved annotations successfully");
+                onAnnotationsChanged();
+            } else {
+                console.error("[DetailsDrawer] Failed to save annotations:", response?.error);
+            }
+        } catch (err) {
+            console.error("[DetailsDrawer] Error saving annotations:", err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // 7.7.2: Cancel edits
+    const handleCancel = () => {
+        if (!selectedComponent) return;
+        setDraftNotes(selectedComponent.notes || "");
+        setDraftTags(selectedComponent.tags || []);
+        setNewTagInput("");
+    };
+
+    // 7.7.2: Clear annotations locally (user must Save to persist)
+    const handleClear = () => {
+        setDraftNotes("");
+        setDraftTags([]);
+        setNewTagInput("");
+    };
+
+    // 7.7.2: Add tag
+    const handleAddTag = () => {
+        const trimmed = newTagInput.trim();
+        if (trimmed !== "" && !draftTags.includes(trimmed)) {
+            setDraftTags([...draftTags, trimmed]);
+        }
+        setNewTagInput("");
+    };
+
+    // 7.7.2: Remove tag
+    const handleRemoveTag = (tagToRemove: string) => {
+        setDraftTags(draftTags.filter(tag => tag !== tagToRemove));
+    };
 
     // 7.4.5: DEV-only warnings for empty drawer data
     if (selectedComponent && (!componentCaptures || componentCaptures.length === 0)) {
@@ -416,58 +504,52 @@ export function DetailsDrawer({
                                 );
                             })()}
 
-                            {/* Notes section (7.6.3: read-only, aligns with Sidepanel) */}
+                            {/* Notes section (7.7.2: editable) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
                                     Notes
                                 </h3>
-                                {selectedComponent.notes ? (
-                                    <div style={{
+                                <textarea
+                                    value={draftNotes}
+                                    onChange={(e) => setDraftNotes(e.target.value)}
+                                    placeholder="Add notes for this component..."
+                                    style={{
+                                        width: "100%",
+                                        minHeight: 100,
                                         padding: 12,
-                                        background: "hsl(var(--muted))",
+                                        background: "hsl(var(--background))",
                                         borderRadius: "var(--radius)",
                                         border: "1px solid hsl(var(--border))",
                                         fontSize: 13,
                                         color: "hsl(var(--foreground))",
                                         lineHeight: 1.5,
-                                        whiteSpace: "pre-wrap",
-                                        overflowWrap: "anywhere",
-                                    }}>
-                                        {selectedComponent.notes}
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        padding: 12,
-                                        background: "hsl(var(--muted))",
-                                        borderRadius: "var(--radius)",
-                                        border: "1px solid hsl(var(--border))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                        lineHeight: 1.5,
-                                        textAlign: "center",
-                                    }}>
-                                        No notes yet.
-                                    </div>
-                                )}
+                                        fontFamily: "inherit",
+                                        resize: "vertical",
+                                    }}
+                                />
                             </div>
 
-                            {/* Tags section (7.6.4: read-only, aligns with Sidepanel) */}
+                            {/* Tags section (7.7.2: editable) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
                                     Tags
                                 </h3>
-                                {selectedComponent.tags && selectedComponent.tags.length > 0 ? (
+                                {/* Existing tags */}
+                                {draftTags.length > 0 ? (
                                     <div style={{
                                         display: "flex",
                                         flexWrap: "wrap",
                                         gap: 8,
+                                        marginBottom: 12,
                                     }}>
-                                        {selectedComponent.tags.map((tag, index) => (
+                                        {draftTags.map((tag, index) => (
                                             <span
                                                 key={index}
                                                 style={{
-                                                    display: "inline-block",
-                                                    padding: "4px 10px",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    padding: "4px 8px 4px 10px",
                                                     fontSize: 12,
                                                     background: "hsl(var(--muted))",
                                                     color: "hsl(var(--foreground))",
@@ -477,23 +559,135 @@ export function DetailsDrawer({
                                                 }}
                                             >
                                                 {tag}
+                                                <button
+                                                    onClick={() => handleRemoveTag(tag)}
+                                                    style={{
+                                                        background: "none",
+                                                        border: "none",
+                                                        padding: 0,
+                                                        cursor: "pointer",
+                                                        color: "hsl(var(--muted-foreground))",
+                                                        fontSize: 14,
+                                                        lineHeight: 1,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                    }}
+                                                    title="Remove tag"
+                                                >
+                                                    ×
+                                                </button>
                                             </span>
                                         ))}
                                     </div>
                                 ) : (
                                     <div style={{
-                                        padding: 12,
-                                        background: "hsl(var(--muted))",
-                                        borderRadius: "var(--radius)",
-                                        border: "1px solid hsl(var(--border))",
-                                        fontSize: 13,
+                                        padding: 8,
+                                        fontSize: 12,
                                         color: "hsl(var(--muted-foreground))",
-                                        lineHeight: 1.5,
-                                        textAlign: "center",
+                                        marginBottom: 12,
                                     }}>
                                         No tags yet.
                                     </div>
                                 )}
+                                {/* Add tag input */}
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <input
+                                        type="text"
+                                        value={newTagInput}
+                                        onChange={(e) => setNewTagInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                handleAddTag();
+                                            }
+                                        }}
+                                        placeholder="Add a tag..."
+                                        style={{
+                                            flex: 1,
+                                            padding: "6px 12px",
+                                            background: "hsl(var(--background))",
+                                            borderRadius: "var(--radius)",
+                                            border: "1px solid hsl(var(--border))",
+                                            fontSize: 13,
+                                            color: "hsl(var(--foreground))",
+                                        }}
+                                    />
+                                    <button
+                                        onClick={handleAddTag}
+                                        disabled={newTagInput.trim() === ""}
+                                        style={{
+                                            padding: "6px 16px",
+                                            background: newTagInput.trim() === "" ? "hsl(var(--muted))" : "hsl(var(--primary))",
+                                            color: newTagInput.trim() === "" ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
+                                            border: "none",
+                                            borderRadius: "var(--radius)",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            cursor: newTagInput.trim() === "" ? "not-allowed" : "pointer",
+                                        }}
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Action buttons (7.7.2: Save/Cancel/Clear) */}
+                            <div style={{
+                                marginBottom: 24,
+                                display: "flex",
+                                gap: 8,
+                                borderTop: "1px solid hsl(var(--border))",
+                                paddingTop: 16,
+                            }}>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={!isDirty || isSaving}
+                                    style={{
+                                        flex: 1,
+                                        padding: "8px 16px",
+                                        background: (!isDirty || isSaving) ? "hsl(var(--muted))" : "hsl(var(--primary))",
+                                        color: (!isDirty || isSaving) ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
+                                        border: "none",
+                                        borderRadius: "var(--radius)",
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        cursor: (!isDirty || isSaving) ? "not-allowed" : "pointer",
+                                    }}
+                                >
+                                    {isSaving ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                    onClick={handleCancel}
+                                    disabled={!isDirty}
+                                    style={{
+                                        padding: "8px 16px",
+                                        background: "hsl(var(--background))",
+                                        color: !isDirty ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        cursor: !isDirty ? "not-allowed" : "pointer",
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleClear}
+                                    style={{
+                                        padding: "8px 16px",
+                                        background: "hsl(var(--background))",
+                                        color: "hsl(var(--destructive))",
+                                        border: "1px solid hsl(var(--destructive))",
+                                        borderRadius: "var(--radius)",
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Clear
+                                </button>
                             </div>
 
                             {/* Source section (7.5.2b: captured from URLs) */}

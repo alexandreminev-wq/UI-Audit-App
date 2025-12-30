@@ -189,24 +189,30 @@ export function ViewerApp() {
 
                     if (!isMounted) return;
 
+                    let annotatedComponents = derivedComponents;
+
                     if (annotationsResponse && annotationsResponse.ok) {
                         const loadedAnnotations = Array.isArray(annotationsResponse.annotations)
                             ? annotationsResponse.annotations
                             : [];
                         setAnnotations(loadedAnnotations);
 
-                        // 7.7.1: Merge annotations into derived components
+                        // 7.7.2: Merge annotations NON-MUTATING (map instead of for-loop)
                         const annotationsMap = new Map(
                             loadedAnnotations.map((a: AnnotationRecord) => [a.componentKey, a])
                         );
 
-                        for (const component of derivedComponents) {
+                        annotatedComponents = derivedComponents.map(component => {
                             const annotation = annotationsMap.get(component.id);
                             if (annotation) {
-                                component.notes = annotation.notes || null;
-                                component.tags = annotation.tags || [];
+                                return {
+                                    ...component,
+                                    notes: annotation.notes || null,
+                                    tags: annotation.tags || [],
+                                };
                             }
-                        }
+                            return component;
+                        });
 
                         devLog("[UI Inventory Viewer] Loaded annotations", {
                             projectId: selectedProjectId,
@@ -220,7 +226,7 @@ export function ViewerApp() {
                         setAnnotations([]);
                     }
 
-                    setComponents(derivedComponents);
+                    setComponents(annotatedComponents);
 
                     // 7.4.2: Derive styles from scoped captures
                     const derivedStyles = deriveStyleInventory(scopedCaptures);
@@ -266,6 +272,54 @@ export function ViewerApp() {
             window.removeEventListener("popstate", handlePopState);
         };
     }, []);
+
+    // 7.7.2: Refresh annotations after save (immediate UI update)
+    const refreshAnnotationsForProject = async (projectId: string) => {
+        try {
+            const annotationsResponse = await chrome.runtime.sendMessage({
+                type: "ANNOTATIONS/GET_PROJECT",
+                projectId,
+            });
+
+            if (annotationsResponse && annotationsResponse.ok) {
+                const loadedAnnotations = Array.isArray(annotationsResponse.annotations)
+                    ? annotationsResponse.annotations
+                    : [];
+                setAnnotations(loadedAnnotations);
+
+                // Re-merge annotations into components (non-mutating)
+                const annotationsMap = new Map(
+                    loadedAnnotations.map((a: AnnotationRecord) => [a.componentKey, a])
+                );
+
+                setComponents(prevComponents =>
+                    prevComponents.map(component => {
+                        const annotation = annotationsMap.get(component.id);
+                        if (annotation) {
+                            return {
+                                ...component,
+                                notes: annotation.notes || null,
+                                tags: annotation.tags || [],
+                            };
+                        }
+                        // Clear annotations if they were deleted
+                        return {
+                            ...component,
+                            notes: null,
+                            tags: [],
+                        };
+                    })
+                );
+
+                devLog("[UI Inventory Viewer] Refreshed annotations", {
+                    projectId,
+                    annotationsCount: loadedAnnotations.length,
+                });
+            }
+        } catch (err) {
+            devWarn("[UI Inventory Viewer] Failed to refresh annotations:", err);
+        }
+    };
 
     // Milestone 7.4.0: Loading state
     if (projectsLoading) {
@@ -333,6 +387,7 @@ export function ViewerApp() {
                     setSelectedProjectId(null);
                     setSelectedProjectIdInUrl(null);
                 }}
+                onAnnotationsChanged={() => refreshAnnotationsForProject(selectedProjectId)}
             />
         );
     }

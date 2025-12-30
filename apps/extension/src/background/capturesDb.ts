@@ -738,7 +738,7 @@ export async function listAnnotationsForProject(projectId: string): Promise<Anno
 
         return new Promise((resolve, reject) => {
             const request = index.getAll(projectId);
-            
+
             request.onsuccess = () => resolve(request.result || []);
             request.onerror = () => reject(request.error);
         });
@@ -746,4 +746,63 @@ export async function listAnnotationsForProject(projectId: string): Promise<Anno
         console.error("[capturesDb] Failed to list annotations for project:", err);
         return [];
     }
+}
+
+/**
+ * Upsert annotation (insert or update)
+ * 7.7.2: Write support for annotations
+ */
+export async function upsertAnnotation(input: {
+    projectId: string;
+    componentKey: string;
+    notes: string | null;
+    tags: string[];
+}): Promise<void> {
+    if (!input.projectId || !input.componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_ANNOTATIONS, "readwrite");
+    const store = tx.objectStore(STORE_ANNOTATIONS);
+
+    const record: AnnotationRecord = {
+        id: `${input.projectId}:${input.componentKey}`,
+        projectId: input.projectId,
+        componentKey: input.componentKey,
+        notes: input.notes || "",
+        tags: input.tags || [],
+        updatedAt: Date.now(),
+    };
+
+    return new Promise((resolve, reject) => {
+        const request = store.put(record);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Delete annotation
+ * 7.7.2: Write support for annotations
+ */
+export async function deleteAnnotation(
+    projectId: string,
+    componentKey: string
+): Promise<void> {
+    if (!projectId || !componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_ANNOTATIONS, "readwrite");
+    const store = tx.objectStore(STORE_ANNOTATIONS);
+
+    const id = `${projectId}:${componentKey}`;
+
+    return new Promise((resolve, reject) => {
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
 }

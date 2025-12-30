@@ -20,6 +20,8 @@ import {
     getProjectCaptureCount,
     getAnnotation,
     listAnnotationsForProject,
+    upsertAnnotation,
+    deleteAnnotation,
 } from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
@@ -1169,6 +1171,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 sendResponse({ ok: true, annotation });
             } catch (err) {
                 console.error("[UI Inventory] Failed to get annotation:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "ANNOTATIONS/UPSERT") {
+        (async () => {
+            const { projectId, componentKey, notes, tags } = msg;
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            if (!Array.isArray(tags)) {
+                sendResponse({ ok: false, error: "Invalid tags (must be array)" });
+                return;
+            }
+
+            try {
+                await upsertAnnotation({ projectId, componentKey, notes, tags });
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to upsert annotation:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "ANNOTATIONS/DELETE") {
+        (async () => {
+            const { projectId, componentKey } = msg;
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            try {
+                await deleteAnnotation(projectId, componentKey);
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete annotation:", err);
                 sendResponse({ ok: false, error: String(err) });
             }
         })();
