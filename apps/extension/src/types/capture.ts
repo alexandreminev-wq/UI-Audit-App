@@ -174,6 +174,7 @@ export interface CaptureScope {
 export interface CaptureRecordV2 {
   id: string;
   sessionId: string;
+  projectId?: string; // Optional for backward compatibility (added post-v2.2)
 
   captureSchemaVersion: 2;
   stylePrimitiveVersion?: 1;

@@ -1,5 +1,18 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import type {
+    ViewerComponentCapture,
+    ViewerStyleLocation,
+    ViewerStyleRelatedComponent,
+    ViewerVisualEssentials,
+} from "../types/projectViewerTypes";
+
+// ─────────────────────────────────────────────────────────────
+// DEV-only logging helpers (7.4.5)
+// ─────────────────────────────────────────────────────────────
+
+const isDev = import.meta?.env?.DEV ?? false;
+const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args); };
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -29,6 +42,12 @@ interface DetailsDrawerProps {
     onClose: () => void;
     selectedComponent: ComponentDetails | null;
     selectedStyle: StyleDetails | null;
+    // 7.4.3: Real drawer content
+    componentCaptures: ViewerComponentCapture[];
+    styleLocations: ViewerStyleLocation[];
+    relatedComponents: ViewerStyleRelatedComponent[];
+    // 7.4.4: Visual essentials
+    visualEssentials: ViewerVisualEssentials;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +59,10 @@ export function DetailsDrawer({
     onClose,
     selectedComponent,
     selectedStyle,
+    componentCaptures,
+    styleLocations,
+    relatedComponents,
+    visualEssentials,
 }: DetailsDrawerProps) {
     // Reusable drawer section title style
     const drawerSectionTitleStyle = {
@@ -49,6 +72,19 @@ export function DetailsDrawer({
         marginBottom: 8,
         color: "hsl(var(--foreground))",
     } as const;
+
+    // 7.4.5: DEV-only warnings for empty drawer data
+    if (selectedComponent && (!componentCaptures || componentCaptures.length === 0)) {
+        devWarn("[UI Inventory Viewer] Drawer: selected component has zero captures", {
+            componentId: selectedComponent.id,
+        });
+    }
+
+    if (selectedStyle && (!styleLocations || styleLocations.length === 0) && (!relatedComponents || relatedComponents.length === 0)) {
+        devWarn("[UI Inventory Viewer] Drawer: selected style has no locations/related components", {
+            styleId: selectedStyle.id,
+        });
+    }
 
     return (
         <Dialog.Root
@@ -193,57 +229,131 @@ export function DetailsDrawer({
                                 </p>
                             </div>
 
-                            {/* Captures section */}
+                            {/* Captures section (7.4.3: real data) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
                                     Captures ({selectedComponent.capturesCount})
                                 </h3>
-                                <div style={{
-                                    padding: 12,
-                                    border: "1px solid hsl(var(--border))",
-                                    borderRadius: "var(--radius)",
-                                    background: "hsl(var(--muted))",
-                                    fontSize: 13,
-                                    color: "hsl(var(--muted-foreground))",
-                                    lineHeight: 1.5,
-                                }}>
-                                    Placeholder: List of {selectedComponent.capturesCount} captures will appear here with screenshots, page URLs, and visual context.
-                                </div>
+                                {componentCaptures.length === 0 ? (
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                    }}>
+                                        No captures found.
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                    }}>
+                                        {componentCaptures.map((capture) => (
+                                            <div
+                                                key={capture.id}
+                                                style={{
+                                                    padding: "8px 12px",
+                                                    background: "hsl(var(--muted))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    fontSize: 13,
+                                                }}
+                                            >
+                                                <div style={{
+                                                    color: "hsl(var(--foreground))",
+                                                    fontWeight: 500,
+                                                    marginBottom: 4,
+                                                }}>
+                                                    {capture.sourceLabel}
+                                                </div>
+                                                <div style={{
+                                                    color: "hsl(var(--muted-foreground))",
+                                                    fontSize: 12,
+                                                    fontFamily: "monospace",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                }}>
+                                                    {capture.url}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Properties section */}
+                            {/* Visual Essentials section (7.4.4: real data) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
-                                    Properties
+                                    Visual Essentials
                                 </h3>
-                                <div style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: 8,
-                                }}>
-                                    {/* Placeholder property rows */}
-                                    {[
-                                        { label: "Background", value: "rgba(255, 255, 255, 1)" },
-                                        { label: "Text color", value: "rgba(0, 0, 0, 0.87)" },
-                                        { label: "Border radius", value: "4px" },
-                                        { label: "Padding", value: "12px 16px" },
-                                    ].map(({ label, value }) => (
-                                        <div
-                                            key={label}
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                padding: 8,
-                                                background: "hsl(var(--muted))",
-                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                fontSize: 13,
-                                            }}
-                                        >
-                                            <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{label}</span>
-                                            <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{value}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                {visualEssentials.rows.length === 0 ? (
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                    }}>
+                                        No visual details available.
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 12,
+                                    }}>
+                                        {/* Group rows by section */}
+                                        {["Text", "Surface", "Spacing", "State"].map((section) => {
+                                            const sectionRows = visualEssentials.rows.filter((r) => r.section === section);
+                                            if (sectionRows.length === 0) return null;
+
+                                            return (
+                                                <div key={section}>
+                                                    {/* Section divider */}
+                                                    <div style={{
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        textTransform: "uppercase",
+                                                        color: "hsl(var(--muted-foreground))",
+                                                        marginBottom: 6,
+                                                        letterSpacing: "0.05em",
+                                                    }}>
+                                                        {section}
+                                                    </div>
+                                                    {/* Rows for this section */}
+                                                    <div style={{
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: 6,
+                                                    }}>
+                                                        {sectionRows.map((row, idx) => (
+                                                            <div
+                                                                key={`${section}-${idx}`}
+                                                                style={{
+                                                                    display: "flex",
+                                                                    justifyContent: "space-between",
+                                                                    padding: 8,
+                                                                    background: "hsl(var(--muted))",
+                                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                                    fontSize: 13,
+                                                                }}
+                                                            >
+                                                                <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{row.label}</span>
+                                                                <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{row.value}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Actions row */}
@@ -339,69 +449,119 @@ export function DetailsDrawer({
                                 </p>
                             </div>
 
-                            {/* Where it appears section */}
+                            {/* Where it appears section (7.4.3: real data) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
                                     Where it appears
                                 </h3>
-                                <div style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: 8,
-                                }}>
-                                    {/* Placeholder list items */}
-                                    {[
-                                        "Homepage / Hero section",
-                                        "Product page / Card component",
-                                        "Dashboard / Stats widget",
-                                    ].map((location) => (
-                                        <div
-                                            key={location}
-                                            style={{
-                                                padding: "8px 12px",
-                                                background: "hsl(var(--muted))",
-                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                fontSize: 13,
-                                                color: "hsl(var(--foreground))",
-                                            }}
-                                        >
-                                            {location}
-                                        </div>
-                                    ))}
-                                </div>
+                                {styleLocations.length === 0 ? (
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                    }}>
+                                        No locations found.
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                    }}>
+                                        {styleLocations.map((location) => (
+                                            <div
+                                                key={location.id}
+                                                style={{
+                                                    padding: "8px 12px",
+                                                    background: "hsl(var(--muted))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    fontSize: 13,
+                                                }}
+                                            >
+                                                <div style={{
+                                                    display: "flex",
+                                                    justifyContent: "space-between",
+                                                    alignItems: "center",
+                                                    marginBottom: 4,
+                                                }}>
+                                                    <span style={{
+                                                        color: "hsl(var(--foreground))",
+                                                        fontWeight: 500,
+                                                    }}>
+                                                        {location.sourceLabel}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: 11,
+                                                        padding: "2px 6px",
+                                                        background: "hsl(var(--background))",
+                                                        color: "hsl(var(--muted-foreground))",
+                                                        borderRadius: "calc(var(--radius) - 2px)",
+                                                        border: "1px solid hsl(var(--border))",
+                                                    }}>
+                                                        {location.uses} uses
+                                                    </span>
+                                                </div>
+                                                <div style={{
+                                                    color: "hsl(var(--muted-foreground))",
+                                                    fontSize: 12,
+                                                    fontFamily: "monospace",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                }}>
+                                                    {location.url}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Related components section */}
+                            {/* Related components section (7.4.3: real data) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
                                     Related components
                                 </h3>
-                                <div style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: 6,
-                                }}>
-                                    {/* Placeholder component chips */}
-                                    {[
-                                        "Primary Button",
-                                        "Card Header",
-                                        "Navigation Link",
-                                    ].map((componentName) => (
-                                        <span
-                                            key={componentName}
-                                            style={{
-                                                fontSize: 12,
-                                                padding: "4px 10px",
-                                                background: "hsl(var(--muted))",
-                                                color: "hsl(var(--foreground))",
-                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                border: "1px solid hsl(var(--border))",
-                                            }}
-                                        >
-                                            {componentName}
-                                        </span>
-                                    ))}
-                                </div>
+                                {relatedComponents.length === 0 ? (
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                    }}>
+                                        No related components found.
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 6,
+                                    }}>
+                                        {relatedComponents.map((component) => (
+                                            <span
+                                                key={component.componentId}
+                                                style={{
+                                                    fontSize: 12,
+                                                    padding: "4px 10px",
+                                                    background: "hsl(var(--muted))",
+                                                    color: "hsl(var(--foreground))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    border: "1px solid hsl(var(--border))",
+                                                }}
+                                                title={`${component.category} • ${component.type}`}
+                                            >
+                                                {component.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Actions row */}
@@ -454,7 +614,7 @@ export function DetailsDrawer({
                             textAlign: "center",
                             marginTop: 48,
                         }}>
-                            Nothing selected
+                            No item selected.
                         </div>
                     )}
                 </Dialog.Content>

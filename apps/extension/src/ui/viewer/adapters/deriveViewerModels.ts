@@ -6,6 +6,12 @@
  *
  * This is the **single source of truth** for storage → viewer transformations.
  * No wiring to runtime yet (stubs only).
+ *
+ * IMPORTANT (7.4.4):
+ * All derive* functions expect captures already scoped to the active project.
+ * Project scoping is enforced at the ViewerApp boundary (choke point).
+ * Adapters must NOT perform projectId-based filtering internally.
+ * See VIEWER_DATA_CONTRACT.md §9.3 (Project Scoping Rules).
  */
 
 import type { CaptureRecordV2 } from "../../../types/capture";
@@ -15,6 +21,11 @@ import type {
     ViewerProjectDetail,
     ViewerComponent,
     ViewerStyle,
+    ViewerComponentCapture,
+    ViewerStyleLocation,
+    ViewerStyleRelatedComponent,
+    ViewerVisualEssentials,
+    ViewerVisualEssentialsRow,
 } from "../types/projectViewerTypes";
 
 // ─────────────────────────────────────────────────────────────
@@ -759,4 +770,419 @@ function inferRoleFromTag(tagName: string): string {
     if (tag === "section") return "region";
     if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") return "heading";
     return "generic"; // fallback
+}
+
+// ─────────────────────────────────────────────────────────────
+// Drawer Content Derivation (7.4.3)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Derive component captures list for drawer (7.4.3)
+ *
+ * Returns all captures that belong to the selected component,
+ * using the same signature-based grouping from deriveComponentInventory.
+ *
+ * @param componentId - Selected component ID
+ * @param captures - All captures for the project
+ * @returns Array of ViewerComponentCapture for the drawer list
+ */
+export function deriveComponentCaptures(
+    componentId: string,
+    captures: CaptureRecordV2[]
+): ViewerComponentCapture[] {
+    if (captures.length === 0) {
+        return [];
+    }
+
+    // Find all captures matching this component's signature
+    const matchingCaptures: CaptureRecordV2[] = [];
+
+    for (const capture of captures) {
+        const signature = buildComponentSignature(capture);
+        const captureComponentId = hashSignature(signature);
+
+        if (captureComponentId === componentId) {
+            matchingCaptures.push(capture);
+        }
+    }
+
+    // Map to ViewerComponentCapture[]
+    const result: ViewerComponentCapture[] = matchingCaptures.map((capture) => ({
+        id: capture.id,
+        url: capture.url || "—",
+        sourceLabel: inferSource(capture.url, capture.scope),
+        timestampLabel: "—", // Placeholder (no timestamp in v2.2 schema)
+    }));
+
+    // Sort by sourceLabel asc, then url asc (deterministic)
+    result.sort((a, b) => {
+        if (a.sourceLabel !== b.sourceLabel) {
+            return a.sourceLabel.localeCompare(b.sourceLabel);
+        }
+        return a.url.localeCompare(b.url);
+    });
+
+    return result;
+}
+
+/**
+ * Derive style locations list for drawer (7.4.3)
+ *
+ * Returns all sources where the selected style appears,
+ * grouped by page/source with usage counts.
+ *
+ * @param styleId - Selected style ID
+ * @param captures - All captures for the project
+ * @param styles - Already-derived style inventory
+ * @returns Array of ViewerStyleLocation for "Where it appears" section
+ */
+export function deriveStyleLocations(
+    styleId: string,
+    captures: CaptureRecordV2[],
+    styles: ViewerStyle[]
+): ViewerStyleLocation[] {
+    // Find the selected style
+    const selectedStyle = styles.find((s) => s.id === styleId);
+    if (!selectedStyle) {
+        return [];
+    }
+
+    // Find all captures that contain this style (kind + value match)
+    interface LocationRecord {
+        sourceLabel: string;
+        url: string;
+        count: number;
+    }
+
+    const locationMap = new Map<string, LocationRecord>();
+
+    for (const capture of captures) {
+        const primitives = capture.styles.primitives;
+
+        // Check if this capture contains the selected style
+        let hasStyle = false;
+
+        // Check all style properties based on kind
+        if (selectedStyle.kind === "color") {
+            if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
+            if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
+            if (primitives.borderColor?.raw === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "spacing") {
+            if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingRight === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingBottom === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingLeft === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "typography" && primitives.typography) {
+            if (primitives.typography.fontSize === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.fontWeight === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.fontFamily === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.lineHeight === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "shadow") {
+            if (primitives.shadow.boxShadowRaw === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "border" && primitives.radius) {
+            if (primitives.radius.topLeft === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.topRight === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.bottomRight === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.bottomLeft === selectedStyle.value) hasStyle = true;
+        }
+
+        if (!hasStyle) continue;
+
+        // Group by sourceLabel
+        const sourceLabel = inferSource(capture.url, capture.scope);
+        const locationKey = `${sourceLabel}|${capture.url}`;
+
+        if (!locationMap.has(locationKey)) {
+            locationMap.set(locationKey, {
+                sourceLabel,
+                url: capture.url || "—",
+                count: 0,
+            });
+        }
+
+        locationMap.get(locationKey)!.count++;
+    }
+
+    // Convert to ViewerStyleLocation[]
+    const locations: ViewerStyleLocation[] = Array.from(locationMap.entries()).map(
+        ([key, record]) => ({
+            id: `loc_${generateStyleId(key)}`,
+            sourceLabel: record.sourceLabel,
+            url: record.url,
+            uses: record.count,
+        })
+    );
+
+    // Sort by uses desc, then sourceLabel asc
+    locations.sort((a, b) => {
+        if (b.uses !== a.uses) {
+            return b.uses - a.uses;
+        }
+        return a.sourceLabel.localeCompare(b.sourceLabel);
+    });
+
+    return locations;
+}
+
+/**
+ * Derive related components for style drawer (7.4.3)
+ *
+ * Returns components that use the selected style.
+ * Limit to 12 items (drawer constraint).
+ *
+ * @param styleId - Selected style ID
+ * @param captures - All captures for the project
+ * @param components - Already-derived component inventory
+ * @param styles - Already-derived style inventory
+ * @returns Array of ViewerStyleRelatedComponent for drawer list
+ */
+export function deriveRelatedComponentsForStyle(
+    styleId: string,
+    captures: CaptureRecordV2[],
+    components: ViewerComponent[],
+    styles: ViewerStyle[]
+): ViewerStyleRelatedComponent[] {
+    // Find the selected style
+    const selectedStyle = styles.find((s) => s.id === styleId);
+    if (!selectedStyle) {
+        return [];
+    }
+
+    // Find all component IDs that have at least one capture using this style
+    const componentIdsWithStyle = new Set<string>();
+
+    for (const capture of captures) {
+        const primitives = capture.styles.primitives;
+
+        // Check if this capture contains the selected style (same logic as deriveStyleLocations)
+        let hasStyle = false;
+
+        if (selectedStyle.kind === "color") {
+            if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
+            if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
+            if (primitives.borderColor?.raw === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "spacing") {
+            if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingRight === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingBottom === selectedStyle.value) hasStyle = true;
+            if (primitives.spacing.paddingLeft === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "typography" && primitives.typography) {
+            if (primitives.typography.fontSize === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.fontWeight === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.fontFamily === selectedStyle.value) hasStyle = true;
+            if (primitives.typography.lineHeight === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "shadow") {
+            if (primitives.shadow.boxShadowRaw === selectedStyle.value) hasStyle = true;
+        } else if (selectedStyle.kind === "border" && primitives.radius) {
+            if (primitives.radius.topLeft === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.topRight === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.bottomRight === selectedStyle.value) hasStyle = true;
+            if (primitives.radius.bottomLeft === selectedStyle.value) hasStyle = true;
+        }
+
+        if (!hasStyle) continue;
+
+        // Add this capture's component ID
+        const signature = buildComponentSignature(capture);
+        const componentId = hashSignature(signature);
+        componentIdsWithStyle.add(componentId);
+    }
+
+    // Filter components to those that use this style
+    const relatedComponents = components.filter((c) =>
+        componentIdsWithStyle.has(c.id)
+    );
+
+    // Map to ViewerStyleRelatedComponent[]
+    const result: ViewerStyleRelatedComponent[] = relatedComponents.map((c) => ({
+        componentId: c.id,
+        name: c.name,
+        category: c.category,
+        type: c.type,
+    }));
+
+    // Sort by component capturesCount desc (proxy for usage), then name asc
+    result.sort((a, b) => {
+        const compA = components.find((c) => c.id === a.componentId);
+        const compB = components.find((c) => c.id === b.componentId);
+        const usageA = compA?.capturesCount || 0;
+        const usageB = compB?.capturesCount || 0;
+
+        if (usageB !== usageA) {
+            return usageB - usageA;
+        }
+        return a.name.localeCompare(b.name);
+    });
+
+    // Limit to 12 items
+    return result.slice(0, 12);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Visual Essentials Derivation (7.4.4)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Derive Visual Essentials from a capture (7.4.4)
+ *
+ * Extracts visual properties from capture.styles.primitives
+ * in a deterministic, read-only manner.
+ *
+ * @param capture - Representative capture for the component
+ * @returns ViewerVisualEssentials with organized property rows
+ */
+export function deriveVisualEssentialsFromCapture(
+    capture: CaptureRecordV2 | undefined
+): ViewerVisualEssentials {
+    if (!capture) {
+        return {
+            rows: [],
+            derivedFromCaptureId: null,
+        };
+    }
+
+    const primitives = capture.styles.primitives;
+    const rows: ViewerVisualEssentialsRow[] = [];
+
+    // Text section
+    if (primitives.color) {
+        rows.push({
+            section: "Text",
+            label: "Text color",
+            value: primitives.color.raw || "—",
+        });
+    }
+
+    if (primitives.typography) {
+        rows.push({
+            section: "Text",
+            label: "Font family",
+            value: primitives.typography.fontFamily || "—",
+        });
+        rows.push({
+            section: "Text",
+            label: "Font size",
+            value: primitives.typography.fontSize || "—",
+        });
+        rows.push({
+            section: "Text",
+            label: "Font weight",
+            value: primitives.typography.fontWeight || "—",
+        });
+        rows.push({
+            section: "Text",
+            label: "Line height",
+            value: primitives.typography.lineHeight || "—",
+        });
+    }
+
+    // Surface section
+    if (primitives.backgroundColor) {
+        rows.push({
+            section: "Surface",
+            label: "Background",
+            value: primitives.backgroundColor.raw || "—",
+        });
+    }
+
+    if (primitives.borderColor) {
+        rows.push({
+            section: "Surface",
+            label: "Border color",
+            value: primitives.borderColor.raw || "—",
+        });
+    }
+
+    if (primitives.radius) {
+        const radiusValues = [
+            primitives.radius.topLeft,
+            primitives.radius.topRight,
+            primitives.radius.bottomRight,
+            primitives.radius.bottomLeft,
+        ];
+        // Show as single value if all corners are the same, otherwise show all four
+        const allSame = radiusValues.every((v) => v === radiusValues[0]);
+        const radiusDisplay = allSame
+            ? radiusValues[0]
+            : `${radiusValues[0]} ${radiusValues[1]} ${radiusValues[2]} ${radiusValues[3]}`;
+        rows.push({
+            section: "Surface",
+            label: "Radius",
+            value: radiusDisplay || "—",
+        });
+    }
+
+    if (primitives.shadow) {
+        const shadowPresent = primitives.shadow.shadowPresence === "some" ? "Yes" : "—";
+        rows.push({
+            section: "Surface",
+            label: "Shadow",
+            value: shadowPresent,
+        });
+    }
+
+    // Spacing section
+    const paddingValues = [
+        primitives.spacing.paddingTop,
+        primitives.spacing.paddingRight,
+        primitives.spacing.paddingBottom,
+        primitives.spacing.paddingLeft,
+    ];
+    const paddingDisplay = paddingValues.every((v) => v === paddingValues[0])
+        ? paddingValues[0]
+        : `${paddingValues[0]} ${paddingValues[1]} ${paddingValues[2]} ${paddingValues[3]}`;
+    rows.push({
+        section: "Spacing",
+        label: "Padding",
+        value: paddingDisplay || "—",
+    });
+
+    // State section
+    const element = capture.element;
+    if (element.intent) {
+        const disabled = element.intent.disabled ?? element.intent.ariaDisabled ?? null;
+        const disabledValue =
+            disabled === true ? "true" : disabled === false ? "false" : "—";
+        rows.push({
+            section: "State",
+            label: "Disabled",
+            value: disabledValue,
+        });
+    }
+
+    return {
+        rows,
+        derivedFromCaptureId: capture.id,
+    };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Project Scoping Helpers (7.4.4)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Scope captures to a specific project (7.4.4)
+ *
+ * Filters captures to only those belonging to the specified project.
+ * Uses projectId field when available (preferred), otherwise allows through (legacy).
+ *
+ * This is a pure helper with no side effects. All logging is handled by the caller (ViewerApp).
+ *
+ * @param captures - Raw captures (potentially multi-project or unscoped)
+ * @param projectId - Active project ID
+ * @returns Captures scoped to the project
+ */
+export function scopeCapturesToProject(
+    captures: CaptureRecordV2[],
+    projectId: string
+): CaptureRecordV2[] {
+    return captures.filter((c) => {
+        // If capture has projectId, it must match
+        if (c.projectId !== undefined) {
+            return c.projectId === projectId;
+        }
+        // If capture has no projectId (legacy), allow it through
+        // (service worker already scoped via session linkage)
+        return true;
+    });
 }

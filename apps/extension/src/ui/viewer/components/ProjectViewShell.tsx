@@ -8,6 +8,16 @@ import { ComponentsTable } from "./ComponentsTable";
 import { StylesGrid } from "./StylesGrid";
 import { StylesTable } from "./StylesTable";
 import type { ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
+import type { CaptureRecordV2 } from "../../../types/capture";
+import { deriveComponentCaptures, deriveStyleLocations, deriveRelatedComponentsForStyle, deriveVisualEssentialsFromCapture } from "../adapters/deriveViewerModels";
+
+// ─────────────────────────────────────────────────────────────
+// DEV-only logging helpers (7.4.5)
+// ─────────────────────────────────────────────────────────────
+
+const isDev = import.meta?.env?.DEV ?? false;
+const devLog = (...args: unknown[]) => { if (isDev) console.log(...args); };
+const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args); };
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -63,20 +73,27 @@ type ViewerUiState = {
 // ─────────────────────────────────────────────────────────────
 
 export function ProjectViewShell({
+    projectId,
     projectName,
     components,
     componentsLoading,
     componentsError,
     styleItems,
+    rawCaptures,
     onBack,
 }: {
+    projectId: string;
     projectName: string;
     components: ViewerComponent[];
     componentsLoading: boolean;
     componentsError: string | null;
     styleItems: ViewerStyle[];
+    rawCaptures: CaptureRecordV2[];
     onBack: () => void;
 }) {
+    // 7.4.5: Stable project identifier (for effect dependencies)
+    const activeProjectKey = projectId;
+
     // Filter state (NOT moved to ui state - still separate Sets)
     const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
     const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
@@ -238,6 +255,41 @@ export function ProjectViewShell({
     const selectedComponent = ui.drawer.selectedComponentId ? components.find(c => c.id === ui.drawer.selectedComponentId) : null;
     const selectedStyle = ui.drawer.selectedStyleId ? styleItems.find(s => s.id === ui.drawer.selectedStyleId) : null;
 
+    // 7.4.3: Derive drawer data based on selection
+    const drawerComponentCaptures = useMemo(() => {
+        if (!ui.drawer.selectedComponentId || rawCaptures.length === 0) {
+            return [];
+        }
+        return deriveComponentCaptures(ui.drawer.selectedComponentId, rawCaptures);
+    }, [ui.drawer.selectedComponentId, rawCaptures]);
+
+    const drawerStyleLocations = useMemo(() => {
+        if (!ui.drawer.selectedStyleId || rawCaptures.length === 0) {
+            return [];
+        }
+        return deriveStyleLocations(ui.drawer.selectedStyleId, rawCaptures, styleItems);
+    }, [ui.drawer.selectedStyleId, rawCaptures, styleItems]);
+
+    const drawerRelatedComponents = useMemo(() => {
+        if (!ui.drawer.selectedStyleId || rawCaptures.length === 0) {
+            return [];
+        }
+        return deriveRelatedComponentsForStyle(ui.drawer.selectedStyleId, rawCaptures, components, styleItems);
+    }, [ui.drawer.selectedStyleId, rawCaptures, components, styleItems]);
+
+    // 7.4.4: Derive visual essentials from representative capture
+    const drawerVisualEssentials = useMemo(() => {
+        if (!ui.drawer.selectedComponentId || drawerComponentCaptures.length === 0) {
+            return deriveVisualEssentialsFromCapture(undefined);
+        }
+        // Find representative capture: prefer most recent by createdAt
+        const representativeCapture = rawCaptures
+            .filter((c) => drawerComponentCaptures.some((dc) => dc.id === c.id))
+            .sort((a, b) => b.createdAt - a.createdAt)[0];
+
+        return deriveVisualEssentialsFromCapture(representativeCapture);
+    }, [ui.drawer.selectedComponentId, drawerComponentCaptures, rawCaptures]);
+
     // Click handlers for opening drawer
     const handleComponentClick = (id: string) => {
         setUi(prev => ({
@@ -271,6 +323,76 @@ export function ProjectViewShell({
             }
         }));
     };
+
+    // 7.4.5: Clear drawer selection when project changes
+    useEffect(() => {
+        setUi(prev => {
+            // Only clear if drawer is open or has selected ids
+            const needsClearing = prev.drawer.open || prev.drawer.selectedComponentId !== null || prev.drawer.selectedStyleId !== null;
+
+            if (needsClearing) {
+                devLog("[UI Inventory Viewer] Cleared drawer selection on project change", {
+                    projectId,
+                    projectName,
+                    hadOpenDrawer: prev.drawer.open,
+                    clearedComponentId: prev.drawer.selectedComponentId || undefined,
+                    clearedStyleId: prev.drawer.selectedStyleId || undefined,
+                });
+
+                return {
+                    ...prev,
+                    drawer: {
+                        open: false,
+                        selectedComponentId: null,
+                        selectedStyleId: null,
+                    }
+                };
+            }
+
+            return prev;
+        });
+    }, [activeProjectKey]);
+
+    // 7.4.5: Stale selection guards (DEV-only warnings in effect)
+    useEffect(() => {
+        // Warn if selected component ID exists but lookup failed
+        if (ui.drawer.selectedComponentId && !selectedComponent) {
+            devWarn("[UI Inventory Viewer] Stale component selection (not found in inventory)", {
+                projectId,
+                projectName,
+                selectedComponentId: ui.drawer.selectedComponentId,
+                componentsCount: components.length,
+            });
+        }
+
+        // Warn if selected style ID exists but lookup failed
+        if (ui.drawer.selectedStyleId && !selectedStyle) {
+            devWarn("[UI Inventory Viewer] Stale style selection (not found in inventory)", {
+                projectId,
+                projectName,
+                selectedStyleId: ui.drawer.selectedStyleId,
+                stylesCount: styleItems.length,
+            });
+        }
+
+        // Warn if drawer is open with no selection
+        if (ui.drawer.open && !ui.drawer.selectedComponentId && !ui.drawer.selectedStyleId) {
+            devWarn("[UI Inventory Viewer] Drawer open with no selection", {
+                projectId,
+                projectName,
+            });
+        }
+    }, [
+        ui.drawer.selectedComponentId,
+        ui.drawer.selectedStyleId,
+        ui.drawer.open,
+        selectedComponent,
+        selectedStyle,
+        components.length,
+        styleItems.length,
+        projectId,
+        projectName,
+    ]);
 
     // Close popovers when major UI context changes
     useEffect(() => {
@@ -945,6 +1067,10 @@ export function ProjectViewShell({
                 onClose={handleCloseDrawer}
                 selectedComponent={selectedComponent || null}
                 selectedStyle={selectedStyle || null}
+                componentCaptures={drawerComponentCaptures}
+                styleLocations={drawerStyleLocations}
+                relatedComponents={drawerRelatedComponents}
+                visualEssentials={drawerVisualEssentials}
             />
         </div>
     );

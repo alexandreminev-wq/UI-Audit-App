@@ -3,7 +3,16 @@ import { ProjectsHome } from "./ProjectsHome";
 import { ProjectViewShell } from "./ProjectViewShell";
 import { LegacySessionsViewer } from "./LegacySessionsViewer";
 import type { ViewerRoute, ViewerProject, ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
-import { deriveProjectsIndexFromStorage, deriveComponentInventory, deriveStyleInventory } from "../adapters/deriveViewerModels";
+import type { CaptureRecordV2 } from "../../../types/capture";
+import { deriveProjectsIndexFromStorage, deriveComponentInventory, deriveStyleInventory, scopeCapturesToProject } from "../adapters/deriveViewerModels";
+
+// ─────────────────────────────────────────────────────────────
+// DEV-only logging helpers (7.4.4)
+// ─────────────────────────────────────────────────────────────
+
+const isDev = import.meta?.env?.DEV ?? false;
+const devLog = (...args: unknown[]) => { if (isDev) console.log(...args); };
+const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args); };
 
 // ─────────────────────────────────────────────────────────────
 // URL navigation helpers (Milestone 7.2.1)
@@ -52,6 +61,9 @@ export function ViewerApp() {
     // Milestone 7.4.2: Load styles for selected project (derived from same captures)
     const [styles, setStyles] = useState<ViewerStyle[]>([]);
 
+    // Milestone 7.4.3: Store raw captures for drawer derivation
+    const [rawCaptures, setRawCaptures] = useState<CaptureRecordV2[]>([]);
+
     // Milestone 7.4.0: Load projects on mount
     useEffect(() => {
         let isMounted = true;
@@ -94,12 +106,13 @@ export function ViewerApp() {
         }
     }, [projectsLoading, projects, selectedProjectId]);
 
-    // Milestone 7.4.1+7.4.2: Load components and styles when selectedProjectId changes
+    // Milestone 7.4.1+7.4.2+7.4.3: Load components, styles, and raw captures when selectedProjectId changes
     useEffect(() => {
         if (!selectedProjectId) {
             // No project selected, clear data
             setComponents([]);
             setStyles([]);
+            setRawCaptures([]);
             setComponentsError(null);
             return;
         }
@@ -119,13 +132,60 @@ export function ViewerApp() {
                 if (!isMounted) return;
 
                 if (response && response.ok) {
-                    // 7.4.1: Derive components
-                    const derivedComponents = deriveComponentInventory(response.captures);
+                    // 7.4.4: Harden array handling
+                    const loadedCaptures = Array.isArray(response.captures) ? response.captures : [];
+
+                    // 7.4.4: Enforce project scoping at choke point
+                    const scopedCaptures = scopeCapturesToProject(loadedCaptures, selectedProjectId);
+
+                    // 7.4.4: DEV-only scoping guardrail logging
+                    const missingProjectIdCount = loadedCaptures.filter((c: CaptureRecordV2) => c.projectId === undefined).length;
+                    const droppedCount = loadedCaptures.length - scopedCaptures.length;
+
+                    // Always log project detail load (DEV only)
+                    devLog("[UI Inventory Viewer] Project detail loaded", {
+                        projectId: selectedProjectId,
+                        capturesLoaded: loadedCaptures.length,
+                        capturesScoped: scopedCaptures.length,
+                        missingProjectIdCount,
+                    });
+
+                    // Warn if captures were dropped due to projectId mismatch
+                    if (droppedCount > 0) {
+                        const mismatchSample = loadedCaptures.find(
+                            (c: CaptureRecordV2) => c.projectId !== undefined && c.projectId !== selectedProjectId
+                        );
+                        devWarn("[UI Inventory Viewer] Project scoping dropped captures", {
+                            projectId: selectedProjectId,
+                            droppedCount,
+                            sampleMismatch: mismatchSample ? { id: mismatchSample.id, projectId: mismatchSample.projectId } : null,
+                        });
+                    }
+
+                    // Warn if captures loaded but none remain after scoping
+                    if (loadedCaptures.length > 0 && scopedCaptures.length === 0) {
+                        devWarn("[UI Inventory Viewer] Scoping mismatch: captures loaded but none matched project", {
+                            projectId: selectedProjectId,
+                            loadedCount: loadedCaptures.length,
+                        });
+                    }
+
+                    // 7.4.3: Store scoped captures for drawer derivation
+                    setRawCaptures(scopedCaptures);
+
+                    // 7.4.1: Derive components from scoped captures
+                    const derivedComponents = deriveComponentInventory(scopedCaptures);
                     setComponents(derivedComponents);
 
-                    // 7.4.2: Derive styles from same captures
-                    const derivedStyles = deriveStyleInventory(response.captures);
+                    // 7.4.2: Derive styles from scoped captures
+                    const derivedStyles = deriveStyleInventory(scopedCaptures);
                     setStyles(derivedStyles);
+
+                    // DEV: Log derivation results
+                    devLog("[UI Inventory Viewer] Derived inventories", {
+                        componentsCount: derivedComponents.length,
+                        stylesCount: derivedStyles.length,
+                    });
                 } else {
                     setComponentsError(response?.error || "Failed to load project data");
                 }
@@ -216,11 +276,13 @@ export function ViewerApp() {
         const project = projects.find((p) => p.id === selectedProjectId);
         return (
             <ProjectViewShell
+                projectId={selectedProjectId}
                 projectName={project?.name || "Unknown Project"}
                 components={components}
                 componentsLoading={componentsLoading}
                 componentsError={componentsError}
                 styleItems={styles}
+                rawCaptures={rawCaptures}
                 onBack={() => {
                     setRoute("projects");
                     setSelectedProjectId(null);
