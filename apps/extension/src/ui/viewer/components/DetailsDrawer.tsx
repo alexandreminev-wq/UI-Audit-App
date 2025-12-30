@@ -214,6 +214,14 @@ export function DetailsDrawer({
     const screenshotBlobId = representativeCapture?.screenshotBlobId;
     const { url: screenshotUrl } = useBlobUrl(screenshotBlobId);
 
+    // DEV-only: Warn if drawer is open with no selection
+    if (open && !selectedComponent && !selectedStyle) {
+        devWarn("[UI Inventory Viewer] Drawer open with no selection", {
+            hasComponent: !!selectedComponent,
+            hasStyle: !!selectedStyle,
+        });
+    }
+
     // 7.4.5: DEV-only warnings for empty drawer data
     if (selectedComponent && (!componentCaptures || componentCaptures.length === 0)) {
         devWarn("[UI Inventory Viewer] Drawer: selected component has zero captures", {
