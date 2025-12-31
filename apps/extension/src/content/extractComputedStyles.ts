@@ -216,6 +216,12 @@ export function extractStylePrimitives(el: Element): StylePrimitives {
     shadow: extractShadow(computed),
     typography: extractTypography(computed),
     radius: extractRadius(computed),
+    opacity: (() => {
+      const raw = (computed.getPropertyValue("opacity") || "").trim();
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    })(),
     sources,
   };
 }

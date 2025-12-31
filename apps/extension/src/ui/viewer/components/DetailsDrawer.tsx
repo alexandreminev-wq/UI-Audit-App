@@ -958,6 +958,37 @@ export function DetailsDrawer({
                                 <h3 style={drawerSectionTitleStyle}>
                                     Visual Essentials
                                 </h3>
+                                {(() => {
+                                    const derivedId = visualEssentials.derivedFromCaptureId;
+                                    if (!derivedId) return null;
+                                    const cap = rawCaptures.find((c) => c.id === derivedId);
+                                    const evidence = (cap as any)?.styles?.evidence;
+                                    if (!evidence || !evidence.method) return null;
+
+                                    const label = evidence.method === "cdp"
+                                        ? "Authored styles: available (CDP)"
+                                        : "Authored styles: fallback (computed only)";
+                                    const detail = evidence.method === "cdp"
+                                        ? null
+                                        : (typeof evidence.cdpError === "string" && evidence.cdpError ? evidence.cdpError : null);
+
+                                    return (
+                                        <div style={{
+                                            marginTop: 6,
+                                            marginBottom: 10,
+                                            fontSize: 12,
+                                            color: "hsl(var(--muted-foreground))",
+                                            lineHeight: 1.4,
+                                        }}>
+                                            <div>{label}</div>
+                                            {detail && (
+                                                <div style={{ marginTop: 4, fontFamily: "monospace", opacity: 0.9 }}>
+                                                    {detail}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 {visualEssentials.rows.length === 0 ? (
                                     <div style={{
                                         padding: 12,

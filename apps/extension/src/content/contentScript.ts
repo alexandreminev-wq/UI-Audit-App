@@ -674,6 +674,21 @@ async function performCapture(target: Element) {
     const primitives = extractStylePrimitives(target);
     const nearestLandmarkRole = getNearestLandmarkRole(target);
 
+    // Phase 1: provide hit-test points for CDP node resolution (best-effort)
+    const inset = (v: number) => Math.max(2, Math.min(8, v / 4));
+    const dx = inset(rect.width);
+    const dy = inset(rect.height);
+    const hitTestPoints = [
+        { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        { x: rect.left + dx, y: rect.top + dy },
+        { x: rect.left + rect.width - dx, y: rect.top + dy },
+        { x: rect.left + dx, y: rect.top + rect.height - dy },
+        { x: rect.left + rect.width - dx, y: rect.top + rect.height - dy },
+    ].map(p => ({
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+    }));
+
     // Build capture record (v1 structure with v2.2 fields added)
     // Service worker will transform this to full CaptureRecordV2
     const record: any = {
@@ -732,6 +747,11 @@ async function performCapture(target: Element) {
             primitives,
             // v1: flat computed map (kept temporarily for backward compat with old UI)
             computed: extractComputedStyles(target),
+        },
+
+        // Phase 1: transient CDP resolver hints (not persisted by schema)
+        __uiinv_cdp: {
+            hitTestPoints,
         },
     };
 

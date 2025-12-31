@@ -31,7 +31,15 @@ import {
     commitDraftCapture,
     deleteProjectCascade,
 } from "./capturesDb";
-import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
+import type {
+    SessionRecord,
+    CaptureRecordV2,
+    BlobRecord,
+    StylePrimitives,
+    AuthorStyleEvidence,
+    AuthorStylePropertyKey,
+    AuthorStyleProvenance,
+} from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
 
 const auditEnabledByTab = new Map<number, boolean>();
@@ -43,8 +51,175 @@ let activeAuditTabId: number | null = null; // 7.8.1: One-tab-at-a-time capture 
 let currentProjectId: string | null = null;
 let currentAuditEnabled: boolean = false;
 
+// Phase 1 (CDP): track which tab(s) we attached the debugger to, so we can detach on suspend.
+const cdpAttachedTabs = new Set<number>();
+
 // Track offscreen document state
 let offscreenDocumentCreated = false;
+
+// ─────────────────────────────────────────────────────────────
+// Phase 1: CDP helpers (authored + resolved styles)
+// ─────────────────────────────────────────────────────────────
+
+type HitTestPoint = { x: number; y: number };
+
+const AUTHOR_PROP_MAP: Record<AuthorStylePropertyKey, string> = {
+    color: "color",
+    backgroundColor: "background-color",
+    borderColor: "border-color",
+    boxShadow: "box-shadow",
+    fontFamily: "font-family",
+    fontSize: "font-size",
+    fontWeight: "font-weight",
+    lineHeight: "line-height",
+    opacity: "opacity",
+};
+
+function normalizeWhitespace(value: string): string {
+    return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function extractDeclarationValue(cssText: string, propertyName: string): string | null {
+    // Best-effort parse of "prop: value;" from rule style.cssText
+    if (!cssText) return null;
+    const escaped = propertyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, "i");
+    const match = cssText.match(re);
+    return match ? normalizeWhitespace(match[1]) : null;
+}
+
+function pickTopProvenance(list: AuthorStyleProvenance[], max = 5): AuthorStyleProvenance[] {
+    return list.slice(0, max);
+}
+
+async function sendCdpCommand<T = any>(tabId: number, method: string, params?: any): Promise<T> {
+    return await chrome.debugger.sendCommand({ tabId }, method as any, params);
+}
+
+async function resolveNodeIdByPoints(tabId: number, points: HitTestPoint[]): Promise<number | null> {
+    // Try multiple points, returning the first successful nodeId.
+    for (const p of points) {
+        try {
+            const resp: any = await sendCdpCommand(tabId, "DOM.getNodeForLocation", {
+                x: p.x,
+                y: p.y,
+                includeUserAgentShadowDOM: true,
+                ignorePointerEventsNone: true,
+            });
+            const nodeId = resp?.nodeId;
+            if (typeof nodeId === "number" && nodeId > 0) {
+                return nodeId;
+            }
+        } catch {
+            // ignore and continue
+        }
+    }
+    return null;
+}
+
+async function collectAuthorStylesForCapture(
+    tabId: number,
+    points: HitTestPoint[]
+): Promise<{ author: AuthorStyleEvidence; evidenceMethod: "cdp"; provenanceMap: Map<string, { url?: string; origin?: string }> }>{
+    // Collect stylesheet headers (id -> {url, origin}) while CSS is enabled.
+    const provenanceMap = new Map<string, { url?: string; origin?: string }>();
+    const onEvent = (source: chrome.debugger.Debuggee, method: string, params?: any) => {
+        if (source.tabId !== tabId) return;
+        if (method === "CSS.styleSheetAdded") {
+            const header = params?.header;
+            const styleSheetId = header?.styleSheetId;
+            if (typeof styleSheetId === "string") {
+                provenanceMap.set(styleSheetId, {
+                    url: header?.sourceURL,
+                    origin: header?.origin,
+                });
+            }
+        }
+    };
+
+    chrome.debugger.onEvent.addListener(onEvent);
+
+    try {
+        await chrome.debugger.attach({ tabId }, "1.3");
+        cdpAttachedTabs.add(tabId);
+
+        // Enable domains (also triggers styleSheetAdded events)
+        await sendCdpCommand(tabId, "DOM.enable");
+        await sendCdpCommand(tabId, "CSS.enable");
+
+        // Ensure document is available
+        await sendCdpCommand(tabId, "DOM.getDocument", { depth: 1, pierce: true });
+
+        const nodeId = await resolveNodeIdByPoints(tabId, points);
+        if (!nodeId) {
+            throw new Error("Failed to resolve nodeId from hit-test points");
+        }
+
+        const matchedResp: any = await sendCdpCommand(tabId, "CSS.getMatchedStylesForNode", { nodeId });
+        const computedResp: any = await sendCdpCommand(tabId, "CSS.getComputedStyleForNode", { nodeId });
+
+        const matchedCSSRules = Array.isArray(matchedResp?.matchedCSSRules) ? matchedResp.matchedCSSRules : [];
+        const computedStyle = Array.isArray(computedResp?.computedStyle) ? computedResp.computedStyle : [];
+        const computedMap = new Map<string, string>();
+        for (const entry of computedStyle) {
+            if (entry && typeof entry.name === "string") {
+                computedMap.set(entry.name, String(entry.value ?? ""));
+            }
+        }
+
+        const properties: AuthorStyleEvidence["properties"] = {};
+
+        // For each property, scan matched rules and capture authored + provenance list
+        for (const [key, cssProp] of Object.entries(AUTHOR_PROP_MAP) as Array<[AuthorStylePropertyKey, string]>) {
+            const provList: AuthorStyleProvenance[] = [];
+            let authoredValue: string | null = null;
+
+            for (const ruleMatch of matchedCSSRules) {
+                const rule = ruleMatch?.rule;
+                const selectorText = rule?.selectorList?.text;
+                const styleSheetId = rule?.styleSheetId;
+                const origin = rule?.origin;
+                const cssText = rule?.style?.cssText;
+
+                const declVal = extractDeclarationValue(String(cssText ?? ""), cssProp);
+                if (declVal !== null) {
+                    const header = typeof styleSheetId === "string" ? provenanceMap.get(styleSheetId) : undefined;
+                    provList.push({
+                        selectorText: typeof selectorText === "string" ? selectorText : "(unknown selector)",
+                        styleSheetUrl: header?.url ?? null,
+                        origin: (header?.origin ?? origin ?? null) as any,
+                    });
+                    if (authoredValue === null) {
+                        authoredValue = declVal;
+                    }
+                    if (provList.length >= 5) break;
+                }
+            }
+
+            const resolvedValue = normalizeWhitespace(computedMap.get(cssProp) ?? "");
+
+            // Only store if we have any signal at all
+            if (authoredValue !== null || resolvedValue) {
+                properties[key] = {
+                    authoredValue,
+                    resolvedValue: resolvedValue || null,
+                    provenance: provList.length ? pickTopProvenance(provList, 5) : undefined,
+                };
+            }
+        }
+
+        return { author: { properties }, evidenceMethod: "cdp", provenanceMap };
+    } finally {
+        chrome.debugger.onEvent.removeListener(onEvent);
+        try {
+            await chrome.debugger.detach({ tabId });
+        } catch {
+            // ignore
+        } finally {
+            cdpAttachedTabs.delete(tabId);
+        }
+    }
+}
 
 /**
  * Bug 1 fix: Create default StylePrimitives placeholder
@@ -768,6 +943,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Capture screenshot
             const screenshot = await captureScreenshot(tabId, recordV1.boundingBox, devicePixelRatio);
 
+            // Phase 1: best-effort authored+resolved styles via CDP (CDP-first, computed fallback)
+            let author: AuthorStyleEvidence | undefined;
+            let evidenceMethod: "cdp" | "computed" = "computed";
+            let cdpError: string | undefined;
+            try {
+                const points: HitTestPoint[] = Array.isArray(recordV1?.__uiinv_cdp?.hitTestPoints)
+                    ? recordV1.__uiinv_cdp.hitTestPoints
+                          .filter((p: any) => p && typeof p.x === "number" && typeof p.y === "number")
+                          .slice(0, 8)
+                    : [];
+
+                if (points.length > 0) {
+                    const collected = await collectAuthorStylesForCapture(tabId, points);
+                    author = collected.author;
+                    evidenceMethod = "cdp";
+                }
+            } catch (err) {
+                cdpError = String(err);
+                evidenceMethod = "computed";
+            }
+
             const recordV2: CaptureRecordV2 = {
                 id: recordV1.id,
                 sessionId,
@@ -809,6 +1005,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     // Use primitives from content script if available, otherwise use placeholders
                     primitives: recordV1.styles?.primitives || makeDefaultPrimitives(),
                     computed: recordV1.styles?.computed,
+                    author,
+                    evidence: {
+                        method: evidenceMethod,
+                        cdpError,
+                        capturedAt: Date.now(),
+                    },
                 },
 
                 screenshot: screenshot || null,
@@ -1735,4 +1937,18 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     } catch (err) {
         console.warn("[UI Inventory] Failed to handle window focus change:", err);
     }
+});
+
+// Phase 1: MV3 guardrail — detach debugger on suspend (best-effort)
+chrome.runtime.onSuspend.addListener(() => {
+    const tabs = Array.from(cdpAttachedTabs);
+    if (tabs.length === 0) return;
+    for (const tabId of tabs) {
+        try {
+            chrome.debugger.detach({ tabId }, () => void chrome.runtime.lastError);
+        } catch {
+            // ignore
+        }
+    }
+    cdpAttachedTabs.clear();
 });

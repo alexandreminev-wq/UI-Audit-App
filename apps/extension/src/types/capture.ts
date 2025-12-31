@@ -146,7 +146,45 @@ export interface StylePrimitives {
   shadow: ShadowPrimitive;
   typography?: TypographyPrimitive; // Optional for backwards compatibility
   radius?: RadiusPrimitive; // Optional for backwards compatibility
+  opacity?: number | null; // Phase 1: element-level opacity (0-1), separate from color alpha
   sources?: StyleSources; // Optional for backwards compatibility (CSS variable provenance)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 1: Authored Style Evidence (CDP-first, computed fallback)
+// ─────────────────────────────────────────────────────────────
+
+export type AuthorStylePropertyKey =
+  | "color"
+  | "backgroundColor"
+  | "borderColor"
+  | "boxShadow"
+  | "fontFamily"
+  | "fontSize"
+  | "fontWeight"
+  | "lineHeight"
+  | "opacity";
+
+export interface AuthorStyleProvenance {
+  selectorText: string;
+  styleSheetUrl?: string | null;
+  origin?: string | null;
+}
+
+export interface AuthorStylePropertyEvidence {
+  authoredValue?: string | null;
+  resolvedValue?: string | null;
+  provenance?: AuthorStyleProvenance[]; // trimmed to top N
+}
+
+export interface AuthorStyleEvidence {
+  properties: Partial<Record<AuthorStylePropertyKey, AuthorStylePropertyEvidence>>;
+}
+
+export interface StyleEvidenceMeta {
+  method: "cdp" | "computed";
+  cdpError?: string;
+  capturedAt: number; // epoch ms
 }
 
 export interface CaptureScreenshotRef {
@@ -200,6 +238,10 @@ export interface CaptureRecordV2 {
     primitives: StylePrimitives;
     // optional: rawComputed subset if needed for debugging
     computed?: Record<StyleKey, string>;
+    // Phase 1: authored styles + provenance (best-effort via CDP)
+    author?: AuthorStyleEvidence;
+    // Phase 1: evidence metadata for debugging/UX
+    evidence?: StyleEvidenceMeta;
   };
 
   screenshot?: CaptureScreenshotRef | null;
