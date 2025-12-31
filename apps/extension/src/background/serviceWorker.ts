@@ -29,6 +29,7 @@ import {
     listDraftCapturesForProject,
     listSavedCapturesForProject,
     commitDraftCapture,
+    deleteProjectCascade,
 } from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
@@ -1130,6 +1131,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             } catch (err) {
                 console.error("[UI Inventory] Failed to list projects:", err);
                 sendResponse({ ok: false, error: "Failed to list projects" });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "UI/DELETE_PROJECT") {
+        (async () => {
+            try {
+                const projectId = msg.projectId;
+                if (!projectId || typeof projectId !== "string") {
+                    sendResponse({ ok: false, error: "projectId is required" });
+                    return;
+                }
+
+                await deleteProjectCascade(projectId);
+
+                // Best-effort: clear any active project mappings pointing to this project
+                for (const [tabId, activeProjectId] of activeProjectByTabId.entries()) {
+                    if (activeProjectId === projectId) {
+                        activeProjectByTabId.delete(tabId);
+                        await setActiveProjectPersisted(tabId, null);
+                    }
+                }
+
+                if (currentProjectId === projectId) {
+                    currentProjectId = null;
+                }
+
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete project:", err);
+                sendResponse({ ok: false, error: String(err) });
             }
         })();
 

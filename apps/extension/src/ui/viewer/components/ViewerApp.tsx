@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ProjectsHome } from "./ProjectsHome";
 import { ProjectViewShell } from "./ProjectViewShell";
 import { LegacySessionsViewer } from "./LegacySessionsViewer";
@@ -79,34 +79,67 @@ export function ViewerApp() {
     const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
     const [overrides, setOverrides] = useState<ComponentOverrideRecord[]>([]);
 
+    const isMountedRef = useRef(true);
+
+    const reloadProjects = useCallback(async () => {
+        try {
+            setProjectsError(null);
+            setProjectsLoading(true);
+
+            const [projectsResp, countsResp] = await Promise.all([
+                chrome.runtime.sendMessage({ type: "UI/LIST_PROJECTS" }),
+                chrome.runtime.sendMessage({ type: "UI/GET_PROJECT_COMPONENT_COUNTS" }),
+            ]);
+
+            if (!isMountedRef.current) return;
+
+            if (projectsResp && projectsResp.ok) {
+                const counts =
+                    (countsResp && countsResp.ok && countsResp.counts && typeof countsResp.counts === "object")
+                        ? (countsResp.counts as Record<string, number>)
+                        : {};
+
+                const derived = deriveProjectsIndexFromStorage({
+                    projects: projectsResp.projects,
+                    counts,
+                });
+                setProjects(derived);
+            } else {
+                setProjectsError(projectsResp?.error || "Failed to load projects");
+            }
+        } catch (err) {
+            if (!isMountedRef.current) return;
+            setProjectsError(String(err));
+        } finally {
+            if (!isMountedRef.current) return;
+            setProjectsLoading(false);
+        }
+    }, []);
+
     // Milestone 7.4.0: Load projects on mount
     useEffect(() => {
-        let isMounted = true;
-        (async () => {
-            try {
-                if (!isMounted) return;
-                setProjectsError(null);
-                setProjectsLoading(true);
-                const response = await chrome.runtime.sendMessage({ type: "UI/LIST_PROJECTS" });
-                if (!isMounted) return;
-                if (response && response.ok) {
-                    const derived = deriveProjectsIndexFromStorage({ projects: response.projects });
-                    setProjects(derived);
-                } else {
-                    setProjectsError(response?.error || "Failed to load projects");
-                }
-            } catch (err) {
-                if (!isMounted) return;
-                setProjectsError(String(err));
-            } finally {
-                if (!isMounted) return;
-                setProjectsLoading(false);
-            }
-        })();
+        isMountedRef.current = true;
+        void reloadProjects();
         return () => {
-            isMounted = false;
+            isMountedRef.current = false;
         };
-    }, []);
+    }, [reloadProjects]);
+
+    const handleDeleteProject = useCallback(async (projectId: string) => {
+        const resp = await chrome.runtime.sendMessage({ type: "UI/DELETE_PROJECT", projectId });
+        if (!resp || !resp.ok) {
+            throw new Error(resp?.error || "Failed to delete project");
+        }
+
+        // If the deleted project was selected, route back to projects home.
+        if (selectedProjectId === projectId) {
+            setRoute("projects");
+            setSelectedProjectId(null);
+            setSelectedProjectIdInUrl(null);
+        }
+
+        await reloadProjects();
+    }, [reloadProjects, selectedProjectId]);
 
     // Milestone 7.4.0: Validate selectedProjectId against loaded projects
     useEffect(() => {
@@ -531,6 +564,7 @@ export function ViewerApp() {
                     setRoute("project");
                     setSelectedProjectIdInUrl(projectId);
                 }}
+                onDeleteProject={handleDeleteProject}
             />
         );
     }
@@ -538,7 +572,17 @@ export function ViewerApp() {
     if (route === "project") {
         // Safe fallback: if selectedProjectId is missing, show projects home
         if (!selectedProjectId) {
-            return <ProjectsHome projects={projects} onSelectProject={(projectId) => { setSelectedProjectId(projectId); setRoute("project"); setSelectedProjectIdInUrl(projectId); }} />;
+            return (
+                <ProjectsHome
+                    projects={projects}
+                    onSelectProject={(projectId) => {
+                        setSelectedProjectId(projectId);
+                        setRoute("project");
+                        setSelectedProjectIdInUrl(projectId);
+                    }}
+                    onDeleteProject={handleDeleteProject}
+                />
+            );
         }
         const project = projects.find((p) => p.id === selectedProjectId);
         return (

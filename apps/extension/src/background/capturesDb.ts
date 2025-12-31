@@ -415,6 +415,28 @@ export async function getSession(sessionId: string): Promise<SessionRecord | nul
 }
 
 /**
+ * Delete a session record by ID
+ * Throws on error - caller must handle failures
+ */
+export async function deleteSession(sessionId: string): Promise<void> {
+    if (!sessionId || typeof sessionId !== "string") {
+        throw new Error("sessionId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_SESSIONS, "readwrite");
+    const store = tx.objectStore(STORE_SESSIONS);
+
+    store.delete(sessionId);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete session"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
+/**
  * List recent sessions from IndexedDB
  * Returns newest first (by createdAt desc)
  * Fails gracefully - returns [] on error
@@ -502,6 +524,28 @@ export async function getBlob(blobId: string): Promise<BlobRecord | null> {
     }
 }
 
+/**
+ * Delete a blob record by ID
+ * Throws on error - caller must handle failures
+ */
+export async function deleteBlob(blobId: string): Promise<void> {
+    if (!blobId || typeof blobId !== "string") {
+        throw new Error("blobId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_BLOBS, "readwrite");
+    const store = tx.objectStore(STORE_BLOBS);
+
+    store.delete(blobId);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete blob"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Projects
 // ─────────────────────────────────────────────────────────────
@@ -576,6 +620,28 @@ export async function listProjects(): Promise<ProjectRecord[]> {
 }
 
 /**
+ * Delete a project record by ID
+ * Throws on error - caller must handle failures
+ */
+export async function deleteProjectRecord(projectId: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECTS, "readwrite");
+    const store = tx.objectStore(STORE_PROJECTS);
+
+    store.delete(projectId);
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete project"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
+/**
  * Link a session to a project
  * Idempotent: uses deterministic id and put() to avoid duplicates
  * Throws on error (validation or DB failure)
@@ -629,6 +695,60 @@ export async function listProjectSessionsByProject(projectId: string): Promise<P
         };
 
         request.onerror = () => reject(request.error ?? new Error("Failed to list project sessions"));
+    });
+}
+
+/**
+ * List all project-session links for a given sessionId
+ * Throws on error
+ */
+export async function listProjectSessionsBySession(sessionId: string): Promise<ProjectSessionLinkRecord[]> {
+    if (!sessionId || typeof sessionId !== "string") {
+        throw new Error("sessionId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECT_SESSIONS, "readonly");
+    const store = tx.objectStore(STORE_PROJECT_SESSIONS);
+    const index = store.index("bySessionId");
+
+    return new Promise((resolve, reject) => {
+        const request = index.getAll(sessionId);
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error ?? new Error("Failed to list project sessions by sessionId"));
+    });
+}
+
+/**
+ * Delete all project-session links for a given projectId
+ * Throws on error
+ */
+export async function deleteProjectSessionsByProject(projectId: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_PROJECT_SESSIONS, "readwrite");
+    const store = tx.objectStore(STORE_PROJECT_SESSIONS);
+    const index = store.index("byProjectId");
+
+    await new Promise<void>((resolve, reject) => {
+        const request = index.getAll(projectId);
+        request.onsuccess = () => {
+            const links: ProjectSessionLinkRecord[] = request.result || [];
+            for (const link of links) {
+                store.delete(link.id);
+            }
+            resolve();
+        };
+        request.onerror = () => reject(request.error ?? new Error("Failed to delete project session links"));
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete project session links"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
     });
 }
 
@@ -703,8 +823,11 @@ export async function getProjectCaptureCount(projectId: string): Promise<number>
     // Count captures across all sessions
     let totalCount = 0;
     for (const sessionId of sessionIds) {
-        const captures = await listCapturesBySession(sessionId);
-        totalCount += captures.length;
+        // Use a high limit to avoid truncating counts
+        const captures = await listCapturesBySession(sessionId, Number.MAX_SAFE_INTEGER);
+        // Exclude drafts (draft-until-save)
+        const savedCount = captures.filter((cap: any) => cap?.isDraft !== true).length;
+        totalCount += savedCount;
     }
 
     return totalCount;
@@ -1020,4 +1143,186 @@ export async function commitDraftCapture(captureId: string): Promise<void> {
 
         getRequest.onerror = () => reject(getRequest.error);
     });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Project Deletion (Cascade) — Viewer MVP
+// ─────────────────────────────────────────────────────────────
+
+async function deleteBlobsBulk(blobIds: Iterable<string>): Promise<void> {
+    const ids = Array.from(blobIds).filter(Boolean);
+    if (ids.length === 0) return;
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_BLOBS, "readwrite");
+    const store = tx.objectStore(STORE_BLOBS);
+
+    for (const id of ids) {
+        store.delete(id);
+    }
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete blobs"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
+async function deleteAnnotationsForProject(projectId: string): Promise<void> {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ANNOTATIONS, "readwrite");
+    const store = tx.objectStore(STORE_ANNOTATIONS);
+    const index = store.index("byProject");
+
+    await new Promise<void>((resolve, reject) => {
+        const req = index.openCursor(projectId);
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) {
+                resolve();
+                return;
+            }
+            store.delete(cursor.primaryKey as string);
+            cursor.continue();
+        };
+        req.onerror = () => reject(req.error ?? new Error("Failed to delete annotations for project"));
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete annotations for project"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
+async function deleteComponentOverridesForProject(projectId: string): Promise<void> {
+    const db = await openDb();
+    const tx = db.transaction(STORE_COMPONENT_OVERRIDES, "readwrite");
+    const store = tx.objectStore(STORE_COMPONENT_OVERRIDES);
+    const index = store.index("byProject");
+
+    await new Promise<void>((resolve, reject) => {
+        const req = index.openCursor(projectId);
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) {
+                resolve();
+                return;
+            }
+            store.delete(cursor.primaryKey as string);
+            cursor.continue();
+        };
+        req.onerror = () => reject(req.error ?? new Error("Failed to delete component overrides for project"));
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete component overrides for project"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+}
+
+async function deleteProjectCapturesAndCollectBlobs(
+    projectId: string,
+    exclusiveSessionIds: Set<string>
+): Promise<Set<string>> {
+    const blobIds = new Set<string>();
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_CAPTURES, "readwrite");
+    const store = tx.objectStore(STORE_CAPTURES);
+    const index = store.index("byCreatedAt");
+
+    await new Promise<void>((resolve, reject) => {
+        const req = index.openCursor(null, "next");
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) {
+                resolve();
+                return;
+            }
+
+            const cap: any = cursor.value;
+            const capProjectId = cap?.projectId;
+            const capSessionId = cap?.sessionId;
+
+            const shouldDelete =
+                capProjectId === projectId ||
+                (capProjectId === undefined && typeof capSessionId === "string" && exclusiveSessionIds.has(capSessionId));
+
+            if (shouldDelete && cap?.id) {
+                const blobId = cap?.screenshot?.screenshotBlobId;
+                if (typeof blobId === "string" && blobId) {
+                    blobIds.add(blobId);
+                }
+                store.delete(String(cap.id));
+            }
+
+            cursor.continue();
+        };
+        req.onerror = () => reject(req.error ?? new Error("Failed to delete captures for project"));
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Failed to delete captures for project"));
+        tx.onabort = () => reject(new Error("Transaction aborted"));
+    });
+
+    return blobIds;
+}
+
+/**
+ * Delete a project and its associated data (MVP cascade semantics).
+ *
+ * Deletes:
+ * - project record
+ * - projectSessions links
+ * - captures belonging to the project (and session-only captures where the session is exclusive to the project)
+ * - screenshot blobs referenced by deleted captures
+ * - annotations for the project
+ * - component overrides for the project
+ *
+ * Safety:
+ * - If a session is linked to multiple projects, we do NOT delete session-only captures for that session.
+ * - Sessions are deleted only when exclusive to the project.
+ */
+export async function deleteProjectCascade(projectId: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    // Identify sessions linked to this project
+    const sessionIds = await listSessionIdsForProject(projectId);
+
+    // Determine which sessions are exclusive to this project
+    const exclusiveSessionIds = new Set<string>();
+    for (const sessionId of sessionIds) {
+        const links = await listProjectSessionsBySession(sessionId);
+        const hasOtherProject = links.some(l => l.projectId !== projectId);
+        if (!hasOtherProject) {
+            exclusiveSessionIds.add(sessionId);
+        }
+    }
+
+    // 1) Delete captures and collect screenshot blob ids
+    const blobIds = await deleteProjectCapturesAndCollectBlobs(projectId, exclusiveSessionIds);
+
+    // 2) Delete review layers
+    await deleteAnnotationsForProject(projectId);
+    await deleteComponentOverridesForProject(projectId);
+
+    // 3) Delete project-session links
+    await deleteProjectSessionsByProject(projectId);
+
+    // 4) Delete sessions only if exclusive
+    for (const sessionId of exclusiveSessionIds) {
+        await deleteSession(sessionId);
+    }
+
+    // 5) Delete blobs referenced by deleted captures
+    await deleteBlobsBulk(blobIds);
+
+    // 6) Delete the project record
+    await deleteProjectRecord(projectId);
 }

@@ -38,7 +38,8 @@ import type {
  */
 export interface ProjectsIndexStorageData {
     projects: ProjectRecord[];
-    // Future: pre-computed capture counts per project (performance optimization)
+    // Pre-computed capture counts per project (from Service Worker)
+    counts?: Record<string, number>;
 }
 
 /**
@@ -69,13 +70,15 @@ export interface ProjectDetailStorageData {
 export function deriveProjectsIndexFromStorage(
     raw: ProjectsIndexStorageData
 ): ViewerProject[] {
-    // 7.4.0: Basic implementation with placeholder counts/labels
-    // CONTRACT: VIEWER_DATA_CONTRACT.md §3.2
-    return raw.projects.map(project => ({
-        id: project.id,                    // Direct mapping (CONTRACT §3.2)
-        name: project.name,                // Direct mapping (CONTRACT §3.2)
-        captureCount: 0,                   // Placeholder (CONTRACT §3.2 - derived, deferred to 7.4.1)
-        updatedAtLabel: "—",               // Placeholder (CONTRACT §3.2 - derived, deferred to 7.4.1)
+    const counts = raw.counts ?? {};
+
+    const sortedProjects = [...raw.projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+    return sortedProjects.map(project => ({
+        id: project.id,
+        name: project.name,
+        captureCount: typeof counts[project.id] === "number" ? counts[project.id] : 0,
+        updatedAtLabel: formatRelativeTime(project.updatedAt),
     }));
 }
 
@@ -432,8 +435,29 @@ export function deriveStyleInventory(
  * @returns Human-readable relative time string
  */
 export function formatRelativeTime(_timestamp: number): string {
-    // STUB: Return placeholder
-    return "recently"; // In 7.4.x, compute actual relative time
+    const timestamp = typeof _timestamp === "number" ? _timestamp : 0;
+    if (!timestamp) return "—";
+
+    const now = Date.now();
+    const deltaMs = Math.max(0, now - timestamp);
+
+    const minute = 60_000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (deltaMs < minute) return "just now";
+    if (deltaMs < hour) return `${Math.floor(deltaMs / minute)}m ago`;
+    if (deltaMs < day) return `${Math.floor(deltaMs / hour)}h ago`;
+
+    const days = Math.floor(deltaMs / day);
+    if (days === 1) return "yesterday";
+    if (days < 30) return `${days}d ago`;
+
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
 }
 
 /**
