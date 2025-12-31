@@ -176,6 +176,59 @@
   - Viewer-only filter persistence
 
   ---
+  ### 7.7 — Annotations (Notes + Tags) + Save/Delete Parity
+
+**Goal:**  
+Introduce component-scoped annotations (Notes + Tags) shared between Viewer and Sidepanel, with explicit Save semantics and delete parity.
+
+#### 7.7.1 — Annotations foundation (read-only Viewer)
+**Status:** ✅ Complete
+
+- IndexedDB upgraded from v3 → v4
+- Added `annotations` store keyed by `projectId:componentKey`
+- Service Worker APIs:
+  - `ANNOTATIONS/GET_PROJECT`
+  - `ANNOTATIONS/GET_ONE`
+- Viewer:
+  - Identity section added (Component + Style)
+  - HTML Structure section (derived, collapsible)
+  - Notes (read-only)
+  - Tags (read-only)
+  - Annotations merged into Viewer inventory via:
+    annotation.componentKey === component.id
+  
+#### 7.7.2 — Editable annotations + explicit save model
+**Status:** ✅ Complete
+
+##### 7.7.2a — Stability + rendering fixes
+- Fixed blank DetailsDrawer caused by hook order / conditional rendering
+- Ensured annotations load after project selection
+- Prevented crash on missing annotation records
+
+##### 7.7.2b — Edit + Save + Delete parity
+- Notes and Tags are **always editable** (no “Edit mode”)
+- Added explicit **Save / Cancel / Delete** actions
+- Removed:
+- Clear action
+- Edit button
+- Delete confirmation modal implemented
+- Delete now fully functional (Viewer ↔ Service Worker ↔ IndexedDB)
+- Footer actions are fixed and consistent with prototype
+- Viewer behavior now mirrors Sidepanel delta semantics
+
+**Result:**  
+Viewer and Sidepanel now share the same annotation data model, lifecycle, and intent.
+
+---
+
+### 7.8 — Cross-surface annotation parity (next)
+**Status:** ⏭️ Next
+
+- Wire Sidepanel Notes textarea to the same annotations store
+- Wire Sidepanel Tags to the same annotations store
+- Ensure Save / Cancel semantics match Viewer
+- Remove implicit auto-save on capture
+
 
   ## Milestone 8 — Capture Depth & Intelligence (Future)
   Out of scope for MVP stabilization:

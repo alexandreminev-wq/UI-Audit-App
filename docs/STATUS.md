@@ -27,7 +27,6 @@
   ---
 
   ### Viewer (Read-only)
-  - Viewer never writes to storage
   - All data derived from IndexedDB captures
   - Projects load correctly
   - Component and Style inventories populate correctly
@@ -38,75 +37,48 @@
   ---
 
   ## Recent Milestones
+## Current Focus
 
-  ### 7.4 — Viewer Correctness & Guardrails ✅
+**Milestone 7 — Viewer completion + annotation parity**
 
-  **Key Guarantees Now in Place:**
-  - **Strict project scoping**
-    - ViewerApp enforces project boundaries
-    - No cross-project capture leakage
-  - **Selection hygiene**
-    - Drawer selection clears only on projectId change
-    - No stale selections after navigation
-  - **Drawer safety**
-    - No crashes on empty or missing data
-    - Safe empty states
-  - **DEV-only diagnostics**
-    - Scoping mismatches
-    - Empty inventory regressions
-    - Stale selection warnings
+The Viewer Details Drawer is now functionally complete for component inspection and annotation.
 
-  No production console noise.
+### Completed
+- Viewer shell, layout, scrolling, and preview canvas
+- Component + Style detail drawers
+- Identity sections
+- Visual Essentials (read-only)
+- HTML Structure (derived)
+- Annotations (Notes + Tags):
+  - IndexedDB-backed
+  - Component-scoped (not capture-scoped)
+  - Shared across Viewer and Sidepanel
+- Explicit Save / Cancel / Delete actions
+- Delete parity with Sidepanel confirmed working
 
-  ---
+### Key Architectural Decisions
+- Annotations are keyed by `projectId + componentKey`
+- Multiple captures of the same component share annotations
+- Viewer is no longer read-only — edits require explicit Save
+- Sidepanel and Viewer are converging on the same mental model
 
-  ### 7.5.1 — Drawer Content Parity ✅ **(Completed via Audit)**
+### Known Gaps (Intentional)
+- Sidepanel still auto-saves on capture (to be changed)
+- Manual overrides UI not yet implemented
+- HTML Structure editing not supported
+- No annotation history / versioning
 
-  **Outcome:**
-  - Comprehensive audit of Viewer DetailsDrawer vs Sidepanel ComponentDetails
-  - **No code changes required** — drawer structure is semantically appropriate
-  - Viewer serves inventory browsing; Sidepanel serves single-component editing
-  - Differences are intentional and context-appropriate
+### Next Up
+- Milestone 7.8: Sidepanel annotation parity
+- Milestone 8: Manual overrides + capture confirmation flow
 
-  **Parity Gaps Identified (Deferred):**
-
-  | Feature | Status | Reason |
-  |---------|--------|--------|
-  | Screenshot thumbnails | → 7.5.2 | Requires blob handling + rendering logic |
-  | HTML Structure section | Deferred | Requires new section + data wiring |
-  | Comments field | Deferred | Viewer is read-only by design |
-  | Section reordering | Kept as-is | Current order is logical for inventory context |
-
-  ---
-
-  ## Known Limitations (Accepted)
-  - Viewer is read-only (by design)
-  - Screenshot thumbnails not yet shown in Viewer (planned for 7.5.2)
-  - HTML structure not exposed in drawer (requires new wiring)
-  - Comments not available in Viewer (read-only constraint)
-
-  ---
-
-  ## Next Planned Work
-  **Milestone 7.5.2 — Screenshot Thumbnails**
-  - Render thumbnails from existing screenshotBlobId
-  - Read-only display in drawer
-  - Graceful fallback if blob unavailable
-
-  **Milestone 7.5.3 — Minor Interaction Polish**
-  - Toggle drawer on re-select
-  - Escape key to close drawer
-  - Small UX refinements
 
   ---
 
   ## Out of Scope (For Now)
   - Capture schema changes
-  - Write-back from Viewer
   - Advanced component intelligence
   - Multi-project comparisons
-  - HTML structure display in drawer
-  - Comments/annotations in Viewer
 
   ---
 
