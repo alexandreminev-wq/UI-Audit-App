@@ -303,6 +303,33 @@ export function deriveStyleInventory(
             captureUrl: capture.url,
         });
 
+        // Phase 2: Margin (optional)
+        if (primitives.margin) {
+            styleRecords.push({ kind: "marginTop", value: primitives.margin.marginTop, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginRight", value: primitives.margin.marginRight, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginBottom", value: primitives.margin.marginBottom, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginLeft", value: primitives.margin.marginLeft, token: extractToken(sources), sources, captureUrl: capture.url });
+        }
+
+        // Phase 2: Border widths (optional)
+        if (primitives.borderWidth) {
+            styleRecords.push({ kind: "borderTopWidth", value: primitives.borderWidth.top, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderRightWidth", value: primitives.borderWidth.right, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderBottomWidth", value: primitives.borderWidth.bottom, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderLeftWidth", value: primitives.borderWidth.left, token: extractToken(sources), sources, captureUrl: capture.url });
+        }
+
+        // Phase 2: Gap (optional)
+        if (primitives.gap) {
+            styleRecords.push({ kind: "rowGap", value: primitives.gap.rowGap, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "columnGap", value: primitives.gap.columnGap, token: extractToken(sources), sources, captureUrl: capture.url });
+        }
+
+        // Phase 2: Opacity (optional)
+        if (typeof primitives.opacity === "number") {
+            styleRecords.push({ kind: "opacity", value: String(primitives.opacity), token: extractToken(sources), sources, captureUrl: capture.url });
+        }
+
         // Typography (optional fields)
         if (primitives.typography) {
             styleRecords.push({
@@ -633,7 +660,7 @@ export function inferStyleKind(
     }
 
     // Spacing
-    if (key.startsWith("padding") || key.startsWith("margin")) {
+    if (key.startsWith("padding") || key.startsWith("margin") || key.endsWith("gap") || key === "gap") {
         return "spacing";
     }
 
@@ -650,6 +677,16 @@ export function inferStyleKind(
     // Border (radius)
     if (key.startsWith("radius")) {
         return "border";
+    }
+
+    // Border widths
+    if (key.startsWith("border") && key.endsWith("width")) {
+        return "border";
+    }
+
+    // Opacity (treat as unknown for now; can become its own kind later)
+    if (key === "opacity") {
+        return "unknown";
     }
 
     return "unknown";

@@ -1,6 +1,6 @@
 # STYLE_KEYS — v2.2
 
-*Last updated: 2025-12-24 (Europe/Madrid)*
+*Last updated: 2025-12-31 (Europe/Madrid)*
 
 This document defines the **minimal style evidence** we extract/store for MVP.
 Goal: capture enough signal to support viewer-side comparison, and later designer-friendly summaries.
@@ -22,7 +22,24 @@ Stored as strings (computed style values), per-side:
 - `paddingBottom`
 - `paddingLeft`
 
-(We do not yet store margin; viewer/sidepanel may compute additional derived summaries without persisting.)
+## Box Model (Phase 2)
+To support layout auditing and more faithful reproduction/export, we also capture:
+
+### Margin (per-side, computed strings)
+- `marginTop`
+- `marginRight`
+- `marginBottom`
+- `marginLeft`
+
+### Border widths (per-side, computed strings)
+- `borderWidth.top`
+- `borderWidth.right`
+- `borderWidth.bottom`
+- `borderWidth.left`
+
+### Gap (computed strings)
+- `gap.rowGap`
+- `gap.columnGap`
 
 ---
 

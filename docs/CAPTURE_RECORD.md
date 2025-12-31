@@ -130,6 +130,10 @@ They represent *what the browser resolved*, not what designers intended.
 StylePrimitives {
   spacing: SpacingPrimitive
 
+  margin?: MarginPrimitive
+  borderWidth?: BorderWidthPrimitive
+  gap?: GapPrimitive
+
   backgroundColor: ColorPrimitive
   color: ColorPrimitive
   borderColor?: ColorPrimitive
@@ -138,6 +142,8 @@ StylePrimitives {
 
   typography?: TypographyPrimitive
   radius?: RadiusPrimitive
+
+  opacity?: number | null
 
   sources?: StyleSources
 }

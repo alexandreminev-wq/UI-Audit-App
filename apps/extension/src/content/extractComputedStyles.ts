@@ -4,7 +4,20 @@
  */
 
 import { STYLE_KEYS, type StyleKey } from "./styleKeys";
-import type { StylePrimitives, Rgba, ColorPrimitive, ShadowPrimitive, SpacingPrimitive, TypographyPrimitive, RadiusPrimitive, StyleSources, StyleSourceKey } from "../types/capture";
+import type {
+  StylePrimitives,
+  Rgba,
+  ColorPrimitive,
+  ShadowPrimitive,
+  SpacingPrimitive,
+  MarginPrimitive,
+  BorderWidthPrimitive,
+  GapPrimitive,
+  TypographyPrimitive,
+  RadiusPrimitive,
+  StyleSources,
+  StyleSourceKey,
+} from "../types/capture";
 
 export function extractComputedStyles(el: Element): Record<StyleKey, string> {
   const computed = window.getComputedStyle(el);
@@ -98,6 +111,30 @@ function extractSpacing(computed: CSSStyleDeclaration): SpacingPrimitive {
   };
 }
 
+function extractMargin(computed: CSSStyleDeclaration): MarginPrimitive {
+  return {
+    marginTop: (computed.getPropertyValue("margin-top") || "0px").trim(),
+    marginRight: (computed.getPropertyValue("margin-right") || "0px").trim(),
+    marginBottom: (computed.getPropertyValue("margin-bottom") || "0px").trim(),
+    marginLeft: (computed.getPropertyValue("margin-left") || "0px").trim(),
+  };
+}
+
+function extractBorderWidth(computed: CSSStyleDeclaration): BorderWidthPrimitive {
+  return {
+    top: (computed.getPropertyValue("border-top-width") || "0px").trim(),
+    right: (computed.getPropertyValue("border-right-width") || "0px").trim(),
+    bottom: (computed.getPropertyValue("border-bottom-width") || "0px").trim(),
+    left: (computed.getPropertyValue("border-left-width") || "0px").trim(),
+  };
+}
+
+function extractGap(computed: CSSStyleDeclaration): GapPrimitive {
+  const rowGap = (computed.getPropertyValue("row-gap") || computed.getPropertyValue("gap") || "0px").trim();
+  const columnGap = (computed.getPropertyValue("column-gap") || computed.getPropertyValue("gap") || "0px").trim();
+  return { rowGap, columnGap };
+}
+
 /**
  * Extract color primitive (raw + canonical RGBA)
  */
@@ -187,6 +224,19 @@ function extractInlineStyleSources(el: Element): StyleSources | undefined {
   setIfVar("paddingBottom", "padding-bottom");
   setIfVar("paddingLeft", "padding-left");
 
+  setIfVar("marginTop", "margin-top");
+  setIfVar("marginRight", "margin-right");
+  setIfVar("marginBottom", "margin-bottom");
+  setIfVar("marginLeft", "margin-left");
+
+  setIfVar("borderTopWidth", "border-top-width");
+  setIfVar("borderRightWidth", "border-right-width");
+  setIfVar("borderBottomWidth", "border-bottom-width");
+  setIfVar("borderLeftWidth", "border-left-width");
+
+  setIfVar("rowGap", "row-gap");
+  setIfVar("columnGap", "column-gap");
+
   setIfVar("fontFamily", "font-family");
   setIfVar("fontSize", "font-size");
   setIfVar("fontWeight", "font-weight");
@@ -210,6 +260,9 @@ export function extractStylePrimitives(el: Element): StylePrimitives {
 
   return {
     spacing: extractSpacing(computed),
+    margin: extractMargin(computed),
+    borderWidth: extractBorderWidth(computed),
+    gap: extractGap(computed),
     backgroundColor: extractColor(computed, "background-color"),
     color: extractColor(computed, "color"),
     borderColor: extractColor(computed, "border-color"),

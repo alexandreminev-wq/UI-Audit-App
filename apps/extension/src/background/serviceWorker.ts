@@ -63,6 +63,15 @@ let offscreenDocumentCreated = false;
 
 type HitTestPoint = { x: number; y: number };
 
+type TargetBox = {
+    left: number; // viewport coords
+    top: number; // viewport coords
+    width: number;
+    height: number;
+    scrollX: number; // page scroll at capture time
+    scrollY: number;
+};
+
 const AUTHOR_PROP_MAP: Record<AuthorStylePropertyKey, string> = {
     color: "color",
     backgroundColor: "background-color",
@@ -73,6 +82,45 @@ const AUTHOR_PROP_MAP: Record<AuthorStylePropertyKey, string> = {
     fontWeight: "font-weight",
     lineHeight: "line-height",
     opacity: "opacity",
+    paddingTop: "padding-top",
+    paddingRight: "padding-right",
+    paddingBottom: "padding-bottom",
+    paddingLeft: "padding-left",
+    marginTop: "margin-top",
+    marginRight: "margin-right",
+    marginBottom: "margin-bottom",
+    marginLeft: "margin-left",
+    borderTopWidth: "border-top-width",
+    borderRightWidth: "border-right-width",
+    borderBottomWidth: "border-bottom-width",
+    borderLeftWidth: "border-left-width",
+    radiusTopLeft: "border-top-left-radius",
+    radiusTopRight: "border-top-right-radius",
+    radiusBottomRight: "border-bottom-right-radius",
+    radiusBottomLeft: "border-bottom-left-radius",
+    rowGap: "row-gap",
+    columnGap: "column-gap",
+};
+
+const AUTHOR_PROP_SHORTHAND_FALLBACKS: Partial<Record<AuthorStylePropertyKey, string[]>> = {
+    paddingTop: ["padding"],
+    paddingRight: ["padding"],
+    paddingBottom: ["padding"],
+    paddingLeft: ["padding"],
+    marginTop: ["margin"],
+    marginRight: ["margin"],
+    marginBottom: ["margin"],
+    marginLeft: ["margin"],
+    borderTopWidth: ["border-width", "border"],
+    borderRightWidth: ["border-width", "border"],
+    borderBottomWidth: ["border-width", "border"],
+    borderLeftWidth: ["border-width", "border"],
+    radiusTopLeft: ["border-radius"],
+    radiusTopRight: ["border-radius"],
+    radiusBottomRight: ["border-radius"],
+    radiusBottomLeft: ["border-radius"],
+    rowGap: ["gap"],
+    columnGap: ["gap"],
 };
 
 function normalizeWhitespace(value: string): string {
@@ -117,9 +165,96 @@ async function resolveNodeIdByPoints(tabId: number, points: HitTestPoint[]): Pro
     return null;
 }
 
+function bboxFromQuad(quad: number[]): { left: number; top: number; right: number; bottom: number } | null {
+    if (!Array.isArray(quad) || quad.length < 8) return null;
+    const xs = [quad[0], quad[2], quad[4], quad[6]];
+    const ys = [quad[1], quad[3], quad[5], quad[7]];
+    const left = Math.min(...xs);
+    const right = Math.max(...xs);
+    const top = Math.min(...ys);
+    const bottom = Math.max(...ys);
+    if (!Number.isFinite(left) || !Number.isFinite(right) || !Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+    return { left, top, right, bottom };
+}
+
+function iou(a: { left: number; top: number; right: number; bottom: number }, b: { left: number; top: number; right: number; bottom: number }): number {
+    const interLeft = Math.max(a.left, b.left);
+    const interTop = Math.max(a.top, b.top);
+    const interRight = Math.min(a.right, b.right);
+    const interBottom = Math.min(a.bottom, b.bottom);
+    const interW = Math.max(0, interRight - interLeft);
+    const interH = Math.max(0, interBottom - interTop);
+    const interArea = interW * interH;
+    const areaA = Math.max(0, a.right - a.left) * Math.max(0, a.bottom - a.top);
+    const areaB = Math.max(0, b.right - b.left) * Math.max(0, b.bottom - b.top);
+    const union = areaA + areaB - interArea;
+    if (union <= 0) return 0;
+    return interArea / union;
+}
+
+async function resolveNodeIdByScoring(
+    tabId: number,
+    points: HitTestPoint[],
+    target: TargetBox
+): Promise<number | null> {
+    // Collect candidate nodeIds from points
+    const candidates = new Set<number>();
+    for (const p of points) {
+        try {
+            const resp: any = await sendCdpCommand(tabId, "DOM.getNodeForLocation", {
+                x: p.x,
+                y: p.y,
+                includeUserAgentShadowDOM: true,
+                ignorePointerEventsNone: true,
+            });
+            if (typeof resp?.nodeId === "number") candidates.add(resp.nodeId);
+        } catch {
+            // ignore
+        }
+    }
+    if (candidates.size === 0) return null;
+
+    const targetPage = {
+        left: target.left + target.scrollX,
+        top: target.top + target.scrollY,
+        right: target.left + target.scrollX + target.width,
+        bottom: target.top + target.scrollY + target.height,
+    };
+
+    let bestNodeId: number | null = null;
+    let bestScore = -1;
+
+    for (const nodeId of candidates) {
+        try {
+            const box: any = await sendCdpCommand(tabId, "DOM.getBoxModel", { nodeId });
+            const quad = box?.model?.border;
+            const bb = bboxFromQuad(quad);
+            if (!bb) continue;
+
+            // Score: IoU with slight penalty for big area mismatch
+            const scoreIou = iou(bb, targetPage);
+            const areaA = Math.max(0, bb.right - bb.left) * Math.max(0, bb.bottom - bb.top);
+            const areaT = Math.max(1, target.width * target.height);
+            const ratio = areaA / areaT;
+            const areaPenalty = ratio > 1 ? Math.min(0.3, (ratio - 1) * 0.05) : Math.min(0.2, (1 / Math.max(ratio, 0.01) - 1) * 0.05);
+            const score = scoreIou - areaPenalty;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestNodeId = nodeId;
+            }
+        } catch {
+            // ignore
+        }
+    }
+
+    return bestNodeId;
+}
+
 async function collectAuthorStylesForCapture(
     tabId: number,
-    points: HitTestPoint[]
+    points: HitTestPoint[],
+    targetBox?: TargetBox
 ): Promise<{ author: AuthorStyleEvidence; evidenceMethod: "cdp"; provenanceMap: Map<string, { url?: string; origin?: string }> }>{
     // Collect stylesheet headers (id -> {url, origin}) while CSS is enabled.
     const provenanceMap = new Map<string, { url?: string; origin?: string }>();
@@ -150,7 +285,9 @@ async function collectAuthorStylesForCapture(
         // Ensure document is available
         await sendCdpCommand(tabId, "DOM.getDocument", { depth: 1, pierce: true });
 
-        const nodeId = await resolveNodeIdByPoints(tabId, points);
+        const nodeId = targetBox
+            ? await resolveNodeIdByScoring(tabId, points, targetBox)
+            : await resolveNodeIdByPoints(tabId, points);
         if (!nodeId) {
             throw new Error("Failed to resolve nodeId from hit-test points");
         }
@@ -181,7 +318,15 @@ async function collectAuthorStylesForCapture(
                 const origin = rule?.origin;
                 const cssText = rule?.style?.cssText;
 
-                const declVal = extractDeclarationValue(String(cssText ?? ""), cssProp);
+                let declVal = extractDeclarationValue(String(cssText ?? ""), cssProp);
+                if (declVal === null) {
+                    const fallbacks = AUTHOR_PROP_SHORTHAND_FALLBACKS[key] ?? [];
+                    for (const fb of fallbacks) {
+                        declVal = extractDeclarationValue(String(cssText ?? ""), fb);
+                        if (declVal !== null) break;
+                    }
+                }
+
                 if (declVal !== null) {
                     const header = typeof styleSheetId === "string" ? provenanceMap.get(styleSheetId) : undefined;
                     provList.push({
@@ -955,7 +1100,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     : [];
 
                 if (points.length > 0) {
-                    const collected = await collectAuthorStylesForCapture(tabId, points);
+                    const targetBox: TargetBox = {
+                        left: Number(recordV1?.boundingBox?.left || 0),
+                        top: Number(recordV1?.boundingBox?.top || 0),
+                        width: Number(recordV1?.boundingBox?.width || 0),
+                        height: Number(recordV1?.boundingBox?.height || 0),
+                        scrollX: Number(recordV1?.viewport?.scrollX || 0),
+                        scrollY: Number(recordV1?.viewport?.scrollY || 0),
+                    };
+
+                    const collected = await collectAuthorStylesForCapture(tabId, points, targetBox);
                     author = collected.author;
                     evidenceMethod = "cdp";
                 }

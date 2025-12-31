@@ -35,6 +35,9 @@ export const STYLE_KEYS = [
 
   // Border/shape
   "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
   "border-top-style",
   "border-top-color",
   "border-top-left-radius",
@@ -56,6 +59,8 @@ export const STYLE_KEYS = [
   "align-items",
   "justify-content",
   "gap",
+  "row-gap",
+  "column-gap",
   "z-index",
   "overflow",
   "text-overflow",

@@ -113,6 +113,25 @@ export interface SpacingPrimitive {
   paddingLeft: string;
 }
 
+export interface MarginPrimitive {
+  marginTop: string;
+  marginRight: string;
+  marginBottom: string;
+  marginLeft: string;
+}
+
+export interface BorderWidthPrimitive {
+  top: string;
+  right: string;
+  bottom: string;
+  left: string;
+}
+
+export interface GapPrimitive {
+  rowGap: string;
+  columnGap: string;
+}
+
 export interface TypographyPrimitive {
   fontFamily: string;
   fontSize: string;
@@ -133,6 +152,9 @@ export type StyleSourceKey =
   | "borderColor"
   | "boxShadow"
   | "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft"
+  | "marginTop" | "marginRight" | "marginBottom" | "marginLeft"
+  | "borderTopWidth" | "borderRightWidth" | "borderBottomWidth" | "borderLeftWidth"
+  | "rowGap" | "columnGap"
   | "fontFamily" | "fontSize" | "fontWeight" | "lineHeight"
   | "radiusTopLeft" | "radiusTopRight" | "radiusBottomRight" | "radiusBottomLeft";
 
@@ -140,6 +162,9 @@ export type StyleSources = Partial<Record<StyleSourceKey, string>>;
 
 export interface StylePrimitives {
   spacing: SpacingPrimitive;
+  margin?: MarginPrimitive; // Phase 2: full box model (optional for backward compatibility)
+  borderWidth?: BorderWidthPrimitive; // Phase 2: full box model (optional)
+  gap?: GapPrimitive; // Phase 2: full box model (optional)
   backgroundColor: ColorPrimitive;
   color: ColorPrimitive;
   borderColor?: ColorPrimitive;
@@ -163,7 +188,13 @@ export type AuthorStylePropertyKey =
   | "fontSize"
   | "fontWeight"
   | "lineHeight"
-  | "opacity";
+  | "opacity"
+  // Phase 2: box model
+  | "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft"
+  | "marginTop" | "marginRight" | "marginBottom" | "marginLeft"
+  | "borderTopWidth" | "borderRightWidth" | "borderBottomWidth" | "borderLeftWidth"
+  | "radiusTopLeft" | "radiusTopRight" | "radiusBottomRight" | "radiusBottomLeft"
+  | "rowGap" | "columnGap";
 
 export interface AuthorStyleProvenance {
   selectorText: string;
