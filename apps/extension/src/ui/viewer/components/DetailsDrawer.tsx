@@ -104,6 +104,11 @@ interface DetailsDrawerProps {
     relatedComponents: ViewerStyleRelatedComponent[];
     // 7.4.4: Visual essentials
     visualEssentials: ViewerVisualEssentials;
+    // Phase 1: authored styles evidence for representative capture (optional)
+    visualEssentialsEvidence?: {
+        method: "cdp" | "computed";
+        cdpError?: string;
+    } | null;
     // 7.7.2: Callback after annotation save
     onAnnotationsChanged: () => void;
     // Identity overrides saved (component-scoped)
@@ -126,6 +131,7 @@ export function DetailsDrawer({
     styleLocations,
     relatedComponents,
     visualEssentials,
+    visualEssentialsEvidence,
     onAnnotationsChanged,
     onOverridesChanged,
     onDeleted,
@@ -958,37 +964,28 @@ export function DetailsDrawer({
                                 <h3 style={drawerSectionTitleStyle}>
                                     Visual Essentials
                                 </h3>
-                                {(() => {
-                                    const derivedId = visualEssentials.derivedFromCaptureId;
-                                    if (!derivedId) return null;
-                                    const cap = rawCaptures.find((c) => c.id === derivedId);
-                                    const evidence = (cap as any)?.styles?.evidence;
-                                    if (!evidence || !evidence.method) return null;
-
-                                    const label = evidence.method === "cdp"
-                                        ? "Authored styles: available (CDP)"
-                                        : "Authored styles: fallback (computed only)";
-                                    const detail = evidence.method === "cdp"
-                                        ? null
-                                        : (typeof evidence.cdpError === "string" && evidence.cdpError ? evidence.cdpError : null);
-
-                                    return (
-                                        <div style={{
-                                            marginTop: 6,
-                                            marginBottom: 10,
-                                            fontSize: 12,
-                                            color: "hsl(var(--muted-foreground))",
-                                            lineHeight: 1.4,
-                                        }}>
-                                            <div>{label}</div>
-                                            {detail && (
+                                {visualEssentialsEvidence && visualEssentialsEvidence.method && (
+                                    <div style={{
+                                        marginTop: 6,
+                                        marginBottom: 10,
+                                        fontSize: 12,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.4,
+                                    }}>
+                                        <div>
+                                            {visualEssentialsEvidence.method === "cdp"
+                                                ? "Authored styles: available (CDP)"
+                                                : "Authored styles: fallback (computed only)"}
+                                        </div>
+                                        {visualEssentialsEvidence.method !== "cdp" &&
+                                            typeof visualEssentialsEvidence.cdpError === "string" &&
+                                            visualEssentialsEvidence.cdpError.trim() !== "" && (
                                                 <div style={{ marginTop: 4, fontFamily: "monospace", opacity: 0.9 }}>
-                                                    {detail}
+                                                    {visualEssentialsEvidence.cdpError}
                                                 </div>
                                             )}
-                                        </div>
-                                    );
-                                })()}
+                                    </div>
+                                )}
                                 {visualEssentials.rows.length === 0 ? (
                                     <div style={{
                                         padding: 12,

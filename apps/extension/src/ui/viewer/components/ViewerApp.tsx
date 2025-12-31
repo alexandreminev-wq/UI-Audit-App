@@ -187,6 +187,8 @@ export function ViewerApp() {
 
                     // 7.4.4: Enforce project scoping at choke point
                     const scopedCaptures = scopeCapturesToProject(loadedCaptures, selectedProjectId);
+                    // MVP decision: Viewer shows SAVED captures only (hide drafts)
+                    const savedCaptures = scopedCaptures.filter((c: CaptureRecordV2) => c.isDraft !== true);
 
                     // 7.4.4: DEV-only scoping guardrail logging
                     const missingProjectIdCount = loadedCaptures.filter((c: CaptureRecordV2) => c.projectId === undefined).length;
@@ -220,11 +222,11 @@ export function ViewerApp() {
                         });
                     }
 
-                    // 7.4.3: Store scoped captures for drawer derivation
-                    setRawCaptures(scopedCaptures);
+                    // 7.4.3: Store saved captures for drawer derivation (exclude drafts)
+                    setRawCaptures(savedCaptures);
 
-                    // 7.4.1: Derive components from scoped captures
-                    const derivedComponents = deriveComponentInventory(scopedCaptures);
+                    // 7.4.1: Derive components from saved captures
+                    const derivedComponents = deriveComponentInventory(savedCaptures);
 
                     // 7.7.1: Load annotations for this project
                     const annotationsResponse = await chrome.runtime.sendMessage({
@@ -312,8 +314,8 @@ export function ViewerApp() {
 
                     setComponents(mergedComponents);
 
-                    // 7.4.2: Derive styles from scoped captures
-                    const derivedStyles = deriveStyleInventory(scopedCaptures);
+                    // 7.4.2: Derive styles from saved captures
+                    const derivedStyles = deriveStyleInventory(savedCaptures);
                     setStyles(derivedStyles);
 
                     // DEV: Log derivation results
@@ -424,10 +426,11 @@ export function ViewerApp() {
             if (response && response.ok) {
                 const loadedCaptures = Array.isArray(response.captures) ? response.captures : [];
                 const scopedCaptures = scopeCapturesToProject(loadedCaptures, projectId);
+                const savedCaptures = scopedCaptures.filter((c: CaptureRecordV2) => c.isDraft !== true);
 
-                setRawCaptures(scopedCaptures);
+                setRawCaptures(savedCaptures);
 
-                const derivedComponents = deriveComponentInventory(scopedCaptures);
+                const derivedComponents = deriveComponentInventory(savedCaptures);
 
                 // Load annotations for this project
                 const annotationsResponse = await chrome.runtime.sendMessage({
@@ -502,12 +505,12 @@ export function ViewerApp() {
 
                 setComponents(mergedComponents);
 
-                const derivedStyles = deriveStyleInventory(scopedCaptures);
+                const derivedStyles = deriveStyleInventory(savedCaptures);
                 setStyles(derivedStyles);
 
                 devLog("[UI Inventory Viewer] Refreshed project detail after delete", {
                     projectId,
-                    capturesCount: scopedCaptures.length,
+                    capturesCount: savedCaptures.length,
                     componentsCount: derivedComponents.length,
                     stylesCount: derivedStyles.length,
                 });

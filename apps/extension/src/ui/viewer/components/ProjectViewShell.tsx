@@ -296,6 +296,21 @@ export function ProjectViewShell({
         return deriveVisualEssentialsFromCapture(representativeCapture);
     }, [ui.drawer.selectedComponentId, drawerComponentCaptures, rawCaptures]);
 
+    const drawerVisualEssentialsEvidence = useMemo(() => {
+        if (!ui.drawer.selectedComponentId || drawerComponentCaptures.length === 0) {
+            return null;
+        }
+        const representativeCapture = rawCaptures
+            .filter((c) => drawerComponentCaptures.some((dc) => dc.id === c.id))
+            .sort((a, b) => b.createdAt - a.createdAt)[0];
+        const evidence = (representativeCapture as any)?.styles?.evidence;
+        if (!evidence || (evidence.method !== "cdp" && evidence.method !== "computed")) return null;
+        return {
+            method: evidence.method as "cdp" | "computed",
+            cdpError: typeof evidence.cdpError === "string" ? evidence.cdpError : undefined,
+        };
+    }, [ui.drawer.selectedComponentId, drawerComponentCaptures, rawCaptures]);
+
     // Click handlers for opening drawer
     const handleComponentClick = (id: string) => {
         setUi(prev => ({
@@ -1078,6 +1093,7 @@ export function ProjectViewShell({
                 styleLocations={drawerStyleLocations}
                 relatedComponents={drawerRelatedComponents}
                 visualEssentials={drawerVisualEssentials}
+                visualEssentialsEvidence={drawerVisualEssentialsEvidence}
                 onAnnotationsChanged={onAnnotationsChanged}
                 onOverridesChanged={onOverridesChanged}
                 onDeleted={onDeleted}
