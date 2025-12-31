@@ -321,6 +321,80 @@ export function ViewerApp() {
         }
     };
 
+    // 7.7.2: Refresh project detail after capture delete
+    const refreshProjectDetail = async (projectId: string) => {
+        try {
+            setComponentsLoading(true);
+            setComponentsError(null);
+
+            const response = await chrome.runtime.sendMessage({
+                type: "UI/GET_PROJECT_DETAIL",
+                projectId,
+            });
+
+            if (response && response.ok) {
+                const loadedCaptures = Array.isArray(response.captures) ? response.captures : [];
+                const scopedCaptures = scopeCapturesToProject(loadedCaptures, projectId);
+
+                setRawCaptures(scopedCaptures);
+
+                const derivedComponents = deriveComponentInventory(scopedCaptures);
+
+                // Load annotations for this project
+                const annotationsResponse = await chrome.runtime.sendMessage({
+                    type: "ANNOTATIONS/GET_PROJECT",
+                    projectId,
+                });
+
+                let annotatedComponents = derivedComponents;
+
+                if (annotationsResponse && annotationsResponse.ok) {
+                    const loadedAnnotations = Array.isArray(annotationsResponse.annotations)
+                        ? annotationsResponse.annotations
+                        : [];
+                    setAnnotations(loadedAnnotations);
+
+                    const annotationsMap = new Map(
+                        loadedAnnotations.map((a: AnnotationRecord) => [a.componentKey, a])
+                    );
+
+                    annotatedComponents = derivedComponents.map(component => {
+                        const annotation = annotationsMap.get(component.id);
+                        if (annotation) {
+                            return {
+                                ...component,
+                                notes: annotation.notes || null,
+                                tags: annotation.tags || [],
+                            };
+                        }
+                        return component;
+                    });
+                } else {
+                    setAnnotations([]);
+                }
+
+                setComponents(annotatedComponents);
+
+                const derivedStyles = deriveStyleInventory(scopedCaptures);
+                setStyles(derivedStyles);
+
+                devLog("[UI Inventory Viewer] Refreshed project detail after delete", {
+                    projectId,
+                    capturesCount: scopedCaptures.length,
+                    componentsCount: derivedComponents.length,
+                    stylesCount: derivedStyles.length,
+                });
+            } else {
+                setComponentsError(response?.error || "Failed to reload project data");
+            }
+        } catch (err) {
+            devWarn("[UI Inventory Viewer] Failed to refresh project detail:", err);
+            setComponentsError(String(err));
+        } finally {
+            setComponentsLoading(false);
+        }
+    };
+
     // Milestone 7.4.0: Loading state
     if (projectsLoading) {
         return (
@@ -388,6 +462,7 @@ export function ViewerApp() {
                     setSelectedProjectIdInUrl(null);
                 }}
                 onAnnotationsChanged={() => refreshAnnotationsForProject(selectedProjectId)}
+                onDeleted={() => refreshProjectDetail(selectedProjectId)}
             />
         );
     }

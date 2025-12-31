@@ -100,6 +100,8 @@ interface DetailsDrawerProps {
     visualEssentials: ViewerVisualEssentials;
     // 7.7.2: Callback after annotation save
     onAnnotationsChanged: () => void;
+    // Callback after delete to trigger refresh
+    onDeleted: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export function DetailsDrawer({
     relatedComponents,
     visualEssentials,
     onAnnotationsChanged,
+    onDeleted,
 }: DetailsDrawerProps) {
     // Reusable drawer section title style
     const drawerSectionTitleStyle = {
@@ -206,6 +209,46 @@ export function DetailsDrawer({
     const representativeCapture = componentCaptures?.[0];
     const screenshotBlobId = representativeCapture?.screenshotBlobId;
     const { url: screenshotUrl } = useBlobUrl(screenshotBlobId);
+
+    // Delete capture (matches Sidepanel delete behavior)
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+    const handleDelete = async () => {
+        if (!selectedComponent || !representativeCapture) {
+            devWarn("[DetailsDrawer] Cannot delete: no component or representative capture");
+            return;
+        }
+
+        // Confirmation dialog
+        const confirmed = window.confirm(
+            `Delete this component?\n\nThis will remove the selected capture from the inventory. This action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        setIsDeleting(true);
+        try {
+            // Use the representative capture's ID (same as Sidepanel delete)
+            const response = await chrome.runtime.sendMessage({
+                type: "UI/DELETE_CAPTURE",
+                captureId: representativeCapture.id,
+            });
+
+            if (response && response.ok) {
+                console.log("[DetailsDrawer] Deleted capture successfully:", representativeCapture.id);
+                onClose(); // Close drawer
+                onDeleted(); // Trigger parent refresh
+            } else {
+                console.error("[DetailsDrawer] Failed to delete capture:", response?.error);
+                devWarn("[DetailsDrawer] Delete failed", { error: response?.error });
+            }
+        } catch (err) {
+            console.error("[DetailsDrawer] Error deleting capture:", err);
+            devWarn("[DetailsDrawer] Delete error", { error: err });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     // DEV-only: Warn if drawer is open with no selection
     if (open && !selectedComponent && !selectedStyle) {
@@ -1085,19 +1128,21 @@ export function DetailsDrawer({
                                 Cancel
                             </button>
                             <button
+                                onClick={handleDelete}
+                                disabled={isDeleting}
                                 type="button"
                                 style={{
                                     padding: "10px 16px",
                                     background: "hsl(var(--background))",
-                                    color: "hsl(var(--destructive))",
+                                    color: isDeleting ? "hsl(var(--muted-foreground))" : "hsl(var(--destructive))",
                                     border: "1px solid hsl(var(--border))",
                                     borderRadius: "var(--radius)",
                                     fontSize: 14,
                                     fontWeight: 500,
-                                    cursor: "pointer",
+                                    cursor: isDeleting ? "not-allowed" : "pointer",
                                 }}
                             >
-                                Delete
+                                {isDeleting ? "Deleting..." : "Delete"}
                             </button>
                         </div>
                     )}
