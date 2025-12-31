@@ -123,6 +123,17 @@ const AUTHOR_PROP_SHORTHAND_FALLBACKS: Partial<Record<AuthorStylePropertyKey, st
     columnGap: ["gap"],
 };
 
+// DEV-only logging (best-effort heuristic)
+const isDevBuild = (() => {
+    try {
+        const v = chrome.runtime.getManifest()?.version ?? "";
+        return typeof v === "string" && v.startsWith("0.");
+    } catch {
+        return false;
+    }
+})();
+const devLog = (...args: any[]) => { if (isDevBuild) console.log(...args); };
+
 function normalizeWhitespace(value: string): string {
     return String(value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -138,6 +149,32 @@ function extractDeclarationValue(cssText: string, propertyName: string): string 
 
 function pickTopProvenance(list: AuthorStyleProvenance[], max = 5): AuthorStyleProvenance[] {
     return list.slice(0, max);
+}
+
+async function sendMessageToTabFrame(
+    tabId: number,
+    frameId: number | undefined,
+    message: any
+): Promise<any> {
+    return await new Promise((resolve, reject) => {
+        try {
+            if (typeof frameId === "number") {
+                chrome.tabs.sendMessage(tabId, message, { frameId }, (resp) => {
+                    const err = chrome.runtime.lastError;
+                    if (err) return reject(new Error(err.message));
+                    resolve(resp);
+                });
+            } else {
+                chrome.tabs.sendMessage(tabId, message, (resp) => {
+                    const err = chrome.runtime.lastError;
+                    if (err) return reject(new Error(err.message));
+                    resolve(resp);
+                });
+            }
+        } catch (e) {
+            reject(e);
+        }
+    });
 }
 
 async function sendCdpCommand<T = any>(tabId: number, method: string, params?: any): Promise<T> {
@@ -223,6 +260,7 @@ async function resolveNodeIdByScoring(
 
     let bestNodeId: number | null = null;
     let bestScore = -1;
+    let bestDepth = -1;
 
     for (const nodeId of candidates) {
         try {
@@ -236,16 +274,62 @@ async function resolveNodeIdByScoring(
             const areaA = Math.max(0, bb.right - bb.left) * Math.max(0, bb.bottom - bb.top);
             const areaT = Math.max(1, target.width * target.height);
             const ratio = areaA / areaT;
-            const areaPenalty = ratio > 1 ? Math.min(0.3, (ratio - 1) * 0.05) : Math.min(0.2, (1 / Math.max(ratio, 0.01) - 1) * 0.05);
-            const score = scoreIou - areaPenalty;
 
-            if (score > bestScore) {
+            // Discard extreme outliers early (likely overlay/backdrop or distant parent)
+            if (ratio > 25 || ratio < 0.02) {
+                continue;
+            }
+
+            const areaPenalty = ratio > 1 ? Math.min(0.3, (ratio - 1) * 0.05) : Math.min(0.2, (1 / Math.max(ratio, 0.01) - 1) * 0.05);
+            let score = scoreIou - areaPenalty;
+
+            // Prefer pointer-events != none
+            try {
+                const computed: any = await sendCdpCommand(tabId, "CSS.getComputedStyleForNode", { nodeId });
+                const entries: any[] = Array.isArray(computed?.computedStyle) ? computed.computedStyle : [];
+                const pe = entries.find((e) => e?.name === "pointer-events")?.value;
+                if (typeof pe === "string" && pe.trim() === "none") {
+                    score -= 0.15;
+                }
+            } catch {
+                // ignore
+            }
+
+            // Tie-break: prefer deeper nodes (more specific control)
+            let depth = 0;
+            try {
+                let currentId: number | null = nodeId;
+                for (let i = 0; i < 25 && currentId; i++) {
+                    const desc: any = await sendCdpCommand(tabId, "DOM.describeNode", { nodeId: currentId });
+                    const parentId = desc?.node?.parentId;
+                    if (typeof parentId !== "number" || parentId <= 0) break;
+                    depth++;
+                    currentId = parentId;
+                }
+            } catch {
+                depth = 0;
+            }
+
+            if (score > bestScore || (Math.abs(score - bestScore) < 0.01 && depth > bestDepth)) {
                 bestScore = score;
                 bestNodeId = nodeId;
+                bestDepth = depth;
             }
         } catch {
             // ignore
         }
+    }
+
+    devLog("[UI Inventory][CDP] node scoring", {
+        candidates: candidates.size,
+        bestScore,
+        bestDepth,
+        bestNodeId,
+    });
+
+    // Confidence threshold: if we can't confidently match, fall back to marker resolver.
+    if (bestScore < 0.2) {
+        return null;
     }
 
     return bestNodeId;
@@ -254,10 +338,16 @@ async function resolveNodeIdByScoring(
 async function collectAuthorStylesForCapture(
     tabId: number,
     points: HitTestPoint[],
-    targetBox?: TargetBox
+    targetBox?: TargetBox,
+    options?: {
+        captureUrl?: string; // Used to find the correct frame for marker resolution (best-effort)
+        markerId?: string; // If provided, resolve node via marker instead of hit-test points
+    }
 ): Promise<{ author: AuthorStyleEvidence; evidenceMethod: "cdp"; provenanceMap: Map<string, { url?: string; origin?: string }> }>{
     // Collect stylesheet headers (id -> {url, origin}) while CSS is enabled.
     const provenanceMap = new Map<string, { url?: string; origin?: string }>();
+    const contextByFrameId = new Map<string, number>();
+
     const onEvent = (source: chrome.debugger.Debuggee, method: string, params?: any) => {
         if (source.tabId !== tabId) return;
         if (method === "CSS.styleSheetAdded") {
@@ -270,6 +360,16 @@ async function collectAuthorStylesForCapture(
                 });
             }
         }
+        if (method === "Runtime.executionContextCreated") {
+            const ctx = params?.context;
+            const aux = ctx?.auxData;
+            const frameId = aux?.frameId;
+            const isDefault = aux?.isDefault;
+            const id = ctx?.id;
+            if (typeof frameId === "string" && isDefault === true && typeof id === "number") {
+                contextByFrameId.set(frameId, id);
+            }
+        }
     };
 
     chrome.debugger.onEvent.addListener(onEvent);
@@ -279,15 +379,87 @@ async function collectAuthorStylesForCapture(
         cdpAttachedTabs.add(tabId);
 
         // Enable domains (also triggers styleSheetAdded events)
+        await sendCdpCommand(tabId, "Page.enable");
+        await sendCdpCommand(tabId, "Runtime.enable");
         await sendCdpCommand(tabId, "DOM.enable");
         await sendCdpCommand(tabId, "CSS.enable");
 
         // Ensure document is available
         await sendCdpCommand(tabId, "DOM.getDocument", { depth: 1, pierce: true });
 
-        const nodeId = targetBox
-            ? await resolveNodeIdByScoring(tabId, points, targetBox)
-            : await resolveNodeIdByPoints(tabId, points);
+        // Resolve nodeId via marker (frame-aware) or via hit-test points (scoring)
+        let nodeId: number | null = null;
+
+        const markerId = options?.markerId;
+        if (markerId && typeof markerId === "string" && markerId.trim() !== "") {
+            devLog("[UI Inventory][CDP] resolving via marker", { tabId, markerId, captureUrl: options?.captureUrl });
+            // Best-effort: map captureUrl -> frameId using Page.getFrameTree
+            const captureUrl = options?.captureUrl;
+            let targetFrameId: string | null = null;
+            try {
+                const frameTreeResp: any = await sendCdpCommand(tabId, "Page.getFrameTree");
+                const root = frameTreeResp?.frameTree;
+
+                const findFrameIdByUrl = (node: any): string | null => {
+                    if (!node) return null;
+                    const frame = node.frame;
+                    if (frame && typeof frame.url === "string" && typeof frame.id === "string") {
+                        if (captureUrl && frame.url === captureUrl) {
+                            return frame.id;
+                        }
+                    }
+                    const children = Array.isArray(node.childFrames) ? node.childFrames : [];
+                    for (const child of children) {
+                        const found = findFrameIdByUrl(child);
+                        if (found) return found;
+                    }
+                    return null;
+                };
+
+                targetFrameId = findFrameIdByUrl(root);
+            } catch {
+                targetFrameId = null;
+            }
+
+            // Pick an execution context
+            const contextId = (targetFrameId && contextByFrameId.get(targetFrameId))
+                ? contextByFrameId.get(targetFrameId)!
+                : (() => {
+                    // Fall back to any default context
+                    const first = contextByFrameId.values().next().value;
+                    return typeof first === "number" ? first : null;
+                })();
+
+            if (!contextId) {
+                throw new Error("No CDP execution context available for marker resolution");
+            }
+            devLog("[UI Inventory][CDP] marker context selected", { targetFrameId, contextId });
+
+            const expr = `document.querySelector('[data-uiinv-target=\"${markerId.replace(/\"/g, "\\\\\"")}\"]')`;
+            const evalResp: any = await sendCdpCommand(tabId, "Runtime.evaluate", {
+                expression: expr,
+                contextId,
+                returnByValue: false,
+                awaitPromise: false,
+            });
+
+            const objectId = evalResp?.result?.objectId;
+            if (!objectId) {
+                throw new Error("Marker element not found in target frame");
+            }
+
+            const reqNodeResp: any = await sendCdpCommand(tabId, "DOM.requestNode", { objectId });
+            const resolvedNodeId = reqNodeResp?.nodeId;
+            if (typeof resolvedNodeId !== "number" || resolvedNodeId <= 0) {
+                throw new Error("Failed to request nodeId from marker element");
+            }
+            nodeId = resolvedNodeId;
+        } else {
+            nodeId = targetBox
+                ? await resolveNodeIdByScoring(tabId, points, targetBox)
+                : await resolveNodeIdByPoints(tabId, points);
+        }
+
         if (!nodeId) {
             throw new Error("Failed to resolve nodeId from hit-test points");
         }
@@ -1093,25 +1265,72 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             let evidenceMethod: "cdp" | "computed" = "computed";
             let cdpError: string | undefined;
             try {
+                const senderFrameId = typeof sender.frameId === "number" ? sender.frameId : undefined;
                 const points: HitTestPoint[] = Array.isArray(recordV1?.__uiinv_cdp?.hitTestPoints)
                     ? recordV1.__uiinv_cdp.hitTestPoints
                           .filter((p: any) => p && typeof p.x === "number" && typeof p.y === "number")
                           .slice(0, 8)
                     : [];
 
-                if (points.length > 0) {
-                    const targetBox: TargetBox = {
-                        left: Number(recordV1?.boundingBox?.left || 0),
-                        top: Number(recordV1?.boundingBox?.top || 0),
-                        width: Number(recordV1?.boundingBox?.width || 0),
-                        height: Number(recordV1?.boundingBox?.height || 0),
-                        scrollX: Number(recordV1?.viewport?.scrollX || 0),
-                        scrollY: Number(recordV1?.viewport?.scrollY || 0),
-                    };
+                const targetBox: TargetBox = {
+                    left: Number(recordV1?.boundingBox?.left || 0),
+                    top: Number(recordV1?.boundingBox?.top || 0),
+                    width: Number(recordV1?.boundingBox?.width || 0),
+                    height: Number(recordV1?.boundingBox?.height || 0),
+                    scrollX: Number(recordV1?.viewport?.scrollX || 0),
+                    scrollY: Number(recordV1?.viewport?.scrollY || 0),
+                };
 
-                    const collected = await collectAuthorStylesForCapture(tabId, points, targetBox);
-                    author = collected.author;
-                    evidenceMethod = "cdp";
+                const captureUrl = typeof recordV1?.url === "string" ? recordV1.url : undefined;
+                const preferMarker = typeof senderFrameId === "number" && senderFrameId !== 0;
+
+                const tryCollect = async (markerId?: string) => {
+                    return await collectAuthorStylesForCapture(tabId, points, targetBox, {
+                        captureUrl,
+                        markerId,
+                    });
+                };
+
+                // For iframe captures, prefer marker-based resolution (coords may be frame-relative).
+                if (preferMarker) {
+                    const markerId = `uiinv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                    try {
+                        await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/MARK_TARGET", markerId });
+                        const collected = await tryCollect(markerId);
+                        author = collected.author;
+                        evidenceMethod = "cdp";
+                    } finally {
+                        try {
+                            await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/UNMARK_TARGET", markerId });
+                        } catch {
+                            // ignore
+                        }
+                    }
+                } else if (points.length > 0) {
+                    // Main-frame: scoring resolver first, then marker fallback if needed.
+                    try {
+                        const collected = await tryCollect(undefined);
+                        author = collected.author;
+                        evidenceMethod = "cdp";
+                    } catch (primaryErr) {
+                        const markerId = `uiinv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                        try {
+                            await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/MARK_TARGET", markerId });
+                            const collected = await tryCollect(markerId);
+                            author = collected.author;
+                            evidenceMethod = "cdp";
+                        } finally {
+                            try {
+                                await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/UNMARK_TARGET", markerId });
+                            } catch {
+                                // ignore
+                            }
+                        }
+                        // Preserve original error for debugging if marker also fails
+                        if (evidenceMethod !== "cdp") {
+                            throw primaryErr;
+                        }
+                    }
                 }
             } catch (err) {
                 cdpError = String(err);

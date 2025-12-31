@@ -3,6 +3,10 @@ import { extractComputedStyles, extractStylePrimitives } from "./extractComputed
 
 console.log("[UI Inventory] Content script loaded on:", location.href);
 
+// Phase 3: last-resort resolver support
+let lastCaptureTargetEl: Element | null = null;
+let lastMarkerId: string | null = null;
+
 // Register this tab as active audit tab, then restore audit mode if enabled
 chrome.runtime.sendMessage({ type: "UI/REGISTER_ACTIVE_TAB" }, () => {
     if (chrome.runtime.lastError) return;
@@ -658,6 +662,9 @@ async function onClickSelect(e: MouseEvent) {
 }
 
 async function performCapture(target: Element) {
+    // Phase 3: keep a reference for last-resort marker operations
+    lastCaptureTargetEl = target;
+
     // Show capturing feedback
     if (pillDiv) {
         pillDiv.textContent = "📸 CAPTURING…";
@@ -955,6 +962,51 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         console.log("[UI Inventory] CS ping received ✅");
         sendResponse?.({ ok: true });
         return;
+    }
+
+    if (msg?.type === "AUDIT/MARK_TARGET") {
+        try {
+            const markerId = String(msg.markerId || "");
+            if (!markerId) {
+                sendResponse({ ok: false, error: "markerId is required" });
+                return;
+            }
+            if (!lastCaptureTargetEl) {
+                sendResponse({ ok: false, error: "No target element available to mark" });
+                return;
+            }
+            // Apply marker attribute (last resort). Must be removed later.
+            (lastCaptureTargetEl as HTMLElement).setAttribute("data-uiinv-target", markerId);
+            lastMarkerId = markerId;
+            sendResponse({ ok: true });
+        } catch (err) {
+            sendResponse({ ok: false, error: String(err) });
+        }
+        return true;
+    }
+
+    if (msg?.type === "AUDIT/UNMARK_TARGET") {
+        try {
+            const markerId = String(msg.markerId || "");
+            if (!markerId) {
+                sendResponse({ ok: false, error: "markerId is required" });
+                return;
+            }
+            const el = lastCaptureTargetEl as HTMLElement | null;
+            if (el) {
+                const current = el.getAttribute("data-uiinv-target");
+                if (current === markerId || lastMarkerId === markerId) {
+                    el.removeAttribute("data-uiinv-target");
+                }
+            }
+            if (lastMarkerId === markerId) {
+                lastMarkerId = null;
+            }
+            sendResponse({ ok: true });
+        } catch (err) {
+            sendResponse({ ok: false, error: String(err) });
+        }
+        return true;
     }
 
     if (msg?.type === "UI/TOGGLE_SIDEBAR") {

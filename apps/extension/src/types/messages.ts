@@ -30,6 +30,20 @@ export interface PingMessage {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Phase 3: Resolver fallback (Service Worker → Content Script)
+// ─────────────────────────────────────────────────────────────
+
+export interface MarkTargetMessage {
+    type: "AUDIT/MARK_TARGET";
+    markerId: string;
+}
+
+export interface UnmarkTargetMessage {
+    type: "AUDIT/UNMARK_TARGET";
+    markerId: string;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Content Script → Service Worker
 // ─────────────────────────────────────────────────────────────
 
@@ -52,7 +66,7 @@ export interface ElementSelectedMessage {
 
 export type PopupMessage = AuditToggleMessage | CaptureRequestMessage;
 
-export type ServiceWorkerMessage = EnableHoverModeMessage | PingMessage;
+export type ServiceWorkerMessage = EnableHoverModeMessage | PingMessage | MarkTargetMessage | UnmarkTargetMessage;
 
 export type ContentScriptMessage = ElementSelectedMessage;
 
