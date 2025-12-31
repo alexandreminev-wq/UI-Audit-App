@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { ProjectScreen } from './components/ProjectScreen';
+import { InactiveTabScreen } from './components/InactiveTabScreen';
 
 function sendMessageAsync<T, R>(msg: T): Promise<R> {
   return new Promise((resolve, reject) => {
@@ -14,18 +15,40 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
 
 import type { StylePrimitives } from '../../../types/capture';
 
+async function getActivePageTabId(): Promise<number | null> {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    // In Sidepanel contexts, tab.url may be unavailable depending on permissions.
+    // We only need the tabId, so pick the active tab if present.
+    return tabs[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Component {
   id: string;
+  componentKey: string; // Deterministic grouping key (shared with Viewer)
   name: string;
   category: string;
+  type: string;
+  status: string;
   imageUrl: string;
   url: string;
   html: string;
   styles: Record<string, string>;
   stylePrimitives?: StylePrimitives; // Added for Visual Essentials display
   comments: string;
+  tags: string[];
+  overrides?: {
+    displayName: string | null;
+    categoryOverride: string | null;
+    typeOverride: string | null;
+    statusOverride: string | null;
+  };
   typeKey?: string; // Classifier output
   confidence?: number; // Classifier output (debug)
+  isDraft?: boolean; // 7.8: Draft until Save
 }
 
 export interface Project {
@@ -46,6 +69,8 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [error, setError] = useState('');
+  const [currentPageTabId, setCurrentPageTabId] = useState<number | null>(null);
+  const [activeAuditTabId, setActiveAuditTabId] = useState<number | null>(null);
 
   const loadProjects = async () => {
     setLoadingProjects(true);
@@ -70,6 +95,67 @@ export default function App() {
     loadProjects();
   }, []);
 
+  const refreshCurrentPageTab = async () => {
+    const tabId = await getActivePageTabId();
+    setCurrentPageTabId(tabId);
+  };
+
+  const refreshRoutingState = async () => {
+    try {
+      const resp = await sendMessageAsync<{ type: string }, any>({ type: 'AUDIT/GET_ROUTING_STATE' });
+      if (resp?.ok) {
+        setActiveAuditTabId(resp.activeAuditTabId ?? null);
+      }
+    } catch {
+      // non-fatal
+    }
+  };
+
+  useEffect(() => {
+    refreshCurrentPageTab();
+    refreshRoutingState();
+
+    const listener = (msg: any) => {
+      if (msg?.type === 'UI/ACTIVE_TAB_CHANGED') {
+        refreshCurrentPageTab();
+      }
+      if (msg?.type === 'UI/AUDIT_OWNER_CHANGED') {
+        setActiveAuditTabId(msg.activeAuditTabId ?? null);
+        refreshCurrentPageTab();
+      }
+      if (msg?.type === 'UI/TAB_REGISTERED') {
+        refreshCurrentPageTab();
+        refreshRoutingState();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
+
+  const handleActivateInThisTab = async () => {
+    setError('');
+    const tabId = await getActivePageTabId();
+    setCurrentPageTabId(tabId);
+    if (tabId === null) {
+      setError('No tab ID (focus a page tab and retry)');
+      return;
+    }
+
+    const resp = await sendMessageAsync<{ type: string; tabId: number }, any>({
+      type: 'AUDIT/CLAIM_TAB',
+      tabId,
+    });
+
+    if (!resp?.ok) {
+      setError(resp?.error || 'Failed to activate capture in this tab');
+      return;
+    }
+
+    setActiveAuditTabId(tabId);
+    setCurrentProject(null); // force project re-selection (re-open flow)
+  };
+
   const handleCreateProject = async (title: string) => {
     setError('');
     try {
@@ -81,24 +167,26 @@ export default function App() {
       if (resp?.ok && resp.project) {
         await loadProjects();
 
+        // Navigate immediately; ProjectScreen will also set mapping on mount.
+        setCurrentProject({
+          id: resp.project.id,
+          title: resp.project.name,
+          components: [],
+        });
+
+        // Best-effort: set active project mapping for the current page tab.
+        const tabId = await getActivePageTabId();
         const setResp = await sendMessageAsync<
-          { type: string; projectId: string },
+          { type: string; projectId: string; tabId?: number | null },
           any
         >({
           type: 'UI/SET_ACTIVE_PROJECT_FOR_TAB',
           projectId: resp.project.id,
+          tabId,
         });
 
-        if (setResp?.ok) {
-          setError('');
-          setCurrentProject({
-            id: resp.project.id,
-            title: resp.project.name,
-            components: [],
-          });
-        } else {
-          setError(setResp?.error || 'Failed to set active project');
-          return;
+        if (!setResp?.ok) {
+          setError(setResp?.error || 'Failed to set active project (try focusing the page tab)');
         }
       } else {
         setError(resp?.error || 'Failed to create project');
@@ -111,16 +199,19 @@ export default function App() {
   const handleOpenProject = async (project: Project) => {
     setError('');
     try {
-      const resp = await sendMessageAsync<{ type: string; projectId: string }, any>({
+      // Navigate immediately; ProjectScreen will also set mapping on mount.
+      setCurrentProject(project);
+
+      // Best-effort: set active project mapping for the current page tab.
+      const tabId = await getActivePageTabId();
+      const resp = await sendMessageAsync<{ type: string; projectId: string; tabId?: number | null }, any>({
         type: 'UI/SET_ACTIVE_PROJECT_FOR_TAB',
         projectId: project.id,
+        tabId,
       });
 
-      if (resp?.ok) {
-        setError('');
-        setCurrentProject(project);
-      } else {
-        setError(resp?.error || 'Failed to set active project');
+      if (!resp?.ok) {
+        setError(resp?.error || 'Failed to set active project (try focusing the page tab)');
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to set active project');
@@ -142,9 +233,14 @@ export default function App() {
     components: [],
   }));
 
+  const shouldShowInactiveScreen =
+    activeAuditTabId !== null && currentPageTabId !== null && currentPageTabId !== activeAuditTabId;
+
   return (
     <div className="w-[360px] h-screen bg-white">
-      {!currentProject ? (
+      {shouldShowInactiveScreen ? (
+        <InactiveTabScreen error={error} onActivate={handleActivateInThisTab} />
+      ) : !currentProject ? (
         <StartScreen
           onCreateProject={handleCreateProject}
           onOpenProject={handleOpenProject}

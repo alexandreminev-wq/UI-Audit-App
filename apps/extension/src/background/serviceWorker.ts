@@ -22,6 +22,13 @@ import {
     listAnnotationsForProject,
     upsertAnnotation,
     deleteAnnotation,
+    getComponentOverride,
+    listComponentOverridesForProject,
+    upsertComponentOverride,
+    deleteComponentOverride,
+    listDraftCapturesForProject,
+    listSavedCapturesForProject,
+    commitDraftCapture,
 } from "./capturesDb";
 import type { SessionRecord, CaptureRecordV2, BlobRecord, StylePrimitives } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
@@ -31,6 +38,7 @@ const lastSelectedByTab = new Map<number, any>();
 const activeSessionIdByTab = new Map<number, string>();
 const activeProjectByTabId = new Map<number, string>();
 let lastActiveAuditTabId: number | null = null;
+let activeAuditTabId: number | null = null; // 7.8.1: One-tab-at-a-time capture ownership
 let currentProjectId: string | null = null;
 let currentAuditEnabled: boolean = false;
 
@@ -70,6 +78,130 @@ async function setEnabledPersisted(tabId: number, enabled: boolean): Promise<voi
         console.log("[UI Inventory] Persisted enabled for tab", tabId, ":", enabled);
     } catch (err) {
         console.warn("[UI Inventory] Failed to persist enabled:", err);
+    }
+}
+
+/**
+ * Persistence key generator for active project (7.8 fix)
+ */
+const activeProjectKey = (tabId: number) => `uiinv_activeproject_${tabId}`;
+
+/**
+ * Persist active project for tab to chrome.storage.session (7.8 fix)
+ * This survives service worker restarts
+ */
+async function setActiveProjectPersisted(tabId: number, projectId: string | null): Promise<void> {
+    const key = activeProjectKey(tabId);
+    try {
+        if (projectId === null) {
+            await chrome.storage.session.remove(key);
+            console.log("[UI Inventory] Cleared active project for tab", tabId);
+        } else {
+            await chrome.storage.session.set({ [key]: projectId });
+            console.log("[UI Inventory] Persisted active project for tab", tabId, ":", projectId);
+        }
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to persist active project:", err);
+    }
+}
+
+/**
+ * Get active project for tab from chrome.storage.session (7.8 fix)
+ * Used to rehydrate after service worker restart
+ */
+async function getActiveProjectPersisted(tabId: number): Promise<string | null> {
+    const key = activeProjectKey(tabId);
+    try {
+        const result = await chrome.storage.session.get(key);
+        const projectId = result[key] || null;
+        if (projectId) {
+            console.log("[UI Inventory] Rehydrated active project for tab", tabId, ":", projectId);
+        }
+        return projectId;
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to get active project from storage:", err);
+        return null;
+    }
+}
+
+/**
+ * Persistence key for lastActiveAuditTabId (7.8 fix)
+ */
+const lastActiveAuditTabIdKey = () => "uiinv_last_active_audit_tab_id";
+
+/**
+ * Persist lastActiveAuditTabId to chrome.storage.session (7.8 fix)
+ * This survives service worker restarts
+ */
+async function setLastActiveAuditTabIdPersisted(tabId: number): Promise<void> {
+    const key = lastActiveAuditTabIdKey();
+    try {
+        await chrome.storage.session.set({ [key]: tabId });
+        console.log("[UI Inventory] Persisted lastActiveAuditTabId:", tabId);
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to persist lastActiveAuditTabId:", err);
+    }
+}
+
+/**
+ * Get lastActiveAuditTabId from chrome.storage.session (7.8 fix)
+ * Used to rehydrate after service worker restart
+ */
+async function getLastActiveAuditTabIdPersisted(): Promise<number | null> {
+    const key = lastActiveAuditTabIdKey();
+    try {
+        const result = await chrome.storage.session.get(key);
+        const tabId = result[key] || null;
+        if (tabId !== null) {
+            console.log("[UI Inventory] Rehydrated lastActiveAuditTabId:", tabId);
+        }
+        return tabId;
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to get lastActiveAuditTabId from storage:", err);
+        return null;
+    }
+}
+
+/**
+ * Persistence key for activeAuditTabId (7.8.1: one-tab-at-a-time capture)
+ */
+const activeAuditTabIdKey = () => "uiinv_active_audit_tab_id";
+
+/**
+ * Persist activeAuditTabId to chrome.storage.session (7.8.1)
+ * This tracks which tab currently "owns" capture mode
+ */
+async function setActiveAuditTabIdPersisted(tabId: number | null): Promise<void> {
+    const key = activeAuditTabIdKey();
+    try {
+        if (tabId === null) {
+            await chrome.storage.session.remove(key);
+            console.log("[UI Inventory] Cleared activeAuditTabId");
+        } else {
+            await chrome.storage.session.set({ [key]: tabId });
+            console.log("[UI Inventory] Persisted activeAuditTabId:", tabId);
+        }
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to persist activeAuditTabId:", err);
+    }
+}
+
+/**
+ * Get activeAuditTabId from chrome.storage.session (7.8.1)
+ * Used to determine which tab owns capture mode
+ */
+async function getActiveAuditTabIdPersisted(): Promise<number | null> {
+    const key = activeAuditTabIdKey();
+    try {
+        const result = await chrome.storage.session.get(key);
+        const tabId = result[key] || null;
+        if (tabId !== null) {
+            console.log("[UI Inventory] Rehydrated activeAuditTabId:", tabId);
+        }
+        return tabId;
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to get activeAuditTabId from storage:", err);
+        return null;
     }
 }
 
@@ -148,6 +280,33 @@ function resolveTabId(msg: any, sender: chrome.runtime.MessageSender): number | 
     }
     // Do not guess - return null
     return null;
+}
+
+/**
+ * 7.8.x: One-tab-at-a-time enforcement helper
+ * Turns off audit mode for a specific tab and clears its session pointer.
+ */
+async function disableAuditForTab(tabId: number, reason: string): Promise<void> {
+    try {
+        auditEnabledByTab.set(tabId, false);
+        await setEnabledPersisted(tabId, false);
+
+        // Clear session pointer for this tab when audit is disabled
+        await clearSessionIdForTab(tabId);
+        activeSessionIdByTab.delete(tabId);
+
+        // Best-effort: tell content script to stop capture/highlight mode
+        chrome.tabs.sendMessage(tabId, { type: "AUDIT/TOGGLE", enabled: false }, () => {
+            const err = chrome.runtime.lastError;
+            if (err) {
+                console.warn("[UI Inventory] disableAuditForTab sendMessage failed:", err.message);
+            }
+        });
+
+        console.log("[UI Inventory] Disabled audit for tab", tabId, "reason:", reason);
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to disable audit for tab", tabId, "reason:", reason, "err:", err);
+    }
 }
 
 /**
@@ -381,9 +540,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
             // Store state for this tab
             const enabled = Boolean(msg.enabled);
+
+            // 7.8.x: Enforce single-owner audit tab. If a new tab is enabling capture,
+            // disable capture in the previous owner tab first.
+            if (enabled && activeAuditTabId !== null && activeAuditTabId !== tabId) {
+                await disableAuditForTab(activeAuditTabId, "owner_switched_via_toggle");
+            }
+
             auditEnabledByTab.set(tabId, enabled);
             currentAuditEnabled = enabled;
             await setEnabledPersisted(tabId, enabled);
+
+            // 7.8.1: Set/clear activeAuditTabId (one-tab-at-a-time ownership)
+            if (enabled) {
+                activeAuditTabId = tabId;
+                await setActiveAuditTabIdPersisted(tabId);
+                console.log("[UI Inventory] Set activeAuditTabId to:", tabId);
+            } else if (activeAuditTabId === tabId) {
+                // Only clear if this tab was the active one
+                activeAuditTabId = null;
+                await setActiveAuditTabIdPersisted(null);
+                console.log("[UI Inventory] Cleared activeAuditTabId");
+            }
 
             // Create session when audit mode is enabled
             if (enabled) {
@@ -470,6 +648,60 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // async response
     }
 
+    // 7.8.1: Get active audit tab ID (for Sidepanel one-tab-at-a-time UI)
+    // DEPRECATED: Use AUDIT/GET_ROUTING_STATE instead
+    if (msg?.type === "AUDIT/GET_ACTIVE_TAB_ID") {
+        sendResponse({ ok: true, activeTabId: activeAuditTabId });
+        return false; // synchronous response
+    }
+
+    // 7.8.1: Get routing state (read-only API for Sidepanel)
+    if (msg?.type === "AUDIT/GET_ROUTING_STATE") {
+        (async () => {
+            // Rehydrate activeAuditTabId if needed
+            let tabId = activeAuditTabId;
+            if (tabId === null) {
+                tabId = await getActiveAuditTabIdPersisted();
+                if (tabId !== null) {
+                    activeAuditTabId = tabId;
+                    console.log("[UI Inventory] AUDIT/GET_ROUTING_STATE rehydrated activeAuditTabId:", tabId);
+                }
+            }
+            sendResponse({ ok: true, activeAuditTabId: tabId });
+        })();
+        return true; // async response
+    }
+
+    // 7.8.x: Explicitly claim audit ownership for a tab (Sidepanel activation flow).
+    // This does NOT enable capture by itself; it only sets the owner tab for the UI.
+    if (msg?.type === "AUDIT/CLAIM_TAB") {
+        (async () => {
+            const tabId = resolveTabId(msg, sender);
+            if (!tabId) {
+                sendResponse({ ok: false, error: "No tab ID" });
+                return;
+            }
+
+            const previous = activeAuditTabId;
+
+            // If switching owners, ensure capture is disabled in the previous owner tab.
+            if (previous !== null && previous !== tabId) {
+                await disableAuditForTab(previous, "owner_switched_via_claim");
+            }
+
+            activeAuditTabId = tabId;
+            lastActiveAuditTabId = tabId;
+            await setActiveAuditTabIdPersisted(tabId);
+            await setLastActiveAuditTabIdPersisted(tabId);
+
+            // Best-effort: let all UIs know routing ownership changed
+            chrome.runtime.sendMessage({ type: "UI/AUDIT_OWNER_CHANGED", activeAuditTabId: tabId }, () => void chrome.runtime.lastError);
+
+            sendResponse({ ok: true, activeAuditTabId: tabId, previousActiveAuditTabId: previous });
+        })();
+        return true; // async response
+    }
+
     if (msg?.type === "AUDIT/ELEMENT_SELECTED") {
         const tabId = sender.tab?.id;
         if (tabId) {
@@ -491,12 +723,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Ensure session exists for this tab
             const sessionId = await ensureSession(tabId);
 
-            // Get active project for this tab
-            const projectId = activeProjectByTabId.get(tabId);
+            // 7.8 fix: Get active project for this tab (rehydrate from storage if missing)
+            let projectId = activeProjectByTabId.get(tabId);
 
-            // Validate that a project is active (warn if missing, but allow capture)
             if (!projectId) {
-                console.warn("[UI Inventory] AUDIT/CAPTURE: No active project for tab", tabId, "- capture will not be associated with a project");
+                // Rehydrate from chrome.storage.session (survives SW restarts)
+                projectId = await getActiveProjectPersisted(tabId);
+                if (projectId) {
+                    // Restore to in-memory map
+                    activeProjectByTabId.set(tabId, projectId);
+                    console.log("[UI Inventory] AUDIT/CAPTURE: Rehydrated active project for tab", tabId, ":", projectId);
+                } else {
+                    console.warn("[UI Inventory] AUDIT/CAPTURE: No active project for tab", tabId, "- capture will not be associated with a project");
+                }
             }
 
             // Link session to active project if one is set for this tab (non-fatal)
@@ -572,6 +811,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 },
 
                 screenshot: screenshot || null,
+
+                // 7.8: All new captures are drafts until explicitly saved
+                isDraft: true,
             };
 
             lastSelectedByTab.set(tabId, recordV2);
@@ -917,47 +1159,85 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg?.type === "UI/REGISTER_ACTIVE_TAB") {
-        if (typeof sender.tab?.id === "number") {
-            const tabId = sender.tab.id;
-            lastActiveAuditTabId = tabId;
+        (async () => {
+            if (typeof sender.tab?.id === "number") {
+                const tabId = sender.tab.id;
+                lastActiveAuditTabId = tabId;
 
-            // Apply current project to newly registered tab
-            if (currentProjectId) {
-                activeProjectByTabId.set(tabId, currentProjectId);
+                // 7.8 fix: Persist lastActiveAuditTabId for SW restart resilience
+                await setLastActiveAuditTabIdPersisted(tabId);
+
+                // 7.8.1: Set activeAuditTabId if none exists and audit is enabled
+                // (first tab with audit enabled wins)
+                if (activeAuditTabId === null && currentAuditEnabled) {
+                    activeAuditTabId = tabId;
+                    await setActiveAuditTabIdPersisted(tabId);
+                    console.log("[UI Inventory] Set activeAuditTabId to first registered tab:", tabId);
+                }
+
+                // Apply current project to newly registered tab
+                if (currentProjectId) {
+                    activeProjectByTabId.set(tabId, currentProjectId);
+                }
+
+                // Apply current audit enabled state to newly registered tab
+                auditEnabledByTab.set(tabId, currentAuditEnabled);
+
+                // Broadcast registration event (non-fatal)
+                chrome.runtime.sendMessage({ type: "UI/TAB_REGISTERED", tabId }, () => void chrome.runtime.lastError);
+
+                sendResponse({ ok: true });
+            } else {
+                sendResponse({ ok: false, error: "No tab ID" });
             }
-
-            // Apply current audit enabled state to newly registered tab
-            auditEnabledByTab.set(tabId, currentAuditEnabled);
-
-            // Broadcast registration event (non-fatal)
-            chrome.runtime.sendMessage({ type: "UI/TAB_REGISTERED", tabId }, () => void chrome.runtime.lastError);
-
-            sendResponse({ ok: true });
-        } else {
-            sendResponse({ ok: false, error: "No tab ID" });
-        }
-        return;
+        })();
+        return true; // async response
     }
 
     if (msg?.type === "UI/SET_ACTIVE_PROJECT_FOR_TAB") {
         (async () => {
-            const tabId = typeof sender.tab?.id === "number"
-                ? sender.tab.id
-                : (typeof msg.tabId === "number" ? msg.tabId : (lastActiveAuditTabId ?? null));
+            // 7.8 fix: Use resolveTabId for backward compatibility with Sidepanel
+            let tabId = resolveTabId(msg, sender);
+
+            // 7.8 fix: Lazy rehydration if resolveTabId returns null
+            if (tabId === null && lastActiveAuditTabId === null) {
+                // Try to rehydrate lastActiveAuditTabId from storage (inline to avoid TDZ)
+                try {
+                    const result = await chrome.storage.session.get("uiinv_last_active_audit_tab_id");
+                    const rehydratedTabId = result["uiinv_last_active_audit_tab_id"] || null;
+                    if (rehydratedTabId !== null) {
+                        lastActiveAuditTabId = rehydratedTabId;
+                        tabId = rehydratedTabId;
+                        console.log("[UI Inventory] Rehydrated lastActiveAuditTabId:", rehydratedTabId);
+                    }
+                } catch (err) {
+                    console.warn("[UI Inventory] Failed to rehydrate lastActiveAuditTabId:", err);
+                }
+            }
 
             if (tabId === null) {
-                sendResponse({ ok: false, error: "No tab ID" });
+                sendResponse({ ok: false, error: "No tab ID (focus a page tab and retry)" });
                 return;
             }
 
             const projectId = msg.projectId;
 
             if (projectId && typeof projectId === "string") {
+                // Update in-memory map
                 activeProjectByTabId.set(tabId, projectId);
                 currentProjectId = projectId;
+
+                // 7.8 fix: Persist to chrome.storage.session for SW restart resilience
+                await setActiveProjectPersisted(tabId, projectId);
+
                 console.log("[UI Inventory] Set active project for tab", tabId, ":", projectId);
             } else {
+                // Clear mapping
                 activeProjectByTabId.delete(tabId);
+
+                // 7.8 fix: Clear from storage
+                await setActiveProjectPersisted(tabId, null);
+
                 console.log("[UI Inventory] Cleared active project for tab", tabId);
             }
 
@@ -1235,7 +1515,190 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // async response
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Component Overrides (Identity overrides: name/category/type/status)
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "OVERRIDES/GET_PROJECT") {
+        (async () => {
+            const projectId = msg.projectId;
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            try {
+                const overrides = await listComponentOverridesForProject(projectId);
+                sendResponse({ ok: true, overrides });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to list overrides:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "OVERRIDES/GET_ONE") {
+        (async () => {
+            const { projectId, componentKey } = msg;
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            try {
+                const override = await getComponentOverride(projectId, componentKey);
+                sendResponse({ ok: true, override });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get override:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "OVERRIDES/UPSERT") {
+        (async () => {
+            const { projectId, componentKey, displayName, categoryOverride, typeOverride, statusOverride } = msg;
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            try {
+                await upsertComponentOverride({
+                    projectId,
+                    componentKey,
+                    displayName: typeof displayName === "string" ? displayName : (displayName ?? null),
+                    categoryOverride: typeof categoryOverride === "string" ? categoryOverride : (categoryOverride ?? null),
+                    typeOverride: typeof typeOverride === "string" ? typeOverride : (typeOverride ?? null),
+                    statusOverride: typeof statusOverride === "string" ? statusOverride : (statusOverride ?? null),
+                });
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to upsert override:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "OVERRIDES/DELETE") {
+        (async () => {
+            const { projectId, componentKey } = msg;
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+            if (!componentKey || typeof componentKey !== "string") {
+                sendResponse({ ok: false, error: "Invalid componentKey" });
+                return;
+            }
+
+            try {
+                await deleteComponentOverride(projectId, componentKey);
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete override:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    // 7.8: Draft commit API
+    if (msg?.type === "DRAFTS/COMMIT") {
+        (async () => {
+            const { captureId } = msg;
+
+            if (!captureId || typeof captureId !== "string") {
+                sendResponse({ ok: false, error: "Invalid captureId" });
+                return;
+            }
+
+            try {
+                await commitDraftCapture(captureId);
+                console.log("[UI Inventory] Committed draft capture:", captureId);
+                sendResponse({ ok: true });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to commit draft:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
     // Bug 3 fix: No default sendResponse (prevents double-call race condition)
     // Each handler above explicitly calls sendResponse and returns true
     return false;
+});
+
+// 7.8.1: Broadcast active tab changes to Sidepanel for immediate state updates
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    try {
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+
+        // Only broadcast for non-extension tabs
+        if (tab.url && !tab.url.startsWith('chrome-extension://')) {
+            const message = {
+                type: "UI/ACTIVE_TAB_CHANGED",
+                tabId: tab.id,
+                url: tab.url,
+            };
+
+            // Broadcast to all extension contexts (sidepanel, popup, etc.)
+            chrome.runtime.sendMessage(message, () => {
+                // Ignore errors (no listeners is fine)
+                void chrome.runtime.lastError;
+            });
+
+            console.log("[UI Inventory] Active tab changed:", tab.id, tab.url);
+        }
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to handle tab activation:", err);
+    }
+});
+
+// 7.8.1: Broadcast window focus changes to update Sidepanel context
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    // windowId === chrome.windows.WINDOW_ID_NONE means no window has focus
+    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+
+    try {
+        // Get the active tab in the newly focused window
+        const tabs = await chrome.tabs.query({ active: true, windowId });
+        if (tabs.length > 0) {
+            const tab = tabs[0];
+
+            // Only broadcast for non-extension tabs
+            if (tab.url && !tab.url.startsWith('chrome-extension://')) {
+                const message = {
+                    type: "UI/ACTIVE_TAB_CHANGED",
+                    tabId: tab.id,
+                    url: tab.url,
+                };
+
+                chrome.runtime.sendMessage(message, () => {
+                    void chrome.runtime.lastError;
+                });
+
+                console.log("[UI Inventory] Window focus changed, active tab:", tab.id, tab.url);
+            }
+        }
+    } catch (err) {
+        console.warn("[UI Inventory] Failed to handle window focus change:", err);
+    }
 });

@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-*Last updated: 2025-12-27*
+  *Last updated: 2025-12-31*
 
 This document describes the high-level architecture of the **UI Audit Tool** Chrome extension and Viewer.
 
@@ -100,23 +100,36 @@ Capture is **mechanical and repeatable**.
 ### Responsibilities
 - Sole owner of IndexedDB
 - Persist Capture Records
+- Persist draft captures (draft-until-save)
 - Manage sessions and projects
 - Store and retrieve screenshot blobs
+- Persist review layers:
+  - Annotations (Notes + Tags)
+  - Component identity overrides (Display Name / Category / Type / Status)
 - Fan out UI events (e.g. capture saved)
+ - Maintain audit routing state (single active audit tab)
 
 ### IndexedDB Stores
 - `captures`
+- `drafts`
 - `sessions`
 - `projects`
 - `projectSessions`
 - `blobs`
+- `annotations`
+- `component_overrides`
 
 ### Message-Based API
 - `AUDIT/CAPTURE`
 - `AUDIT/GET_BLOB`
+- `AUDIT/GET_ROUTING_STATE`
+- `AUDIT/CLAIM_TAB`
 - `UI/GET_PROJECT_CAPTURES`
 - `UI/DELETE_CAPTURE`
 - `UI/CAPTURE_SAVED`
+- `ANNOTATIONS/*`
+- `OVERRIDES/*`
+- `DRAFTS/*`
 - Project/session management messages
 
 ### Non-Responsibilities
@@ -125,6 +138,9 @@ Capture is **mechanical and repeatable**.
 - UI state
 
 The Service Worker is a **data broker**, not a domain engine.
+
+**Note:** classification/grouping remain UI concerns, but the Service Worker persists the
+user’s review edits (annotations and overrides) as separate stores keyed by `projectId:componentKey`.
 
 ---
 
@@ -150,6 +166,10 @@ These transformations:
 - Are computed or user-edited
 - Are not written back into capture records
 - Exist only in the Viewer state
+
+User edits are persisted as **layered records**:
+- `annotations` store: Notes + Tags (shared with Sidepanel)
+- `component_overrides` store: Display Name / Category / Type / Status (shared with Sidepanel)
 
 ---
 
@@ -186,6 +206,14 @@ It supports:
 - Source and HTML reference
 
 The panel never mutates capture evidence.
+
+---
+
+## 6.1 Sidepanel (Capture Cockpit) Gating
+
+The Sidepanel is tab-aware and enforces a **single active audit tab**:
+- If opened on a non-owner tab, it shows an inactive state and offers a “claim tab” action.
+- Claiming a tab disables capture on the previous active tab via the Service Worker.
 
 ---
 

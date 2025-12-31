@@ -7,6 +7,16 @@ import type { CaptureRecordV2 } from "../../../types/capture";
 import type { AnnotationRecord } from "../../../background/capturesDb";
 import { deriveProjectsIndexFromStorage, deriveComponentInventory, deriveStyleInventory, scopeCapturesToProject } from "../adapters/deriveViewerModels";
 
+type ComponentOverrideRecord = {
+    projectId: string;
+    componentKey: string;
+    displayName: string | null;
+    categoryOverride: string | null;
+    typeOverride: string | null;
+    statusOverride: string | null;
+    updatedAt: number;
+};
+
 // ─────────────────────────────────────────────────────────────
 // DEV-only logging helpers (7.4.4)
 // ─────────────────────────────────────────────────────────────
@@ -67,6 +77,7 @@ export function ViewerApp() {
 
     // 7.7.1: Annotations (Notes + Tags)
     const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
+    const [overrides, setOverrides] = useState<ComponentOverrideRecord[]>([]);
 
     // Milestone 7.4.0: Load projects on mount
     useEffect(() => {
@@ -118,6 +129,7 @@ export function ViewerApp() {
             setStyles([]);
             setRawCaptures([]);
             setAnnotations([]); // 7.7.1: Clear annotations
+            setOverrides([]);
             setComponentsError(null);
             return;
         }
@@ -187,6 +199,11 @@ export function ViewerApp() {
                         projectId: selectedProjectId,
                     });
 
+                    const overridesResponse = await chrome.runtime.sendMessage({
+                        type: "OVERRIDES/GET_PROJECT",
+                        projectId: selectedProjectId,
+                    });
+
                     if (!isMounted) return;
 
                     let annotatedComponents = derivedComponents;
@@ -226,7 +243,41 @@ export function ViewerApp() {
                         setAnnotations([]);
                     }
 
-                    setComponents(annotatedComponents);
+                    const loadedOverrides: ComponentOverrideRecord[] =
+                        overridesResponse && overridesResponse.ok && Array.isArray(overridesResponse.overrides)
+                            ? overridesResponse.overrides
+                            : [];
+                    setOverrides(loadedOverrides);
+
+                    const overridesMap = new Map(
+                        loadedOverrides.map((o) => [o.componentKey, o])
+                    );
+
+                    const mergedComponents: ViewerComponent[] = annotatedComponents.map((component) => {
+                        const o = overridesMap.get(component.id);
+                        if (!o) return component;
+
+                        const name = (o.displayName && o.displayName.trim() !== "") ? o.displayName : component.name;
+                        const category = (o.categoryOverride && o.categoryOverride.trim() !== "") ? o.categoryOverride : component.category;
+                        const type = (o.typeOverride && o.typeOverride.trim() !== "") ? o.typeOverride : component.type;
+                        const status = (o.statusOverride && o.statusOverride.trim() !== "") ? (o.statusOverride as any) : component.status;
+
+                        return {
+                            ...component,
+                            name,
+                            category,
+                            type,
+                            status,
+                            overrides: {
+                                displayName: o.displayName ?? null,
+                                categoryOverride: o.categoryOverride ?? null,
+                                typeOverride: o.typeOverride ?? null,
+                                statusOverride: o.statusOverride ?? null,
+                            },
+                        };
+                    });
+
+                    setComponents(mergedComponents);
 
                     // 7.4.2: Derive styles from scoped captures
                     const derivedStyles = deriveStyleInventory(scopedCaptures);
@@ -321,6 +372,11 @@ export function ViewerApp() {
         }
     };
 
+    const refreshOverridesForProject = async (projectId: string) => {
+        // To correctly handle deletes (reverting to derived values), re-derive from captures.
+        await refreshProjectDetail(projectId);
+    };
+
     // 7.7.2: Refresh project detail after capture delete
     const refreshProjectDetail = async (projectId: string) => {
         try {
@@ -343,6 +399,10 @@ export function ViewerApp() {
                 // Load annotations for this project
                 const annotationsResponse = await chrome.runtime.sendMessage({
                     type: "ANNOTATIONS/GET_PROJECT",
+                    projectId,
+                });
+                const overridesResponse = await chrome.runtime.sendMessage({
+                    type: "OVERRIDES/GET_PROJECT",
                     projectId,
                 });
 
@@ -373,7 +433,41 @@ export function ViewerApp() {
                     setAnnotations([]);
                 }
 
-                setComponents(annotatedComponents);
+                const loadedOverrides: ComponentOverrideRecord[] =
+                    overridesResponse && overridesResponse.ok && Array.isArray(overridesResponse.overrides)
+                        ? overridesResponse.overrides
+                        : [];
+                setOverrides(loadedOverrides);
+
+                const overridesMap = new Map(
+                    loadedOverrides.map((o) => [o.componentKey, o])
+                );
+
+                const mergedComponents: ViewerComponent[] = annotatedComponents.map(component => {
+                    const o = overridesMap.get(component.id);
+                    if (!o) return component;
+
+                    const name = (o.displayName && o.displayName.trim() !== "") ? o.displayName : component.name;
+                    const category = (o.categoryOverride && o.categoryOverride.trim() !== "") ? o.categoryOverride : component.category;
+                    const type = (o.typeOverride && o.typeOverride.trim() !== "") ? o.typeOverride : component.type;
+                    const status = (o.statusOverride && o.statusOverride.trim() !== "") ? (o.statusOverride as any) : component.status;
+
+                    return {
+                        ...component,
+                        name,
+                        category,
+                        type,
+                        status,
+                        overrides: {
+                            displayName: o.displayName ?? null,
+                            categoryOverride: o.categoryOverride ?? null,
+                            typeOverride: o.typeOverride ?? null,
+                            statusOverride: o.statusOverride ?? null,
+                        },
+                    };
+                });
+
+                setComponents(mergedComponents);
 
                 const derivedStyles = deriveStyleInventory(scopedCaptures);
                 setStyles(derivedStyles);
@@ -462,6 +556,7 @@ export function ViewerApp() {
                     setSelectedProjectIdInUrl(null);
                 }}
                 onAnnotationsChanged={() => refreshAnnotationsForProject(selectedProjectId)}
+                onOverridesChanged={() => refreshOverridesForProject(selectedProjectId)}
                 onDeleted={() => refreshProjectDetail(selectedProjectId)}
             />
         );

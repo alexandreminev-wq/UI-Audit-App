@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2025-12-30 (Europe/Madrid)*
+  *Last updated: 2025-12-31 (Europe/Madrid)*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -70,7 +70,7 @@
 
   ---
 
-  ## Milestone 7 — Viewer Stabilization & Completion (Current Focus)
+  ## Milestone 7 — Viewer Stabilization & Completion
 
   ### 7.0 Guardrails & Style Normalization ✅
   - Shared theme/tokens across sidepanel + viewer
@@ -155,11 +155,11 @@
 
   ---
 
-  ### 7.5.2 Screenshot Thumbnails (Next)
-  - Render thumbnails from existing screenshotBlobId
-  - Viewer-only, read-only
+  ### 7.5.2 Screenshot Thumbnails ✅
+  - Render thumbnails from existing `screenshotBlobId`
+  - Viewer cards (Grid + Table) show representative capture thumbnails
+  - Viewer drawer already supports screenshot rendering; cards now match parity intent
   - Graceful fallback if unavailable
-  - Addresses screenshot parity gap from 7.5.1 audit
 
   ---
 
@@ -221,13 +221,25 @@ Viewer and Sidepanel now share the same annotation data model, lifecycle, and in
 
 ---
 
-### 7.8 — Cross-surface annotation parity (next)
-**Status:** ⏭️ Next
+### 7.8 — Cross-surface annotation parity ✅
+**Status:** ✅ Complete
 
-- Wire Sidepanel Notes textarea to the same annotations store
-- Wire Sidepanel Tags to the same annotations store
-- Ensure Save / Cancel semantics match Viewer
-- Remove implicit auto-save on capture
+- Sidepanel Notes + Tags wired to the same `annotations` store as Viewer
+- Deterministic `componentKey` shared across surfaces (Viewer + Sidepanel)
+- Explicit Save / Cancel semantics (no onBlur saves)
+- Draft-until-save capture flow:
+  - Capturing creates a persisted draft (`isDraft: true`)
+  - Drafts are only committed on explicit Save
+- Sidepanel UX: one active audit tab at a time to reduce confusion
+
+---
+
+### 7.9 — Manual Identity Overrides (Display Name / Category / Type / Status) ✅
+**Status:** ✅ Complete
+
+- Added `component_overrides` store keyed by `projectId:componentKey`
+- Viewer and Sidepanel can edit identity fields with explicit Save / Cancel
+- Reset supported (delete override record → revert to derived values)
 
 
   ## Milestone 8 — Capture Depth & Intelligence (Future)

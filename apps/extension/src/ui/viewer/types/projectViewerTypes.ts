@@ -29,11 +29,20 @@ export interface ViewerComponent {
     name: string;                  // Inferred from element.intent.accessibleName or textPreview
     category: string;              // Inferred from element role/tagName
     type: string;                  // From element.tagName (lowercase)
-    status: "Canonical" | "Variant" | "Unknown"; // Inferred from clustering
+    status: "Unreviewed" | "Canonical" | "Variant" | "Deviation" | "Legacy" | "Experimental" | "Unknown";
     source: string;                // Inferred from url or scope
     capturesCount: number;         // Count of captures in this component group
     notes?: string | null;         // 7.6.3: aligns with Sidepanel comments field (future)
     tags?: string[];               // 7.6.4: aligns with Sidepanel tags field (future)
+    thumbnailBlobId?: string;      // Representative screenshot blob (for cards)
+
+    // Component-scoped identity overrides (persisted separately from captures)
+    overrides?: {
+        displayName: string | null;
+        categoryOverride: string | null;
+        typeOverride: string | null;
+        statusOverride: string | null;
+    };
 }
 
 /**

@@ -95,7 +95,14 @@ export function ComponentDirectory({
                         : 'text-gray-700'
                     }`}
                   >
-                    {component.name}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex-1">{component.name}</span>
+                      {component.isDraft && (
+                        <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                          Unsaved
+                        </span>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>

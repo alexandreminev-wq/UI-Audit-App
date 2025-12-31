@@ -1,12 +1,17 @@
 # CAPTURE_RECORD
 
-*Last updated: 2025-12-27*
+*Last updated: 2025-12-31*
 
 This document defines the **Capture Record** schema used by the UI Audit Tool.
 
 A Capture Record represents a **single piece of evidence** collected from a real webpage.
 It is immutable after creation and serves as the foundation for all higher-level review,
 classification, and export workflows.
+
+**Draft captures (MVP behavior):**
+- The Sidepanel capture flow creates a persisted **draft** first.
+- Drafts are committed into the saved captures set only on explicit user Save.
+- Draft state is represented by a capture-level flag (e.g. `isDraft`) and/or a separate drafts store.
 
 ---
 
@@ -21,8 +26,14 @@ It is intentionally:
 - Immutable
 - Independent of design interpretation
 
-All **meaningful interpretation** (component naming, categorization, status, grouping)
-happens later in the Viewer and is **not persisted here**.
+All meaningful interpretation (component naming, categorization, status, grouping)
+happens later and is **not persisted here**.
+
+Instead, user edits live in separate “review layer” stores keyed by `projectId:componentKey`:
+- `annotations`: Notes + Tags
+- `component_overrides`: Display Name / Category / Type / Status
+
+This preserves the capture record as immutable evidence while still allowing designer curation.
 
 ---
 

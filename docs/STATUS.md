@@ -3,9 +3,13 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟢 **Viewer parity audit complete**
+  🟢 **Viewer + Sidepanel parity (annotations + overrides) in place**
 
-  Milestone 7.5.1 completed via comprehensive audit. Viewer drawer structure is semantically correct for inventory context. No implementation changes required.
+  The app now supports:
+  - Cross-surface annotations (Notes + Tags)
+  - Cross-surface identity overrides (Display Name / Category / Type / Status)
+  - Draft-until-save capture flow in Sidepanel
+  - Viewer component cards with screenshot thumbnails
 
   ---
 
@@ -14,6 +18,8 @@
   ### Capture (Sidepanel)
   - UI elements are captured from live pages
   - CaptureRecords written to IndexedDB
+  - Captures are created as **drafts** and committed on explicit Save
+  - Sidepanel enforces **one active audit tab** at a time (reduces confusion)
   - Each capture includes:
     - id
     - projectId
@@ -23,25 +29,33 @@
     - screenshot reference
     - URL
   - Sidepanel capture confirmed working end-to-end
+  - Notes + Tags editable with explicit Save / Cancel
+  - Identity overrides editable with explicit Save / Cancel
 
   ---
 
-  ### Viewer (Read-only)
+  ### Viewer (Review + Curation)
   - All data derived from IndexedDB captures
   - Projects load correctly
   - Component and Style inventories populate correctly
   - Drawer shows real derived data
   - Project scoping enforced at boundary
   - Selection hygiene guarantees in place
+  - Component cards show **screenshot thumbnails**
+  - Notes + Tags editable with explicit Save / Cancel
+  - Identity overrides editable with explicit Save / Cancel
+  - Style drawer supports Preview + Copy token/value
 
   ---
 
   ## Recent Milestones
 ## Current Focus
 
-**Milestone 7 — Viewer completion + annotation parity**
+**Milestone 7 — Viewer completion + parity layers**
 
-The Viewer Details Drawer is now functionally complete for component inspection and annotation.
+The Viewer Details Drawer and Sidepanel details now support:
+- Notes + Tags (annotations store)
+- Identity overrides (component_overrides store)
 
 ### Completed
 - Viewer shell, layout, scrolling, and preview canvas
@@ -55,22 +69,25 @@ The Viewer Details Drawer is now functionally complete for component inspection 
   - Shared across Viewer and Sidepanel
 - Explicit Save / Cancel / Delete actions
 - Delete parity with Sidepanel confirmed working
+- Screenshot thumbnails on Viewer component cards (Grid + Table)
+- Manual identity overrides (name/category/type/status) shared across surfaces
 
 ### Key Architectural Decisions
 - Annotations are keyed by `projectId + componentKey`
 - Multiple captures of the same component share annotations
-- Viewer is no longer read-only — edits require explicit Save
+- Identity overrides are keyed by `projectId + componentKey` in `component_overrides`
+- Edits require explicit Save (no implicit onBlur persistence)
 - Sidepanel and Viewer are converging on the same mental model
 
 ### Known Gaps (Intentional)
-- Sidepanel still auto-saves on capture (to be changed)
-- Manual overrides UI not yet implemented
+- Export is not yet implemented (JSON/CSV/Figma)
 - HTML Structure editing not supported
 - No annotation history / versioning
 
 ### Next Up
-- Milestone 7.8: Sidepanel annotation parity
-- Milestone 8: Manual overrides + capture confirmation flow
+- 7.5.3: Minor interaction polish (drawer toggle on re-select, Escape to close)
+- 7.6: Viewer usability refinements (empty project UX, default sorts, filter persistence)
+- Export MVP slice (define minimal export for reviewed inventory)
 
 
   ---
@@ -93,9 +110,9 @@ The Viewer Details Drawer is now functionally complete for component inspection 
 
   These are **not bugs** — they are deferred by design:
 
-  - Screenshot thumbnails not yet rendered (7.5.2)
+  - Screenshot thumbnails: now rendered on Viewer cards; further polish remains
   - HTML structure not shown in drawer (requires new section)
-  - No comments field in Viewer (read-only constraint)
+  - No annotation history / versioning
   - No export from real data yet
   - No dark mode toggle
   - No bulk operations or automation

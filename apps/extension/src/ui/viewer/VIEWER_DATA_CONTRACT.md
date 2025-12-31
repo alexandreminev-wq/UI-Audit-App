@@ -1,9 +1,9 @@
-# Viewer Data Contract (Phase 3 — 7.4.x)
+# Viewer Data Contract (Current)
 
 > This document defines the **explicit contract** between the extension’s stored data model
 > and the Viewer UI.
 >
-> Any implementation work in **Phase 3 (7.4.x)** MUST conform to this contract unless the
+> Any implementation work MUST conform to this contract unless the
 > contract itself is deliberately revised.
 >
 > Purpose:
@@ -20,7 +20,7 @@ This contract governs:
 - What the Viewer **expects**
 - What storage **actually provides**
 - What is **derived vs persisted**
-- What is **explicitly out of scope** for 7.4.x
+- What is explicitly out of scope (current MVP)
 
 It applies to:
 - `ViewerApp`
@@ -39,19 +39,23 @@ This contract does **not** define:
 
 ### 2.1 Storage (Authoritative)
 
-The following IndexedDB v3 stores are the **only sources of truth**:
+The following IndexedDB stores are the sources of truth:
 
 - `projects`
 - `projectSessions`
 - `sessions`
 - `captures`
+- `drafts` (draft captures, committed on explicit Save)
 - `blobs`
-- `annotations` (7.7.1+: Notes + Tags)
+- `annotations` (Notes + Tags)
+- `component_overrides` (identity overrides: displayName/category/type/status)
 
 Rules:
-- Viewer is **read-only** in 7.4.x
-- No schema migrations
-- No derived data is written back to storage
+- Capture evidence (`captures`) is immutable after creation
+- Review layers are written explicitly by the user:
+  - `annotations` (Notes + Tags)
+  - `component_overrides` (identity overrides)
+- No derived inventory groupings are written back to storage
 
 ---
 
@@ -67,7 +71,7 @@ The following Viewer concepts are **derived in memory**:
 Derived models:
 - Exist only in memory
 - Are recomputed on load
-- Are not persisted in 7.4.x
+- Are not persisted
 
 ---
 
@@ -79,7 +83,7 @@ Derived models:
 
 Projects shown in the Viewer map directly to records in the `projects` store.
 
-There is no Viewer-only project abstraction in Phase 3.
+There is no Viewer-only project abstraction in the current MVP.
 
 ---
 
@@ -94,11 +98,10 @@ There is no Viewer-only project abstraction in Phase 3.
 
 ---
 
-### 3.3 Out of Scope (7.4.x)
+### 3.3 Out of Scope (Current MVP)
 
-- Editing project metadata
-- Creating or deleting projects
 - Persisting derived counts or labels
+- Persisting derived grouping results (components/styles inventories)
 
 ---
 
@@ -115,7 +118,7 @@ Components **do not exist in storage** today.
 
 ### 4.2 Component Grouping (MVP)
 
-For 7.4.1, grouping is:
+For the MVP, grouping is:
 
 - Deterministic
 - Repeatable
@@ -129,7 +132,7 @@ For 7.4.1, grouping is:
 
 > Two captures with the same signature MUST resolve to the same component.
 
-No fuzzy matching, clustering heuristics, or learning in 7.4.x.
+No fuzzy matching, clustering heuristics, or learning in the MVP.
 
 ---
 
@@ -141,18 +144,22 @@ No fuzzy matching, clustering heuristics, or learning in 7.4.x.
 | `name`           | Derived  | Accessible name or fallback |
 | `category`       | Derived  | Taxonomy helper (§7) |
 | `type`           | Derived  | Tag/role-based |
-| `status`         | Placeholder | Always `"Unknown"` in 7.4.x |
+| `status`         | Derived + Optional Override | Defaults to `"Unknown"`; can be overridden via `component_overrides` |
 | `source`         | Derived  | Most common or first-seen page |
 | `capturesCount`  | Derived  | Number of grouped captures |
 
 ---
 
-### 4.4 Explicit Non-Goals (7.4.x)
+### 4.4 Explicit Non-Goals (MVP)
 
 - Canonical vs Variant detection
 - User-defined components
 - Persisted grouping metadata
-- Manual overrides
+- Smart clustering
+- User-defined components
+
+**Clarification (current state):** identity overrides exist, but they do not change grouping.
+Overrides only affect the derived labels (display name/category/type/status) for a given `projectId:componentKey`.
 - Smart clustering
 
 ---
@@ -201,16 +208,14 @@ This avoids churn and preserves future flexibility.
 
 ---
 
-## 6. Status Semantics (Deferred)
+## 6. Status Semantics (MVP)
 
-For **all of Phase 3 (7.4.x)**:
+For the MVP:
 
-- All components have `status = "Unknown"`
-- No automatic classification
-- No persistence
-- No UI controls
+- Default derived status is `"Unknown"`
+- Status can be overridden via `component_overrides`
 
-> Status semantics are explicitly deferred to a later milestone.
+> Status automation/heuristics remain deferred; only manual overrides exist.
 
 ---
 
@@ -226,7 +231,7 @@ For **all of Phase 3 (7.4.x)**:
 Initial mapping:
 - Based on `tagName` + `role`
 - Fixed lookup table
-- Not user-editable
+- Can be overridden via `component_overrides` (manual curation)
 
 No ML, learning, or persistence.
 
@@ -237,7 +242,7 @@ No ML, learning, or persistence.
 ### 8.1 Overview
 
 The DetailsDrawer shows additional derived data when a component or style is selected.
-These derivations are **read-only, in-memory, and scoped to the active project**.
+These derivations are in-memory and scoped to the active project.
 
 All drawer data is derived from the same raw captures used for component/style inventories.
 
@@ -332,7 +337,7 @@ All drawer derivations must:
 - Be **deterministic** (repeatable, no randomness)
 - Use **only** captures scoped to the active project (see §9)
 - Return **empty arrays** (not null) when no data available
-- Be recomputed on selection change (no cross-selection caching in 7.4.x)
+- Be recomputed on selection change (no cross-selection caching in MVP)
 
 ---
 
@@ -393,7 +398,7 @@ The Viewer consumes the following fields from `CaptureRecordV2`:
 | `element`            | Component identity (tagName, role, intent, textPreview) |
 | `styles.primitives`  | Style inventory, visual essentials |
 | `styles.primitives.sources` | Token extraction (CSS variable names) |
-| `screenshot`         | Future: thumbnails in drawer (not used in 7.4.x) |
+| `thumbnailBlobId`    | Storage | Uses `CaptureRecordV2.screenshot.screenshotBlobId` (representative capture thumbnail) |
 
 ---
 
@@ -445,7 +450,7 @@ Viewer components must never:
 
 ---
 
-### 11.2 Required Adapter Functions (Phase 3)
+### 11.2 Required Adapter Functions (Current)
 
 ```ts
 deriveProjectsIndexFromStorage(...)
@@ -468,7 +473,7 @@ Each function must:
 
 ## 12. Performance Contract
 
-For 7.4.x:
+For the MVP:
 
 * In-memory derivation is acceptable
 * No caching required
@@ -479,7 +484,7 @@ Persistence of derived data is a **future decision**.
 
 ---
 
-## 13. Annotations (Notes + Tags) — Shared Across Surfaces (7.7.1+)
+## 13. Annotations (Notes + Tags) — Shared Across Surfaces
 
 ### 13.1 Purpose
 
@@ -522,7 +527,7 @@ interface AnnotationRecord {
 - Viewer and Sidepanel MUST render identical notes/tags for a given `(projectId, componentKey)`
 - Both surfaces read via Service Worker message API (single source of truth)
 
-### 13.5 Service Worker API (7.7.1: Read-Only)
+### 13.5 Service Worker API
 
 **GET_PROJECT** — Fetch all annotations for a project
 ```typescript
@@ -538,32 +543,39 @@ Response: { ok: true, annotation: AnnotationRecord | null }
        | { ok: false, error: string }
 ```
 
-### 13.6 Non-Goals (7.7.1)
+**UPSERT** — Create/update annotation (explicit Save)
+```typescript
+Request:  { type: "ANNOTATIONS/UPSERT", projectId: string, componentKey: string, notes: string | null, tags: string[] }
+Response: { ok: true }
+       | { ok: false, error: string }
+```
 
-- **No editing behavior** defined in 7.7.1 (read + display only)
+Notes:
+- `notes: null` means “clear notes”
+- Tags are stored as an array of strings (no global tag dictionary in MVP)
+
+### 13.6 Non-Goals (MVP)
+
+- Annotation history/versioning is out of scope (single-user, single-device for now)
 - **No conflict resolution** (single-user, single-device for now)
-- **No migration** of existing Sidepanel comments to annotations store
-- **No writes** via Service Worker in 7.7.1
+- Migration of any legacy comment fields is out of scope
 
-### 13.7 Future (7.7.2+)
+### 13.7 Notes
 
-- Add `ANNOTATIONS/UPDATE` message for write operations
-- Add editing UI in both Viewer and Sidepanel
-- Add save/cancel patterns
-- Consider migration path for existing Sidepanel comments
+Viewer and Sidepanel write via `ANNOTATIONS/UPSERT` with explicit Save / Cancel semantics.
 
 ---
 
-## 14. Explicit Out of Scope (7.4.x)
+## 14. Explicit Out of Scope (MVP)
 
-The following are **not allowed** in Phase 3:
+The following are **not allowed** in the MVP:
 
 * Persisting derived inventories
 * Inventing tokens
 * Guessing design-system structure
-* Editing components or styles
-* Deleting captures
-* IndexedDB schema migrations
+* Persisting derived inventories
+* Inventing tokens
+* Guessing design-system structure
 
 ---
 
@@ -577,9 +589,9 @@ If implementation encounters missing or ambiguous data:
 
 ---
 
-## 16. Phase 3 Exit Criteria
+## 16. MVP Exit Criteria (Viewer)
 
-Phase 3 is complete when:
+The Viewer MVP baseline is met when:
 
 * Viewer uses real projects from storage
 * Component inventory is derived and rendered

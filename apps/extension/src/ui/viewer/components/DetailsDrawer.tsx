@@ -75,6 +75,12 @@ export interface ComponentDetails {
     capturesCount: number;
     notes?: string | null; // 7.6.3: aligns with Sidepanel comments field (future)
     tags?: string[];       // 7.6.4: aligns with Sidepanel tags field (future)
+    overrides?: {
+        displayName: string | null;
+        categoryOverride: string | null;
+        typeOverride: string | null;
+        statusOverride: string | null;
+    };
 }
 
 export interface StyleDetails {
@@ -100,6 +106,8 @@ interface DetailsDrawerProps {
     visualEssentials: ViewerVisualEssentials;
     // 7.7.2: Callback after annotation save
     onAnnotationsChanged: () => void;
+    // Identity overrides saved (component-scoped)
+    onOverridesChanged: () => void;
     // Callback after delete to trigger refresh
     onDeleted: () => void;
 }
@@ -119,6 +127,7 @@ export function DetailsDrawer({
     relatedComponents,
     visualEssentials,
     onAnnotationsChanged,
+    onOverridesChanged,
     onDeleted,
 }: DetailsDrawerProps) {
     // Reusable drawer section title style
@@ -130,11 +139,81 @@ export function DetailsDrawer({
         color: "hsl(var(--foreground))",
     } as const;
 
+    const inputStyle = {
+        width: "100%",
+        padding: "8px 10px",
+        background: "hsl(var(--background))",
+        borderRadius: "var(--radius)",
+        border: "1px solid hsl(var(--border))",
+        fontSize: 13,
+        color: "hsl(var(--foreground))",
+        boxSizing: "border-box",
+    } as const;
+
+    const labelStyle = {
+        fontSize: 12,
+        color: "hsl(var(--muted-foreground))",
+        marginBottom: 6,
+        display: "block",
+    } as const;
+
+    const CATEGORY_OPTIONS = [
+        "Actions",
+        "Forms",
+        "Navigation",
+        "Content",
+        "Media",
+        "Feedback",
+        "Layout",
+        "Data Display",
+        "Unknown",
+    ];
+
+    const STATUS_OPTIONS = [
+        "Unreviewed",
+        "Canonical",
+        "Variant",
+        "Deviation",
+        "Legacy",
+        "Experimental",
+    ];
+
+    const TYPE_OPTIONS_BY_CATEGORY: Record<string, string[]> = {
+        Actions: ["Button", "Link", "Icon Button", "Toggle Button"],
+        Forms: ["Input", "Textarea", "Select", "Checkbox", "Radio", "Switch", "Slider", "Date Picker", "File Upload"],
+        Navigation: ["Nav Link", "Menu", "Menu Item", "Tabs", "Tab", "Breadcrumb", "Pagination", "Sidebar Item"],
+        Content: ["Heading", "Paragraph", "Text", "Label", "List", "List Item", "Rich Text"],
+        Media: ["Image", "Icon", "Avatar", "Video", "Illustration", "Logo"],
+        Feedback: ["Alert", "Toast", "Banner", "Tooltip", "Modal", "Snackbar", "Inline Message", "Empty State"],
+        Layout: ["Card", "Container", "Section", "Panel", "Divider", "Grid", "Landmark"],
+        "Data Display": ["Table", "Table Row", "Table Cell", "Badge", "Chip", "Tag", "Stat", "Key Value"],
+        Unknown: ["Element", "Custom Element", "Unclassified"],
+    };
+
+    const getTypeOptions = (category: string, currentType: string): string[] => {
+        const base = TYPE_OPTIONS_BY_CATEGORY[category] || [];
+        if (currentType && !base.includes(currentType)) {
+            return [currentType, ...base];
+        }
+        return base.length > 0 ? base : (currentType ? [currentType] : []);
+    };
+
     // 7.7.2: Editable annotations state
     const [draftNotes, setDraftNotes] = useState<string>("");
     const [draftTags, setDraftTags] = useState<string[]>([]);
     const [newTagInput, setNewTagInput] = useState<string>("");
     const [isSaving, setIsSaving] = useState<boolean>(false);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+    // Identity overrides (prototype parity)
+    const [draftDisplayName, setDraftDisplayName] = useState<string>("");
+    const [draftCategory, setDraftCategory] = useState<string>("");
+    const [draftType, setDraftType] = useState<string>("");
+    const [draftStatus, setDraftStatus] = useState<string>("");
+
+    // Style drawer copy feedback
+    const [copiedToken, setCopiedToken] = useState<boolean>(false);
+    const [copiedValue, setCopiedValue] = useState<boolean>(false);
 
     // 7.7.2: Initialize draft state when selectedComponent changes
     useEffect(() => {
@@ -142,17 +221,37 @@ export function DetailsDrawer({
             setDraftNotes(selectedComponent.notes || "");
             setDraftTags(selectedComponent.tags || []);
             setNewTagInput("");
+            setDraftDisplayName(selectedComponent.name || "");
+            setDraftCategory(selectedComponent.category || "Unknown");
+            setDraftType(selectedComponent.type || "Unclassified");
+            setDraftStatus(selectedComponent.status || "Unreviewed");
         } else {
             setDraftNotes("");
             setDraftTags([]);
             setNewTagInput("");
+            setDraftDisplayName("");
+            setDraftCategory("");
+            setDraftType("");
+            setDraftStatus("");
         }
     }, [selectedComponent?.id]); // Only re-init when component ID changes
 
+    useEffect(() => {
+        // Reset copy feedback when switching style selections
+        setCopiedToken(false);
+        setCopiedValue(false);
+    }, [selectedStyle?.id]);
+
     // 7.7.2: Dirty tracking
     const isDirty = selectedComponent
-        ? (draftNotes.trim() !== (selectedComponent.notes || "").trim() ||
-           JSON.stringify(draftTags.sort()) !== JSON.stringify((selectedComponent.tags || []).sort()))
+        ? (
+            draftNotes.trim() !== (selectedComponent.notes || "").trim() ||
+            JSON.stringify(draftTags.sort()) !== JSON.stringify((selectedComponent.tags || []).sort()) ||
+            draftDisplayName.trim() !== (selectedComponent.name || "").trim() ||
+            draftCategory !== (selectedComponent.category || "") ||
+            draftType !== (selectedComponent.type || "") ||
+            draftStatus !== (selectedComponent.status || "")
+        )
         : false;
 
     // 7.7.2: Save annotations
@@ -161,7 +260,24 @@ export function DetailsDrawer({
 
         setIsSaving(true);
         try {
-            const response = await chrome.runtime.sendMessage({
+            // Save identity overrides (component-scoped)
+            const overrideResp = await chrome.runtime.sendMessage({
+                type: "OVERRIDES/UPSERT",
+                projectId,
+                componentKey: selectedComponent.id,
+                displayName: draftDisplayName.trim() === "" ? null : draftDisplayName.trim(),
+                categoryOverride: draftCategory.trim() === "" ? null : draftCategory.trim(),
+                typeOverride: draftType.trim() === "" ? null : draftType.trim(),
+                statusOverride: draftStatus.trim() === "" ? null : draftStatus.trim(),
+            });
+
+            if (!overrideResp || !overrideResp.ok) {
+                console.error("[DetailsDrawer] Failed to save overrides:", overrideResp?.error);
+                return;
+            }
+
+            // Save annotations (notes + tags)
+            const annotationResp = await chrome.runtime.sendMessage({
                 type: "ANNOTATIONS/UPSERT",
                 projectId,
                 componentKey: selectedComponent.id,
@@ -169,13 +285,14 @@ export function DetailsDrawer({
                 tags: draftTags,
             });
 
-            if (response && response.ok) {
-                // Success - trigger parent refresh for immediate UI update
-                console.log("[DetailsDrawer] Saved annotations successfully");
-                onAnnotationsChanged();
-            } else {
-                console.error("[DetailsDrawer] Failed to save annotations:", response?.error);
+            if (!annotationResp || !annotationResp.ok) {
+                console.error("[DetailsDrawer] Failed to save annotations:", annotationResp?.error);
+                return;
             }
+
+            console.log("[DetailsDrawer] Saved overrides + annotations successfully");
+            onOverridesChanged();
+            onAnnotationsChanged();
         } catch (err) {
             console.error("[DetailsDrawer] Error saving annotations:", err);
         } finally {
@@ -189,6 +306,26 @@ export function DetailsDrawer({
         setDraftNotes(selectedComponent.notes || "");
         setDraftTags(selectedComponent.tags || []);
         setNewTagInput("");
+        setDraftDisplayName(selectedComponent.name || "");
+        setDraftCategory(selectedComponent.category || "Unknown");
+        setDraftType(selectedComponent.type || "Unclassified");
+        setDraftStatus(selectedComponent.status || "Unreviewed");
+    };
+
+    const handleResetOverrides = async () => {
+        if (!selectedComponent || !selectedComponent.overrides) return;
+        try {
+            const resp = await chrome.runtime.sendMessage({
+                type: "OVERRIDES/DELETE",
+                projectId,
+                componentKey: selectedComponent.id,
+            });
+            if (resp && resp.ok) {
+                onOverridesChanged();
+            }
+        } catch (err) {
+            console.error("[DetailsDrawer] Failed to reset overrides:", err);
+        }
     };
 
     // 7.7.2: Add tag
@@ -209,9 +346,6 @@ export function DetailsDrawer({
     const representativeCapture = componentCaptures?.[0];
     const screenshotBlobId = representativeCapture?.screenshotBlobId;
     const { url: screenshotUrl } = useBlobUrl(screenshotBlobId);
-
-    // Delete capture (matches Sidepanel delete behavior)
-    const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
     const handleDelete = async () => {
         if (!selectedComponent || !representativeCapture) {
@@ -247,6 +381,27 @@ export function DetailsDrawer({
             devWarn("[DetailsDrawer] Delete error", { error: err });
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleCopyToClipboard = async (text: string): Promise<boolean> => {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            try {
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.style.position = "fixed";
+                textarea.style.left = "-9999px";
+                document.body.appendChild(textarea);
+                textarea.select();
+                const ok = document.execCommand("copy");
+                document.body.removeChild(textarea);
+                return ok;
+            } catch {
+                return false;
+            }
         }
     };
 
@@ -450,46 +605,93 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
-                            {/* Identity section (7.6.1: read-only metadata) */}
+                            {/* Identity section (editable: prototype parity) */}
                             <div style={{ marginBottom: 24 }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Identity
-                                </h3>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <h3 style={drawerSectionTitleStyle}>Identity</h3>
+                                    <button
+                                        type="button"
+                                        onClick={handleResetOverrides}
+                                        disabled={!selectedComponent.overrides}
+                                        style={{
+                                            fontSize: 12,
+                                            padding: "6px 10px",
+                                            background: "hsl(var(--background))",
+                                            color: !selectedComponent.overrides ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            cursor: !selectedComponent.overrides ? "not-allowed" : "pointer",
+                                        }}
+                                        title="Reset identity overrides (revert to derived values)"
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
+
                                 <div style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: 8,
                                     padding: 12,
                                     background: "hsl(var(--muted))",
                                     borderRadius: "var(--radius)",
+                                    border: "1px solid hsl(var(--border))",
                                     fontSize: 13,
                                 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Name</span>
-                                        <span style={{ color: "hsl(var(--foreground))", fontWeight: 500, textAlign: "right" }}>
-                                            {selectedComponent.name || "—"}
-                                        </span>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <label style={labelStyle}>Display name</label>
+                                        <input
+                                            value={draftDisplayName}
+                                            onChange={(e) => setDraftDisplayName(e.target.value)}
+                                            placeholder="Display name"
+                                            style={inputStyle}
+                                        />
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Category</span>
-                                        <span style={{ color: "hsl(var(--foreground))", textAlign: "right" }}>
-                                            {selectedComponent.category || "—"}
-                                        </span>
+
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                                        <div>
+                                            <label style={labelStyle}>Category</label>
+                                            <select
+                                                value={draftCategory}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    setDraftCategory(v);
+                                                    // best-effort: keep type valid-ish when switching category
+                                                    const nextTypeOptions = getTypeOptions(v, draftType);
+                                                    if (nextTypeOptions.length > 0 && !nextTypeOptions.includes(draftType)) {
+                                                        setDraftType(nextTypeOptions[0]);
+                                                    }
+                                                }}
+                                                style={inputStyle}
+                                            >
+                                                {CATEGORY_OPTIONS.map((c) => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Type</label>
+                                            <select
+                                                value={draftType}
+                                                onChange={(e) => setDraftType(e.target.value)}
+                                                style={inputStyle}
+                                            >
+                                                {getTypeOptions(draftCategory || "Unknown", draftType).map((t) => (
+                                                    <option key={t} value={t}>{t}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Type</span>
-                                        <span style={{ color: "hsl(var(--foreground))", textAlign: "right" }}>
-                                            {selectedComponent.type || "—"}
-                                        </span>
-                                    </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                        <span style={{ color: "hsl(var(--muted-foreground))" }}>Status</span>
-                                        <span style={{
-                                            color: selectedComponent.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--foreground))",
-                                            textAlign: "right"
-                                        }}>
-                                            {selectedComponent.status || "—"}
-                                        </span>
+
+                                    <div>
+                                        <label style={labelStyle}>Status</label>
+                                        <select
+                                            value={draftStatus}
+                                            onChange={(e) => setDraftStatus(e.target.value)}
+                                            style={inputStyle}
+                                        >
+                                            {STATUS_OPTIONS.map((s) => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                            <option value="Unknown">Unknown</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -859,6 +1061,51 @@ export function DetailsDrawer({
                                 {selectedStyle.kind} • {selectedStyle.source} • {selectedStyle.usageCount} uses
                             </div>
 
+                            {/* Style preview (prototype parity) */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Preview
+                                </h3>
+                                {(() => {
+                                    const kind = selectedStyle.kind || "unknown";
+                                    const value = selectedStyle.value || "—";
+                                    const isColor = kind === "color" || kind === "border";
+
+                                    if (isColor && value && value !== "—") {
+                                        return (
+                                            <div style={{
+                                                width: "100%",
+                                                height: 96,
+                                                borderRadius: "var(--radius)",
+                                                border: "1px solid hsl(var(--border))",
+                                                background: value,
+                                            }} />
+                                        );
+                                    }
+
+                                    return (
+                                        <div style={{
+                                            width: "100%",
+                                            height: 96,
+                                            borderRadius: "var(--radius)",
+                                            border: "1px solid hsl(var(--border))",
+                                            background: "hsl(var(--muted))",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            color: "hsl(var(--muted-foreground))",
+                                            fontFamily: "monospace",
+                                            fontSize: 14,
+                                            padding: 12,
+                                            textAlign: "center",
+                                            boxSizing: "border-box",
+                                        }}>
+                                            {value}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
                             {/* Identity section (7.6.1: read-only metadata) */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
@@ -1034,35 +1281,51 @@ export function DetailsDrawer({
                             }}>
                                 <button
                                     type="button"
+                                    onClick={async () => {
+                                        const ok = await handleCopyToClipboard(selectedStyle.token || "");
+                                        if (ok) {
+                                            setCopiedToken(true);
+                                            setTimeout(() => setCopiedToken(false), 1200);
+                                        }
+                                    }}
+                                    disabled={!selectedStyle.token}
                                     style={{
                                         flex: 1,
                                         padding: "8px 12px",
                                         fontSize: 13,
                                         fontWeight: 500,
-                                        background: "hsl(var(--background))",
-                                        color: "hsl(var(--foreground))",
+                                        background: !selectedStyle.token ? "hsl(var(--muted))" : "hsl(var(--background))",
+                                        color: !selectedStyle.token ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
                                         border: "1px solid hsl(var(--border))",
                                         borderRadius: "var(--radius)",
-                                        cursor: "pointer",
+                                        cursor: !selectedStyle.token ? "not-allowed" : "pointer",
                                     }}
                                 >
-                                    Copy token
+                                    {copiedToken ? "Copied" : "Copy token"}
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={async () => {
+                                        const ok = await handleCopyToClipboard(selectedStyle.value || "");
+                                        if (ok) {
+                                            setCopiedValue(true);
+                                            setTimeout(() => setCopiedValue(false), 1200);
+                                        }
+                                    }}
+                                    disabled={!selectedStyle.value}
                                     style={{
                                         flex: 1,
                                         padding: "8px 12px",
                                         fontSize: 13,
                                         fontWeight: 500,
-                                        background: "hsl(var(--background))",
-                                        color: "hsl(var(--foreground))",
+                                        background: !selectedStyle.value ? "hsl(var(--muted))" : "hsl(var(--background))",
+                                        color: !selectedStyle.value ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
                                         border: "1px solid hsl(var(--border))",
                                         borderRadius: "var(--radius)",
-                                        cursor: "pointer",
+                                        cursor: !selectedStyle.value ? "not-allowed" : "pointer",
                                     }}
                                 >
-                                    Copy value
+                                    {copiedValue ? "Copied" : "Copy value"}
                                 </button>
                             </div>
                         </div>

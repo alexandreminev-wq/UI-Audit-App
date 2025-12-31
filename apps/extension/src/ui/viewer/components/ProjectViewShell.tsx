@@ -82,6 +82,7 @@ export function ProjectViewShell({
     rawCaptures,
     onBack,
     onAnnotationsChanged,
+    onOverridesChanged,
     onDeleted,
 }: {
     projectId: string;
@@ -93,6 +94,7 @@ export function ProjectViewShell({
     rawCaptures: CaptureRecordV2[];
     onBack: () => void;
     onAnnotationsChanged: () => void; // 7.7.2: Callback after annotation save
+    onOverridesChanged: () => void; // Identity overrides callback
     onDeleted: () => void; // 7.7.2: Callback after capture delete
 }) {
     // 7.4.5: Stable project identifier (for effect dependencies)
@@ -1077,6 +1079,7 @@ export function ProjectViewShell({
                 relatedComponents={drawerRelatedComponents}
                 visualEssentials={drawerVisualEssentials}
                 onAnnotationsChanged={onAnnotationsChanged}
+                onOverridesChanged={onOverridesChanged}
                 onDeleted={onDeleted}
             />
         </div>

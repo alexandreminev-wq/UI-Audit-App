@@ -203,6 +203,9 @@ export interface CaptureRecordV2 {
   };
 
   screenshot?: CaptureScreenshotRef | null;
+
+  // 7.8: Draft until Save
+  isDraft?: boolean; // true = unsaved draft, false/undefined = saved capture
 }
 
 // ─────────────────────────────────────────────────────────────

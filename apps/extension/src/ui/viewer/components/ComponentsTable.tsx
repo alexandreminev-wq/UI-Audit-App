@@ -2,6 +2,8 @@
 // ComponentsTable Component
 // ─────────────────────────────────────────────────────────────
 
+import { useBlobUrl } from "../hooks/useBlobUrl";
+
 type ComponentItem = {
     id: string;
     name: string;
@@ -10,6 +12,7 @@ type ComponentItem = {
     status: string;
     source: string;
     capturesCount: number;
+    thumbnailBlobId?: string;
 };
 
 interface ComponentsTableProps {
@@ -39,6 +42,39 @@ export function ComponentsTable({
         }
     };
 
+    const ComponentThumbnail = ({ blobId }: { blobId?: string }) => {
+        const { url } = useBlobUrl(blobId);
+        return (
+            <div style={{
+                width: 28,
+                height: 28,
+                flexShrink: 0,
+                borderRadius: "calc(var(--radius) - 2px)",
+                border: "1px solid hsl(var(--border))",
+                background: "hsl(var(--muted))",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+            }}>
+                {url ? (
+                    <img
+                        src={url}
+                        alt=""
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                        }}
+                    />
+                ) : (
+                    <div style={{ width: "100%", height: "100%" }} />
+                )}
+            </div>
+        );
+    };
+
     // Column definitions for Components table
     const componentColumns = [
         {
@@ -47,7 +83,18 @@ export function ComponentsTable({
             visible: visibleProps.name,
             width: "2fr",
             render: (comp: ComponentItem) => (
-                <span style={{ fontWeight: 500 }}>{comp.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <ComponentThumbnail blobId={comp.thumbnailBlobId} />
+                    <span style={{
+                        fontWeight: 500,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}>
+                        {comp.name}
+                    </span>
+                </div>
             ),
         },
         {

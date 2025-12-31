@@ -1,9 +1,11 @@
 # COMPONENT_MODEL
 
-*Last updated: 2025-12-27*
+*Last updated: 2025-12-31*
 
-This document defines the **canonical component model** used by the UI Audit Tool across capture, review, and export.  
-It governs how captured UI elements are represented, classified, reviewed, and organized in the Viewer.
+This document defines the **canonical component model** used by the UI Inventory App across capture, review, and export.
+It governs how captured UI elements are represented, classified, reviewed, and organized across both:
+- Viewer (Audit Workspace)
+- Sidepanel (Capture Cockpit)
 
 This model is **designer-oriented**, not DOM-oriented.
 
@@ -79,6 +81,15 @@ Component {
 | stylePrimitives | ❌        | Derived from capture      |
 | htmlSnippet     | ❌        | Reference only            |
 | sourceUrl       | ❌        | Provenance                |
+
+**Important storage rule (MVP):**
+- The capture record is immutable evidence.
+- Editable fields are persisted in **separate “review layer” stores**, keyed by `projectId:componentKey`,
+  and merged into the derived Component model at runtime.
+
+Review layer stores:
+- **Annotations (`annotations`)**: Notes + Tags
+- **Identity overrides (`component_overrides`)**: Display Name / Category / Type / Status
 
 ---
 

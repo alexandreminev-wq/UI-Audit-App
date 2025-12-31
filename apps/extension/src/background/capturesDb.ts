@@ -27,14 +27,30 @@ export interface AnnotationRecord {
     updatedAt: number;      // Last modification timestamp (epoch ms)
 }
 
+// ─────────────────────────────────────────────────────────────
+// Component Overrides (Milestone 8+ evolving review layer)
+// ─────────────────────────────────────────────────────────────
+
+export interface ComponentOverrideRecord {
+    id: string;                 // "${projectId}:${componentKey}"
+    projectId: string;          // Project scope
+    componentKey: string;       // Deterministic grouping hash (same as ViewerComponent.id)
+    displayName: string | null; // Optional user override
+    categoryOverride: string | null;
+    typeOverride: string | null;
+    statusOverride: string | null;
+    updatedAt: number;          // Last modification timestamp (epoch ms)
+}
+
 const DB_NAME = "ui-inventory";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_CAPTURES = "captures";
 const STORE_SESSIONS = "sessions";
 const STORE_BLOBS = "blobs";
 const STORE_PROJECTS = "projects";
 const STORE_PROJECT_SESSIONS = "projectSessions";
 const STORE_ANNOTATIONS = "annotations";
+const STORE_COMPONENT_OVERRIDES = "component_overrides";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -107,6 +123,13 @@ function openDb(): Promise<IDBDatabase> {
                 const annotationsStore = db.createObjectStore(STORE_ANNOTATIONS, { keyPath: "id" });
                 annotationsStore.createIndex("byProject", "projectId", { unique: false });
                 console.log("[capturesDb] Created annotations store with indexes");
+            }
+
+            // Version 5: Add component overrides store (review layer, component-scoped)
+            if (!db.objectStoreNames.contains(STORE_COMPONENT_OVERRIDES)) {
+                const overridesStore = db.createObjectStore(STORE_COMPONENT_OVERRIDES, { keyPath: "id" });
+                overridesStore.createIndex("byProject", "projectId", { unique: false });
+                console.log("[capturesDb] Created component_overrides store with indexes");
             }
         };
     });
@@ -804,5 +827,197 @@ export async function deleteAnnotation(
         const request = store.delete(id);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Component Overrides (projectId + componentKey)
+// ─────────────────────────────────────────────────────────────
+
+export async function getComponentOverride(
+    projectId: string,
+    componentKey: string
+): Promise<ComponentOverrideRecord | null> {
+    if (!projectId || !componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_COMPONENT_OVERRIDES, "readonly");
+    const store = tx.objectStore(STORE_COMPONENT_OVERRIDES);
+    const id = `${projectId}:${componentKey}`;
+
+    return new Promise((resolve, reject) => {
+        const request = store.get(id);
+        request.onsuccess = () => resolve((request.result as ComponentOverrideRecord) || null);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function listComponentOverridesForProject(projectId: string): Promise<ComponentOverrideRecord[]> {
+    if (!projectId) {
+        return [];
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_COMPONENT_OVERRIDES, "readonly");
+    const store = tx.objectStore(STORE_COMPONENT_OVERRIDES);
+    const index = store.index("byProject");
+
+    return new Promise((resolve, reject) => {
+        const request = index.getAll(projectId);
+        request.onsuccess = () => resolve((request.result as ComponentOverrideRecord[]) || []);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function upsertComponentOverride(input: {
+    projectId: string;
+    componentKey: string;
+    displayName?: string | null;
+    categoryOverride?: string | null;
+    typeOverride?: string | null;
+    statusOverride?: string | null;
+}): Promise<void> {
+    if (!input.projectId || !input.componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_COMPONENT_OVERRIDES, "readwrite");
+    const store = tx.objectStore(STORE_COMPONENT_OVERRIDES);
+
+    const record: ComponentOverrideRecord = {
+        id: `${input.projectId}:${input.componentKey}`,
+        projectId: input.projectId,
+        componentKey: input.componentKey,
+        displayName: input.displayName ?? null,
+        categoryOverride: input.categoryOverride ?? null,
+        typeOverride: input.typeOverride ?? null,
+        statusOverride: input.statusOverride ?? null,
+        updatedAt: Date.now(),
+    };
+
+    return new Promise((resolve, reject) => {
+        const request = store.put(record);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function deleteComponentOverride(
+    projectId: string,
+    componentKey: string
+): Promise<void> {
+    if (!projectId || !componentKey) {
+        throw new Error("projectId and componentKey are required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_COMPONENT_OVERRIDES, "readwrite");
+    const store = tx.objectStore(STORE_COMPONENT_OVERRIDES);
+    const id = `${projectId}:${componentKey}`;
+
+    return new Promise((resolve, reject) => {
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Draft Captures (7.8)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * List draft captures for a project (isDraft = true)
+ * 7.8: Draft until Save
+ */
+export async function listDraftCapturesForProject(projectId: string): Promise<CaptureRecordV2[]> {
+    if (!projectId) {
+        return [];
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_CAPTURES, "readonly");
+    const store = tx.objectStore(STORE_CAPTURES);
+
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            const allCaptures = request.result as CaptureRecordV2[];
+            // Filter for drafts belonging to this project
+            const drafts = allCaptures.filter(
+                (cap) => cap.projectId === projectId && cap.isDraft === true
+            );
+            resolve(drafts);
+        };
+
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * List saved (non-draft) captures for a project
+ * 7.8: Draft until Save
+ */
+export async function listSavedCapturesForProject(projectId: string): Promise<CaptureRecordV2[]> {
+    if (!projectId) {
+        return [];
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_CAPTURES, "readonly");
+    const store = tx.objectStore(STORE_CAPTURES);
+
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            const allCaptures = request.result as CaptureRecordV2[];
+            // Filter for saved (non-draft) captures belonging to this project
+            const saved = allCaptures.filter(
+                (cap) => cap.projectId === projectId && cap.isDraft !== true
+            );
+            resolve(saved);
+        };
+
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Commit draft capture to saved (set isDraft = false)
+ * 7.8: Draft until Save
+ */
+export async function commitDraftCapture(captureId: string): Promise<void> {
+    if (!captureId) {
+        throw new Error("captureId is required");
+    }
+
+    const db = await openDb();
+    const tx = db.transaction(STORE_CAPTURES, "readwrite");
+    const store = tx.objectStore(STORE_CAPTURES);
+
+    return new Promise((resolve, reject) => {
+        const getRequest = store.get(captureId);
+
+        getRequest.onsuccess = () => {
+            const capture = getRequest.result as CaptureRecordV2 | undefined;
+            if (!capture) {
+                reject(new Error(`Capture ${captureId} not found`));
+                return;
+            }
+
+            // Set isDraft to false (or delete the field)
+            capture.isDraft = false;
+
+            const putRequest = store.put(capture);
+            putRequest.onsuccess = () => resolve();
+            putRequest.onerror = () => reject(putRequest.error);
+        };
+
+        getRequest.onerror = () => reject(getRequest.error);
     });
 }
