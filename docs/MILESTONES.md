@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2025-12-31 (Europe/Madrid)*
+  *Last updated: 2025-01-02*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -240,6 +240,122 @@ Viewer and Sidepanel now share the same annotation data model, lifecycle, and in
 - Added `component_overrides` store keyed by `projectId:componentKey`
 - Viewer and Sidepanel can edit identity fields with explicit Save / Cancel
 - Reset supported (delete override record → revert to derived values)
+
+---
+
+### 7.10 — Multi-State Component Capture ✅
+**Status:** ✅ Complete
+
+**Goal:** Associate different visual states (Default, Hover, Active, Focus, Disabled, Open) of the same component and display them as a unified entry.
+
+#### 7.10.1 — State Capture Infrastructure
+- Extended capture to support buttons and links with multiple states
+- CDP-based state forcing (pseudo-classes) with mouse automation fallback
+- State menu UI in content script for selecting which state to capture
+- Default state capture with hover-clearing logic (mouse move + delay)
+
+#### 7.10.2 — Component Grouping by State
+- Introduced stable `componentKey` generation (structural identity excluding state-dependent styles)
+- Modified `buildComponentSignature` to exclude color/backgroundColor/borderColor from key
+- Captures of the same component across different states share the same `componentKey`
+
+#### 7.10.3 — Multi-State UI (Sidepanel)
+- Grouped captures by `componentKey` into single component entries
+- Added `availableStates` array to track all captured states for a component
+- State dropdown selector for switching between states
+- Screenshot, HTML, and Visual Essentials update when state changes
+- Notes and tags shared across all states of the same component
+
+#### 7.10.4 — Multi-State UI (Viewer)
+- Viewer DetailsDrawer shows state selector dropdown
+- State switching fetches and displays correct capture data
+- Visual Essentials dynamically update based on selected state
+- Identity fields remain stable across state changes
+
+**Key Implementation Details:**
+- `componentKey` = hash of `${tagName}|${role}|${accessibleName}` (no style properties)
+- State stored in `capture.styles.evidence.state`
+- Default state prioritized in sort order for display
+- `UI/GET_CAPTURE` message handler added for fetching specific state captures
+
+---
+
+### 7.11 — Figma Export ✅
+**Status:** ✅ Complete
+
+**Goal:** Export captured inventory to Figma-importable format with screenshots and structured metadata.
+
+#### 7.11.1 — Export Package Format
+- ZIP package containing:
+  - `inventory.json` — Structured component spec with visual essentials, states, sources
+  - `images/*.png` — Component screenshots (one per state)
+- Export initiated from Viewer "Export to Figma" button
+- Uses `jszip` library for client-side ZIP generation
+
+#### 7.11.2 — Data Structure
+**inventory.json structure:**
+```json
+{
+  "version": "1.0",
+  "exportedAt": "ISO timestamp",
+  "project": { "id", "name" },
+  "components": [
+    {
+      "componentKey": "deterministic hash",
+      "name": "derived display name",
+      "category": "Actions | Forms | ...",
+      "type": "Button | Link | ...",
+      "status": "Unreviewed | Canonical | ...",
+      "sources": ["url1", "url2"],
+      "notes": "user annotations",
+      "tags": ["tag1", "tag2"],
+      "states": [
+        {
+          "state": "default | hover | active | ...",
+          "screenshotFilename": "componentKey_state.png",
+          "visualEssentials": { "Text": [...], "Surface": [...], "Spacing": [...] },
+          "stylePrimitives": { raw style data },
+          "htmlSnippet": "outerHTML"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### 7.11.3 — Service Worker Export APIs
+- `EXPORT/GET_PROJECT_DATA` — Fetch all non-draft captures + project metadata
+- `EXPORT/GET_BLOB_BYTES` — Retrieve screenshot blob as byte array
+- Blob transfer via Chrome messaging (ArrayBuffer → plain array conversion for structured cloning)
+
+#### 7.11.4 — Figma Plugin Implementation
+**Structure:**
+- `apps/figma-plugin/` — Standalone Figma plugin directory
+- `manifest.json` — Plugin metadata and entry points
+- `code.ts` — Main thread (Figma API interactions)
+- `ui.html` + `ui.ts` — UI thread (file handling, ZIP processing)
+- `build.js` — Custom build script (esbuild + inline script injection)
+
+**Features:**
+- Drag-and-drop + file input for ZIP import
+- Creates Figma frames organized by category
+- Places screenshots as image fills using `figma.createImage()`
+- Text nodes for metadata (name, category, type, status, sources, notes, tags)
+- Visual essentials displayed as formatted text blocks
+- HTML snippet included (collapsed/small text)
+
+**Key Technical Solutions:**
+- WebP → PNG conversion (Figma doesn't support WebP)
+- Canvas API used for image format conversion
+- Inline script bundling (Figma data URL CSP restrictions)
+- Error handling for unsupported image formats with fallback UI
+
+#### 7.11.5 — Documentation
+- Created `docs/FIGMA_EXPORT.md` with full specification
+- Documents export format, plugin usage, and architecture
+
+**Outcome:**  
+Full round-trip workflow: Capture → Review → Export → Import to Figma for design system audits.
 
 
   ## Milestone 8 — Capture Depth & Intelligence (Future)

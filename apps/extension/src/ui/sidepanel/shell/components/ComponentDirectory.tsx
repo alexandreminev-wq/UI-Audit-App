@@ -18,6 +18,10 @@ export function ComponentDirectory({
     new Set()
   );
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDirectory.tsx:18',message:'ComponentDirectory rendered',data:{componentCount:components.length,components:components.map(c=>({id:c.id,name:c.name,availableStatesCount:c.availableStates?.length||0,states:c.availableStates?.map(s=>s.state)||[]}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A2,D1'})}).catch(()=>{});
+  // #endregion
+
   // Group components by category
   const componentsByCategory = components.reduce((acc, component) => {
     if (!acc[component.category]) {
@@ -95,12 +99,26 @@ export function ComponentDirectory({
                         : 'text-gray-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex-1">{component.name}</span>
-                      {component.isDraft && (
-                        <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
-                          Unsaved
-                        </span>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex-1">{component.name}</span>
+                        {component.isDraft && (
+                          <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                            Unsaved
+                          </span>
+                        )}
+                      </div>
+                      {component.availableStates && component.availableStates.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {component.availableStates.map(({state}) => (
+                            <span
+                              key={state}
+                              className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-700"
+                            >
+                              {state}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </button>

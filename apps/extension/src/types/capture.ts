@@ -98,6 +98,7 @@ export interface Rgba {
 export interface ColorPrimitive {
   raw: string; // computed style string as-is
   rgba?: Rgba | null; // canonical form when parseable
+  hex8?: string | null; // Phase 4: canonical #RRGGBBAA derived from rgba (best-effort)
 }
 
 export interface ShadowPrimitive {
@@ -215,7 +216,29 @@ export interface AuthorStyleEvidence {
 export interface StyleEvidenceMeta {
   method: "cdp" | "computed";
   cdpError?: string;
+  // When a single UI element is captured as multiple interaction states (e.g. hover/focus),
+  // this labels which state produced the evidence.
+  state?: "default" | "hover" | "active" | "focus" | "disabled" | "open";
   capturedAt: number; // epoch ms
+}
+
+export interface TokenUsageEvidence {
+  property: AuthorStylePropertyKey;
+  token: string; // --token-name
+  resolvedValue?: string | null; // resolved value for this element instance (best-effort)
+}
+
+export interface TokenDefinitionEvidence {
+  token: string; // --token-name
+  definedValue?: string | null; // RHS of "--token: <value>" (best-effort, may include var() chains)
+  selectorText: string;
+  styleSheetUrl?: string | null;
+  origin?: string | null;
+}
+
+export interface TokenEvidence {
+  used: TokenUsageEvidence[];
+  definitions?: TokenDefinitionEvidence[];
 }
 
 export interface CaptureScreenshotRef {
@@ -273,6 +296,8 @@ export interface CaptureRecordV2 {
     author?: AuthorStyleEvidence;
     // Phase 1: evidence metadata for debugging/UX
     evidence?: StyleEvidenceMeta;
+    // Next: normalized token usage + best-effort definition provenance
+    tokens?: TokenEvidence;
   };
 
   screenshot?: CaptureScreenshotRef | null;

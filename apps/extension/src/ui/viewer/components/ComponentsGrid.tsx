@@ -178,6 +178,31 @@ export function ComponentsGrid({
                                         </div>
                                     )}
 
+                                    {/* State Pills */}
+                                    {comp.availableStates && comp.availableStates.length > 0 && (
+                                        <div style={{
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            gap: 4,
+                                            marginBottom: hasChips || hasMeta ? 8 : 0,
+                                        }}>
+                                            {comp.availableStates.map(({state}) => (
+                                                <span
+                                                    key={state}
+                                                    style={{
+                                                        fontSize: 11,
+                                                        padding: "2px 6px",
+                                                        borderRadius: 4,
+                                                        backgroundColor: "hsl(var(--accent))",
+                                                        color: "hsl(var(--accent-foreground))",
+                                                    }}
+                                                >
+                                                    {state}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {/* Chips row (Type only; Status is shown as overlay pill) */}
                                     {hasChips && (
                                         <div style={{

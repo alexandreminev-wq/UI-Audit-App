@@ -7,7 +7,9 @@ import type {
     ViewerStyleRelatedComponent,
     ViewerVisualEssentials,
 } from "../types/projectViewerTypes";
+import type { AuthorStyleEvidence, StylePrimitives, TokenEvidence } from "../../../types/capture";
 import { useBlobUrl } from "../hooks/useBlobUrl";
+import { TokenTraceValue } from "../../shared/tokenTrace/TokenTraceValue";
 
 // ─────────────────────────────────────────────────────────────
 // DEV-only logging helpers (7.4.5)
@@ -104,6 +106,12 @@ interface DetailsDrawerProps {
     relatedComponents: ViewerStyleRelatedComponent[];
     // 7.4.4: Visual essentials
     visualEssentials: ViewerVisualEssentials;
+    // Token trace evidence (best-effort) for the same representative capture
+    visualEssentialsTrace?: {
+        author?: AuthorStyleEvidence;
+        tokens?: TokenEvidence;
+        primitives: StylePrimitives;
+    } | null;
     // Phase 1: authored styles evidence for representative capture (optional)
     visualEssentialsEvidence?: {
         method: "cdp" | "computed";
@@ -131,6 +139,7 @@ export function DetailsDrawer({
     styleLocations,
     relatedComponents,
     visualEssentials,
+    visualEssentialsTrace,
     visualEssentialsEvidence,
     onAnnotationsChanged,
     onOverridesChanged,
@@ -348,10 +357,187 @@ export function DetailsDrawer({
         setDraftTags(draftTags.filter(tag => tag !== tagToRemove));
     };
 
-    // 7.5.2: Compute representative capture and screenshot URL at TOP LEVEL (fixes Rules of Hooks)
-    const representativeCapture = componentCaptures?.[0];
-    const screenshotBlobId = representativeCapture?.screenshotBlobId;
+    // State selection for multi-state components
+    const [selectedState, setSelectedState] = useState(selectedComponent?.selectedState || "default");
+    const [isLoadingState, setIsLoadingState] = useState(true); // Start as loading
+    const [currentStateData, setCurrentStateData] = useState<{
+        capture: ViewerComponentCapture | null;
+        visualEssentials: ViewerVisualEssentials | null;
+        visualEssentialsTrace: any | null;
+    }>({
+        capture: null, // Don't use props - they're wrong for multi-state
+        visualEssentials: null,
+        visualEssentialsTrace: null,
+    });
+
+    // Use currentStateData for display (updates when state changes)
+    const screenshotBlobId = currentStateData.capture?.screenshotBlobId;
     const { url: screenshotUrl } = useBlobUrl(screenshotBlobId);
+
+    // Update currentStateData when selectedComponent changes - fetch initial state capture
+    useEffect(() => {
+        if (!selectedComponent) {
+            setCurrentStateData({
+                capture: null,
+                visualEssentials: null,
+                visualEssentialsTrace: null,
+            });
+            setSelectedState("default");
+            return;
+        }
+
+        const defaultStateCaptureEntry = selectedComponent.availableStates?.find(s => s.state === selectedComponent.selectedState);
+        if (defaultStateCaptureEntry) {
+            setIsLoadingState(true);
+            chrome.runtime.sendMessage({ type: "UI/GET_CAPTURE", captureId: defaultStateCaptureEntry.captureId }, (resp) => {
+                if (resp?.ok && resp.capture) {
+                    const capture = resp.capture;
+                    
+                    const derivedEssentials = capture.styles?.primitives ? deriveVisualEssentialsFromPrimitives(capture.styles.primitives) : null;
+                    
+                    setCurrentStateData({
+                        capture: {
+                            id: defaultStateCaptureEntry.captureId,
+                            url: capture.page?.url || capture.url || "",
+                            sourceLabel: capture.page?.url || "—",
+                            timestampLabel: "—",
+                            screenshotBlobId: capture.screenshot?.screenshotBlobId,
+                            htmlStructure: capture.element?.outerHTML || "",
+                        },
+                        visualEssentials: derivedEssentials,
+                        visualEssentialsTrace: {
+                            author: capture.styles?.author,
+                            tokens: capture.styles?.tokens,
+                            primitives: capture.styles?.primitives,
+                        },
+                    });
+                    setSelectedState(selectedComponent.selectedState);
+                } else {
+                    devWarn("[DetailsDrawer] Failed to load default state capture:", defaultStateCaptureEntry.captureId, resp?.error);
+                    // Fallback to props
+                    setCurrentStateData({
+                        capture: componentCaptures?.[0] || null,
+                        visualEssentials: visualEssentials,
+                        visualEssentialsTrace: visualEssentialsTrace,
+                    });
+                    setSelectedState("default");
+                }
+                setIsLoadingState(false);
+            });
+        } else {
+            // No available states, use props as fallback
+            setCurrentStateData({
+                capture: componentCaptures?.[0] || null,
+                visualEssentials: visualEssentials,
+                visualEssentialsTrace: visualEssentialsTrace,
+            });
+            setSelectedState("default");
+        }
+    }, [selectedComponent]);
+
+    const handleStateChange = async (newState: string) => {
+        if (!selectedComponent) return;
+        const stateEntry = selectedComponent.availableStates?.find(s => s.state === newState);
+        if (!stateEntry) return;
+
+        setIsLoadingState(true);
+        try {
+            const captureResp = await chrome.runtime.sendMessage({
+                type: "UI/GET_CAPTURE",
+                captureId: stateEntry.captureId,
+            });
+
+            if (captureResp?.ok && captureResp.capture) {
+                const capture = captureResp.capture;
+                const derivedEssentials = capture.styles?.primitives ? deriveVisualEssentialsFromPrimitives(capture.styles.primitives) : null;
+                
+                // Update local state with the new capture data for display
+                setCurrentStateData({
+                    capture: {
+                        id: stateEntry.captureId,
+                        url: capture.page?.url || capture.url || "",
+                        sourceLabel: capture.page?.url || "—",
+                        timestampLabel: "—",
+                        screenshotBlobId: capture.screenshot?.screenshotBlobId,
+                        htmlStructure: capture.element?.outerHTML || "",
+                    },
+                    // Recompute visual essentials from new capture's primitives
+                    visualEssentials: derivedEssentials,
+                    visualEssentialsTrace: {
+                        author: capture.styles?.author,
+                        tokens: capture.styles?.tokens,
+                        primitives: capture.styles?.primitives,
+                    },
+                });
+                setSelectedState(newState as any);
+            }
+        } catch (err) {
+            console.error("[DetailsDrawer] Failed to load state:", err);
+        } finally {
+            setIsLoadingState(false);
+        }
+    };
+
+    // Helper to derive visual essentials from primitives (simplified version of deriveViewerModels logic)
+    function deriveVisualEssentialsFromPrimitives(primitives: any): ViewerVisualEssentials {
+        const rows: ViewerVisualEssentialsRow[] = [];
+        
+        // Text section
+        if (primitives.color?.hex8) {
+            rows.push({ label: "Text color", value: primitives.color.hex8, section: "Text" });
+        }
+        if (primitives.typography?.fontFamily) {
+            rows.push({ label: "Font family", value: primitives.typography.fontFamily, section: "Text" });
+        }
+        if (primitives.typography?.fontSize) {
+            rows.push({ label: "Font size", value: primitives.typography.fontSize, section: "Text" });
+        }
+        if (primitives.typography?.fontWeight) {
+            rows.push({ label: "Font weight", value: String(primitives.typography.fontWeight), section: "Text" });
+        }
+        if (primitives.typography?.lineHeight) {
+            rows.push({ label: "Line height", value: primitives.typography.lineHeight, section: "Text" });
+        }
+        
+        // Surface section
+        if (primitives.backgroundColor?.hex8) {
+            rows.push({ label: "Background", value: primitives.backgroundColor.hex8, section: "Surface" });
+        }
+        const hasBorder = primitives.borderWidth && Object.values(primitives.borderWidth).some((w: any) => parseFloat(String(w)) > 0);
+        if (hasBorder && primitives.borderColor?.hex8) {
+            rows.push({ label: "Border color", value: primitives.borderColor.hex8, section: "Surface" });
+        }
+        if (hasBorder && primitives.borderWidth) {
+            const b = primitives.borderWidth;
+            rows.push({ label: "Border width", value: `${b.top} / ${b.right} / ${b.bottom} / ${b.left}`, section: "Surface" });
+        }
+        if (primitives.radius) {
+            const r = primitives.radius;
+            rows.push({ label: "Radius", value: `${r.topLeft} / ${r.topRight} / ${r.bottomRight} / ${r.bottomLeft}`, section: "Surface" });
+        }
+        if (primitives.shadow?.boxShadowRaw) {
+            rows.push({ label: "Shadow", value: primitives.shadow.boxShadowRaw, section: "Surface" });
+        }
+        
+        // Spacing section
+        if (primitives.spacing) {
+            const p = primitives.spacing;
+            rows.push({ label: "Padding", value: `${p.paddingTop} / ${p.paddingRight} / ${p.paddingBottom} / ${p.paddingLeft}`, section: "Spacing" });
+        }
+        if (primitives.margin) {
+            const m = primitives.margin;
+            rows.push({ label: "Margin", value: `${m.marginTop} / ${m.marginRight} / ${m.marginBottom} / ${m.marginLeft}`, section: "Spacing" });
+        }
+        if (primitives.gap) {
+            rows.push({ label: "Gap", value: `${primitives.gap.rowGap} / ${primitives.gap.columnGap}`, section: "Spacing" });
+        }
+        
+        return { rows };
+    }
+
+    const capitalizeState = (state: string): string => {
+        return state.charAt(0).toUpperCase() + state.slice(1);
+    };
 
     const handleDelete = async () => {
         if (!selectedComponent || !representativeCapture) {
@@ -567,51 +753,7 @@ export function DetailsDrawer({
                                 </span>
                             </div>
 
-                            {/* Preview section (7.5.2: hero screenshot) */}
-                            <div style={{ marginBottom: 24, maxWidth: "100%" }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Preview
-                                </h3>
-                                <div style={{
-                                    width: "100%",
-                                    maxWidth: "100%",
-                                    maxHeight: 220,
-                                    minHeight: 180,
-                                    padding: 12,
-                                    borderRadius: "var(--radius)",
-                                    border: "1px solid hsl(var(--border))",
-                                    background: "hsl(var(--muted))",
-                                    overflow: "hidden",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    boxSizing: "border-box",
-                                }}>
-                                    {screenshotUrl ? (
-                                        <img
-                                            src={screenshotUrl}
-                                            alt="Component screenshot"
-                                            style={{
-                                                width: "auto",
-                                                height: "auto",
-                                                maxWidth: "100%",
-                                                maxHeight: "100%",
-                                                display: "block",
-                                                objectFit: "contain",
-                                            }}
-                                        />
-                                    ) : (
-                                        <div style={{
-                                            fontSize: 13,
-                                            color: "hsl(var(--muted-foreground))",
-                                        }}>
-                                            No screenshot yet
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Identity section (editable: prototype parity) */}
+                            {/* Identity section (editable: prototype parity) - MOVED ABOVE PREVIEW */}
                             <div style={{ marginBottom: 24 }}>
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                     <h3 style={drawerSectionTitleStyle}>Identity</h3>
@@ -702,11 +844,90 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
+                            {/* State Selector */}
+                            {selectedComponent.availableStates && selectedComponent.availableStates.length > 1 ? (
+                                <div style={{ marginBottom: 24 }}>
+                                    <h3 style={drawerSectionTitleStyle}>State</h3>
+                                    <select
+                                        value={selectedState}
+                                        onChange={(e) => handleStateChange(e.target.value)}
+                                        disabled={isLoadingState}
+                                        style={{
+                                            ...inputStyle,
+                                            cursor: isLoadingState ? "not-allowed" : "pointer",
+                                            opacity: isLoadingState ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {selectedComponent.availableStates.map(({state}) => (
+                                            <option key={state} value={state}>
+                                                {capitalizeState(state)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                selectedComponent.availableStates && selectedComponent.availableStates.length === 1 && (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <h3 style={drawerSectionTitleStyle}>State</h3>
+                                        <div style={{
+                                            ...inputStyle,
+                                            background: "hsl(var(--muted))",
+                                            color: "hsl(var(--muted-foreground))",
+                                        }}>
+                                            {capitalizeState(selectedState)}
+                                        </div>
+                                    </div>
+                                )
+                            )}
+
+                            {/* Preview section (7.5.2: hero screenshot) - MOVED AFTER IDENTITY + STATE */}
+                            <div style={{ marginBottom: 24, maxWidth: "100%" }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Preview
+                                </h3>
+                                <div style={{
+                                    width: "100%",
+                                    maxWidth: "100%",
+                                    maxHeight: 220,
+                                    minHeight: 180,
+                                    padding: 12,
+                                    borderRadius: "var(--radius)",
+                                    border: "1px solid hsl(var(--border))",
+                                    background: "hsl(var(--muted))",
+                                    overflow: "hidden",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxSizing: "border-box",
+                                }}>
+                                    {screenshotUrl ? (
+                                        <img
+                                            src={screenshotUrl}
+                                            alt="Component screenshot"
+                                            style={{
+                                                width: "auto",
+                                                height: "auto",
+                                                maxWidth: "100%",
+                                                maxHeight: "100%",
+                                                display: "block",
+                                                objectFit: "contain",
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            fontSize: 13,
+                                            color: "hsl(var(--muted-foreground))",
+                                        }}>
+                                            No screenshot yet
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* HTML Structure section (7.6.2: collapsible, read-only) */}
                             {(() => {
-                                // Use representative capture (same as Preview)
-                                const representativeCapture = componentCaptures[0];
-                                const htmlStructure = representativeCapture?.htmlStructure;
+                                // Use current state's capture
+                                const htmlStructure = currentStateData.capture?.htmlStructure;
 
                                 return (
                                     <div style={{ marginBottom: 24 }}>
@@ -986,7 +1207,7 @@ export function DetailsDrawer({
                                             )}
                                     </div>
                                 )}
-                                {visualEssentials.rows.length === 0 ? (
+                                {currentStateData.visualEssentials && currentStateData.visualEssentials.rows.length === 0 ? (
                                     <div style={{
                                         padding: 12,
                                         border: "1px solid hsl(var(--border))",
@@ -1006,7 +1227,7 @@ export function DetailsDrawer({
                                     }}>
                                         {/* Group rows by section */}
                                         {["Text", "Surface", "Spacing", "State"].map((section) => {
-                                            const sectionRows = visualEssentials.rows.filter((r) => r.section === section);
+                                            const sectionRows = currentStateData.visualEssentials?.rows.filter((r) => r.section === section) || [];
                                             if (sectionRows.length === 0) return null;
 
                                             return (
@@ -1029,20 +1250,69 @@ export function DetailsDrawer({
                                                         gap: 6,
                                                     }}>
                                                         {sectionRows.map((row, idx) => (
-                                                            <div
-                                                                key={`${section}-${idx}`}
-                                                                style={{
-                                                                    display: "flex",
-                                                                    justifyContent: "space-between",
-                                                                    padding: 8,
-                                                                    background: "hsl(var(--muted))",
-                                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                                    fontSize: 13,
-                                                                }}
-                                                            >
-                                                                <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{row.label}</span>
-                                                                <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{row.value}</span>
-                                                            </div>
+                                                            (() => {
+                                                                const isColorRow =
+                                                                    row.label === "Text color" ||
+                                                                    row.label === "Background" ||
+                                                                    row.label === "Border color";
+
+                                                                if (!isColorRow || !currentStateData.visualEssentialsTrace?.tokens) {
+                                                                    return (
+                                                                        <div
+                                                                            key={`${section}-${idx}`}
+                                                                            style={{
+                                                                                display: "flex",
+                                                                                justifyContent: "space-between",
+                                                                                padding: 8,
+                                                                                background: "hsl(var(--muted))",
+                                                                                borderRadius: "calc(var(--radius) - 2px)",
+                                                                                fontSize: 13,
+                                                                            }}
+                                                                        >
+                                                                            <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{row.label}</span>
+                                                                            <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{row.value}</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                const prop =
+                                                                    row.label === "Text color"
+                                                                        ? "color"
+                                                                        : row.label === "Background"
+                                                                            ? "backgroundColor"
+                                                                            : "borderColor";
+
+                                                                const primitives: any = currentStateData.visualEssentialsTrace.primitives;
+                                                                const hex8 =
+                                                                    prop === "color"
+                                                                        ? primitives?.color?.hex8
+                                                                        : prop === "backgroundColor"
+                                                                            ? primitives?.backgroundColor?.hex8
+                                                                            : primitives?.borderColor?.hex8;
+
+                                                                const authoredValue =
+                                                                    (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
+
+                                                                return (
+                                                                    <div
+                                                                        key={`${section}-${idx}`}
+                                                                        style={{
+                                                                            padding: 8,
+                                                                            background: "hsl(var(--muted))",
+                                                                            borderRadius: "calc(var(--radius) - 2px)",
+                                                                        }}
+                                                                    >
+                                                                        <TokenTraceValue
+                                                                            property={prop as any}
+                                                                            label={row.label}
+                                                                            resolvedValue={row.value}
+                                                                            hex8={hex8 ?? null}
+                                                                            authoredValue={authoredValue}
+                                                                            tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })()
                                                         ))}
                                                     </div>
                                                 </div>

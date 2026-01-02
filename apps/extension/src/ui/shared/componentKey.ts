@@ -24,23 +24,16 @@ import type { CaptureRecordV2 } from "../../types/capture";
  */
 export function buildComponentSignature(capture: CaptureRecordV2): string {
     const element = capture.element;
-    const styles = capture.styles.primitives;
 
-    // Core element identity
+    // Core element identity (structural only - state-invariant)
+    // Excludes style primitives since they vary between states (default/hover/active/etc.)
     const tagName = element.tagName.toLowerCase();
     const role = element.role || inferRoleFromTag(tagName);
     const accessibleName = element.intent?.accessibleName || element.textPreview || "";
 
-    // Style fingerprint (stable subset)
-    const bg = styles.backgroundColor?.raw || "—";
-    const border = styles.borderColor?.raw || "—";
-    const radius = styles.radius
-        ? `${styles.radius.topLeft}|${styles.radius.topRight}|${styles.radius.bottomRight}|${styles.radius.bottomLeft}`
-        : "—";
-    const padding = `${styles.spacing.paddingTop}|${styles.spacing.paddingRight}|${styles.spacing.paddingBottom}|${styles.spacing.paddingLeft}`;
-    const color = styles.color?.raw || "—";
-
-    return `${tagName}|${role}|${accessibleName}|bg:${bg}|bd:${border}|br:${radius}|pd:${padding}|c:${color}`;
+    // Use structural identity only for grouping states of the same component
+    // Visual variants (e.g., primary vs secondary button) are distinguished by accessibleName or role
+    return `${tagName}|${role}|${accessibleName}`;
 }
 
 /**

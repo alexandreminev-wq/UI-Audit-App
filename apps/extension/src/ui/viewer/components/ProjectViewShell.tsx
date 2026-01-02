@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Download } from "lucide-react";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
 import { CheckboxList } from "./CheckboxList";
@@ -10,6 +11,7 @@ import { StylesTable } from "./StylesTable";
 import type { ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
 import type { CaptureRecordV2 } from "../../../types/capture";
 import { deriveComponentCaptures, deriveStyleLocations, deriveRelatedComponentsForStyle, deriveVisualEssentialsFromCapture } from "../adapters/deriveViewerModels";
+import { exportProject } from "../utils/exportToFigma";
 
 // ─────────────────────────────────────────────────────────────
 // DEV-only logging helpers (7.4.5)
@@ -308,6 +310,21 @@ export function ProjectViewShell({
         return {
             method: evidence.method as "cdp" | "computed",
             cdpError: typeof evidence.cdpError === "string" ? evidence.cdpError : undefined,
+        };
+    }, [ui.drawer.selectedComponentId, drawerComponentCaptures, rawCaptures]);
+
+    const drawerVisualEssentialsTrace = useMemo(() => {
+        if (!ui.drawer.selectedComponentId || drawerComponentCaptures.length === 0) {
+            return null;
+        }
+        const representativeCapture = rawCaptures
+            .filter((c) => drawerComponentCaptures.some((dc) => dc.id === c.id))
+            .sort((a, b) => b.createdAt - a.createdAt)[0];
+        if (!representativeCapture) return null;
+        return {
+            primitives: representativeCapture.styles.primitives,
+            author: (representativeCapture as any)?.styles?.author,
+            tokens: (representativeCapture as any)?.styles?.tokens,
         };
     }, [ui.drawer.selectedComponentId, drawerComponentCaptures, rawCaptures]);
 
@@ -653,31 +670,71 @@ export function ProjectViewShell({
                         </button>
                     </div>
 
-                    {/* Right: Grid/Table view toggle */}
-                    <div style={inlineStyles.segmentedContainer}>
+                    {/* Right: Grid/Table view toggle and Export button */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={inlineStyles.segmentedContainer}>
+                            <button
+                                type="button"
+                                onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "grid" } }))}
+                                style={{
+                                    ...inlineStyles.segmentedButtonView,
+                                    background: ui.route.activeView === "grid" ? "hsl(var(--background))" : "transparent",
+                                    color: ui.route.activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                    fontWeight: ui.route.activeView === "grid" ? 600 : 500,
+                                }}
+                            >
+                                Grid
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "table" } }))}
+                                style={{
+                                    ...inlineStyles.segmentedButtonView,
+                                    background: ui.route.activeView === "table" ? "hsl(var(--background))" : "transparent",
+                                    color: ui.route.activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                    fontWeight: ui.route.activeView === "table" ? 600 : 500,
+                                }}
+                            >
+                                Table
+                            </button>
+                        </div>
+
+                        {/* Export to Figma button */}
                         <button
                             type="button"
-                            onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "grid" } }))}
+                            onClick={async () => {
+                                try {
+                                    await exportProject(projectId);
+                                } catch (err) {
+                                    console.error("[Viewer] Export failed:", err);
+                                    alert("Failed to export project. Check console for details.");
+                                }
+                            }}
                             style={{
-                                ...inlineStyles.segmentedButtonView,
-                                background: ui.route.activeView === "grid" ? "hsl(var(--background))" : "transparent",
-                                color: ui.route.activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                fontWeight: ui.route.activeView === "grid" ? 600 : 500,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "6px 12px",
+                                borderRadius: "var(--radius)",
+                                border: "1px solid hsl(var(--border))",
+                                background: "hsl(var(--background))",
+                                color: "hsl(var(--foreground))",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "hsl(var(--muted))";
+                                e.currentTarget.style.borderColor = "hsl(var(--primary))";
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "hsl(var(--background))";
+                                e.currentTarget.style.borderColor = "hsl(var(--border))";
                             }}
                         >
-                            Grid
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "table" } }))}
-                            style={{
-                                ...inlineStyles.segmentedButtonView,
-                                background: ui.route.activeView === "table" ? "hsl(var(--background))" : "transparent",
-                                color: ui.route.activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                fontWeight: ui.route.activeView === "table" ? 600 : 500,
-                            }}
-                        >
-                            Table
+                            <Download size={16} />
+                            Export to Figma
                         </button>
                     </div>
                 </div>
@@ -1093,6 +1150,7 @@ export function ProjectViewShell({
                 styleLocations={drawerStyleLocations}
                 relatedComponents={drawerRelatedComponents}
                 visualEssentials={drawerVisualEssentials}
+                visualEssentialsTrace={drawerVisualEssentialsTrace}
                 visualEssentialsEvidence={drawerVisualEssentialsEvidence}
                 onAnnotationsChanged={onAnnotationsChanged}
                 onOverridesChanged={onOverridesChanged}

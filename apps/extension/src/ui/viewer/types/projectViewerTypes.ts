@@ -26,7 +26,7 @@ export interface ViewerProject {
  */
 export interface ViewerComponent {
     id: string;                    // Grouping key (to be defined in adapter)
-    name: string;                  // Inferred from element.intent.accessibleName or textPreview
+    name: string;                  // Inferred from element.intent.accessibleName or textPreview (NO state suffix)
     category: string;              // Inferred from element role/tagName
     type: string;                  // From element.tagName (lowercase)
     status: "Unreviewed" | "Canonical" | "Variant" | "Deviation" | "Legacy" | "Experimental" | "Unknown";
@@ -35,6 +35,14 @@ export interface ViewerComponent {
     notes?: string | null;         // 7.6.3: aligns with Sidepanel comments field (future)
     tags?: string[];               // 7.6.4: aligns with Sidepanel tags field (future)
     thumbnailBlobId?: string;      // Representative screenshot blob (for cards)
+
+    // Multi-state support
+    availableStates?: Array<{
+        state: "default" | "hover" | "active" | "focus" | "disabled" | "open";
+        captureId: string;
+        screenshotBlobId?: string;
+    }>;
+    selectedState?: "default" | "hover" | "active" | "focus" | "disabled" | "open";
 
     // Component-scoped identity overrides (persisted separately from captures)
     overrides?: {

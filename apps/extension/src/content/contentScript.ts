@@ -185,6 +185,10 @@ function extractIntent(element: Element): ElementIntent {
 
 let overlayDiv: HTMLDivElement | null = null;
 let pillDiv: HTMLDivElement | null = null;
+let stateMenuHost: HTMLDivElement | null = null;
+let stateMenuShadow: ShadowRoot | null = null;
+let stateMenuIsOpen = false;
+let stateMenuTargetEl: Element | null = null;
 let lastHoverElForPill: Element | null = null;
 let currentHoverEl: Element | null = null;
 let isFrozen = false;
@@ -193,6 +197,7 @@ let suppressNextClickCapture = false;
 let isHoverModeActive = false;
 let rafId: number | null = null;
 let pendingUpdate = false;
+let isCaptureInProgress = false; // Prevent overlay updates during CDP capture
 
 // ─────────────────────────────────────────────────────────────
 // Sidebar (Milestone 6.1)
@@ -415,6 +420,185 @@ function createMetadataPill(): HTMLDivElement {
     return div;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Button State Capture Menu (contextual popover)
+// ─────────────────────────────────────────────────────────────
+
+type StateCaptureMode = "default" | "force_hover" | "force_active" | "as_is";
+
+function ensureStateMenu() {
+    if (stateMenuHost && stateMenuShadow) return;
+
+    stateMenuIsOpen = false;
+    stateMenuTargetEl = null;
+
+    stateMenuHost = document.createElement("div");
+    stateMenuHost.id = "ui-inventory-state-menu-host";
+    stateMenuHost.style.cssText = `
+        all: initial;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 2147483647;
+        pointer-events: none;
+    `;
+
+    stateMenuShadow = stateMenuHost.attachShadow({ mode: "open" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+        * { box-sizing: border-box; }
+        .menu {
+            position: fixed;
+            min-width: 220px;
+            max-width: 320px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.10);
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            padding: 10px;
+            display: none;
+            pointer-events: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .menu.open { display: block; }
+        .title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #111827;
+            margin: 0 0 8px 0;
+        }
+        .desc {
+            font-size: 11px;
+            color: #6b7280;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+        .btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.08);
+            background: #f9fafb;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #111827;
+        }
+        .btn:hover { background: #eef2ff; border-color: rgba(59,130,246,0.35); }
+        .btn + .btn { margin-top: 8px; }
+        .kbd {
+            font-size: 10px;
+            font-weight: 700;
+            color: #6b7280;
+            padding: 2px 6px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 6px;
+            background: white;
+        }
+        .hint {
+            font-size: 10px;
+            font-weight: 600;
+            color: #6b7280;
+            margin-top: 10px;
+        }
+    `;
+
+    const menu = document.createElement("div");
+    menu.className = "menu";
+
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = "Capture button state";
+
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = "Forced states use CDP pseudo-state; As-Is captures what’s currently on screen.";
+
+    const mkBtn = (label: string, kbd: string, mode: StateCaptureMode) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn";
+        const left = document.createElement("span");
+        left.textContent = label;
+        const right = document.createElement("span");
+        right.className = "kbd";
+        right.textContent = kbd;
+        b.appendChild(left);
+        b.appendChild(right);
+        b.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const target = stateMenuTargetEl;
+            closeStateMenu();
+            if (!target) return;
+            await performCapture(target, { mode });
+        });
+        return b;
+    };
+
+    menu.appendChild(title);
+    menu.appendChild(desc);
+    menu.appendChild(mkBtn("Default state (non-hover)", "D", "default"));
+    menu.appendChild(mkBtn("Force hover", "H", "force_hover"));
+    menu.appendChild(mkBtn("Force active", "A", "force_active"));
+    menu.appendChild(mkBtn("Capture As-Is", "S", "as_is"));
+
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Tip: Press Esc to close.";
+    menu.appendChild(hint);
+
+    stateMenuShadow.appendChild(style);
+    stateMenuShadow.appendChild(menu);
+    document.documentElement.appendChild(stateMenuHost);
+}
+
+function openStateMenu(target: Element) {
+    ensureStateMenu();
+    const menu = stateMenuShadow?.querySelector(".menu") as HTMLDivElement | null;
+    if (!menu) return;
+
+    stateMenuTargetEl = target;
+    stateMenuIsOpen = true;
+
+    const rect = target.getBoundingClientRect();
+    const margin = 8;
+    const preferredLeft = rect.left;
+    const preferredTop = rect.bottom + 10;
+
+    // Measure menu size by temporarily showing it offscreen
+    menu.style.left = `-9999px`;
+    menu.style.top = `-9999px`;
+    menu.classList.add("open");
+    const w = menu.offsetWidth || 240;
+    const h = menu.offsetHeight || 180;
+
+    let left = preferredLeft;
+    let top = preferredTop;
+    if (left + w > window.innerWidth - margin) left = window.innerWidth - margin - w;
+    if (left < margin) left = margin;
+    if (top + h > window.innerHeight - margin) top = rect.top - 10 - h;
+    if (top < margin) top = margin;
+
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+}
+
+function closeStateMenu() {
+    stateMenuIsOpen = false;
+    stateMenuTargetEl = null;
+    const menu = stateMenuShadow?.querySelector(".menu");
+    if (menu) menu.classList.remove("open");
+}
+
 /**
  * Get readable CSS-ish path (display-only, max ~80 chars)
  */
@@ -555,6 +739,11 @@ function renderForElement(el: Element) {
 function updateOverlay(x: number, y: number) {
     if (!overlayDiv || !isHoverModeActive) return;
 
+    // Don't update overlay during capture (CDP mouse movement triggers this)
+    if (isCaptureInProgress) {
+        return;
+    }
+
     // If frozen, ignore mouse movement and keep rendering frozen element
     if (isFrozen && frozenEl) {
         renderForElement(frozenEl);
@@ -596,6 +785,11 @@ function updateOverlay(x: number, y: number) {
 function onMouseMove(e: MouseEvent) {
     if (!isHoverModeActive || pendingUpdate) return;
 
+    // Prevent overlay updates during CDP capture (CDP mouse movement triggers this)
+    if (isCaptureInProgress) {
+        return;
+    }
+
     pendingUpdate = true;
     rafId = requestAnimationFrame(() => {
         updateOverlay(e.clientX, e.clientY);
@@ -605,6 +799,11 @@ function onMouseMove(e: MouseEvent) {
 
 async function onPointerCapture(e: PointerEvent) {
     if (!isHoverModeActive) return;
+
+    // Allow interactions with the state menu
+    if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
+        return;
+    }
 
     // Only primary button (left-click)
     if (e.button !== 0) return;
@@ -627,11 +826,29 @@ async function onPointerCapture(e: PointerEvent) {
     // Suppress next click to prevent double-capture
     suppressNextClickCapture = true;
 
+    const actionTarget = (target as Element).closest?.("button, a[href]");
+    if (actionTarget) {
+        openStateMenu(actionTarget);
+        return;
+    }
+
     await performCapture(target);
 }
 
 async function onClickSelect(e: MouseEvent) {
     if (!isHoverModeActive) return;
+
+    // If menu is open, either let it handle the click or close it.
+    if (stateMenuIsOpen) {
+        if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        closeStateMenu();
+        return;
+    }
 
     // Greedy click blocking: always prevent page interaction while auditing
     e.preventDefault();
@@ -658,10 +875,16 @@ async function onClickSelect(e: MouseEvent) {
         return;
     }
 
+    const actionTarget = target.closest?.("button, a[href]");
+    if (actionTarget) {
+        openStateMenu(actionTarget);
+        return;
+    }
+
     await performCapture(target);
 }
 
-async function performCapture(target: Element) {
+async function performCapture(target: Element, captureOptions?: { mode: StateCaptureMode }) {
     // Phase 3: keep a reference for last-resort marker operations
     lastCaptureTargetEl = target;
 
@@ -765,13 +988,20 @@ async function performCapture(target: Element) {
     // Hide overlay and pill before screenshot to avoid capturing them
     const wasOverlayVisible = overlayDiv && overlayDiv.style.display !== "none";
     const wasPillVisible = pillDiv && pillDiv.style.display !== "none";
+    const wasMenuVisible = stateMenuIsOpen;
 
     try {
+        // Set flag to prevent overlay updates during CDP capture
+        isCaptureInProgress = true;
+
         if (overlayDiv) {
             overlayDiv.style.display = "none";
         }
         if (pillDiv) {
             pillDiv.style.display = "none";
+        }
+        if (wasMenuVisible) {
+            closeStateMenu();
         }
 
         // Wait for browser to render the hidden overlay (one frame)
@@ -788,7 +1018,7 @@ async function performCapture(target: Element) {
             }
         }, 1200);
 
-        chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record }, (response) => {
+        chrome.runtime.sendMessage({ type: "AUDIT/CAPTURE", record, captureOptions }, (response) => {
             didRespond = true;
             if (timeoutId !== null) {
                 clearTimeout(timeoutId);
@@ -810,15 +1040,17 @@ async function performCapture(target: Element) {
         isFrozen = false;
         frozenEl = null;
 
-        // Restore overlay and pill after a short delay (allows screenshot to complete)
+        // Restore overlay and pill after a longer delay (allows CDP screenshot to complete)
+        // CDP capture can take 200-500ms, so we wait longer before restoring
         setTimeout(() => {
+            isCaptureInProgress = false; // Clear flag after screenshot should be done
             if (overlayDiv && wasOverlayVisible && isHoverModeActive) {
                 overlayDiv.style.display = "block";
             }
             if (pillDiv && wasPillVisible && isHoverModeActive) {
                 pillDiv.style.display = "block";
             }
-        }, 100);
+        }, 600); // Increased from 100ms to 600ms to ensure CDP screenshot completes
 
         // Restore pill content using final frozen state (after isFrozen cleared)
         setTimeout(() => {
@@ -848,6 +1080,10 @@ function onKeyDown(e: KeyboardEvent) {
 
     // Escape: exit selection mode
     if (e.key === "Escape") {
+        if (stateMenuIsOpen) {
+            closeStateMenu();
+            return;
+        }
         stopHoverMode();
         chrome.runtime.sendMessage({ type: "AUDIT/TOGGLE", enabled: false });
         return;
@@ -925,6 +1161,13 @@ function stopHoverMode() {
         pillDiv.remove();
         pillDiv = null;
     }
+    if (stateMenuHost) {
+        stateMenuHost.remove();
+        stateMenuHost = null;
+        stateMenuShadow = null;
+    }
+    stateMenuIsOpen = false;
+    stateMenuTargetEl = null;
     lastHoverElForPill = null;
     currentHoverEl = null;
     isFrozen = false;

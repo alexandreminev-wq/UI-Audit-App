@@ -39,6 +39,7 @@ import type {
     AuthorStyleEvidence,
     AuthorStylePropertyKey,
     AuthorStyleProvenance,
+    TokenEvidence,
 } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
 
@@ -138,6 +139,138 @@ function normalizeWhitespace(value: string): string {
     return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeRgbLike(value: string | null | undefined): string | null {
+    if (!value) return null;
+    return normalizeWhitespace(value).replace(/\s*,\s*/g, ", ");
+}
+
+function colorsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+    const na = normalizeRgbLike(a);
+    const nb = normalizeRgbLike(b);
+    if (!na || !nb) return false;
+    return na.toLowerCase() === nb.toLowerCase();
+}
+
+function clampInt(n: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function rgbaToHex8(r: number, g: number, b: number, a: number): string {
+    const rr = clampInt(r, 0, 255).toString(16).padStart(2, "0");
+    const gg = clampInt(g, 0, 255).toString(16).padStart(2, "0");
+    const bb = clampInt(b, 0, 255).toString(16).padStart(2, "0");
+    const aa = clampInt(a * 255, 0, 255).toString(16).padStart(2, "0");
+    return `#${(rr + gg + bb + aa).toUpperCase()}`;
+}
+
+function parseRgbOrRgba(raw: string | null | undefined): { rgba: Rgba; hex8: string } | null {
+    const v = String(raw ?? "").trim();
+    if (!v) return null;
+    const m = v.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+    if (!m) return null;
+    const r = Number(m[1]);
+    const g = Number(m[2]);
+    const b = Number(m[3]);
+    const a = m[4] !== undefined ? Number(m[4]) : 1;
+    if (![r, g, b, a].every((x) => Number.isFinite(x))) return null;
+    const rgba = { r: clampInt(r, 0, 255), g: clampInt(g, 0, 255), b: clampInt(b, 0, 255), a: Math.max(0, Math.min(1, a)) };
+    return { rgba, hex8: rgbaToHex8(rgba.r, rgba.g, rgba.b, rgba.a) };
+}
+
+function derivePrimitivesFromCdpComputedMap(computed: Record<string, string>): StylePrimitives {
+    const get = (name: string) => (typeof computed[name] === "string" ? computed[name] : "");
+
+    const colorRaw = get("color") || "inherit";
+    const bgRaw = get("background-color") || "transparent";
+    const borderRaw =
+        get("border-color") ||
+        [get("border-top-color"), get("border-right-color"), get("border-bottom-color"), get("border-left-color")]
+            .filter(Boolean)
+            .join(" ") ||
+        "transparent";
+
+    const parsedColor = parseRgbOrRgba(colorRaw);
+    const parsedBg = parseRgbOrRgba(bgRaw);
+    const parsedBorder = parseRgbOrRgba(borderRaw);
+
+    const boxShadowRaw = get("box-shadow") || "none";
+    const shadowPresence = !boxShadowRaw || boxShadowRaw === "none" ? "none" : "some";
+    const shadowLayerCount =
+        shadowPresence === "none"
+            ? null
+            : (() => {
+                  let depth = 0;
+                  let count = 1;
+                  for (const ch of boxShadowRaw) {
+                      if (ch === "(") depth++;
+                      else if (ch === ")") depth = Math.max(0, depth - 1);
+                      else if (ch === "," && depth === 0) count++;
+                  }
+                  return count;
+              })();
+
+    const opacityStr = get("opacity");
+    const opacity = opacityStr ? Number(opacityStr) : null;
+
+    return {
+        spacing: {
+            paddingTop: get("padding-top") || "0px",
+            paddingRight: get("padding-right") || "0px",
+            paddingBottom: get("padding-bottom") || "0px",
+            paddingLeft: get("padding-left") || "0px",
+        },
+        margin: {
+            marginTop: get("margin-top") || "0px",
+            marginRight: get("margin-right") || "0px",
+            marginBottom: get("margin-bottom") || "0px",
+            marginLeft: get("margin-left") || "0px",
+        },
+        borderWidth: {
+            top: get("border-top-width") || "0px",
+            right: get("border-right-width") || "0px",
+            bottom: get("border-bottom-width") || "0px",
+            left: get("border-left-width") || "0px",
+        },
+        gap: {
+            rowGap: get("row-gap") || get("gap") || "normal",
+            columnGap: get("column-gap") || get("gap") || "normal",
+        },
+        backgroundColor: {
+            raw: bgRaw,
+            rgba: parsedBg ? parsedBg.rgba : null,
+            hex8: parsedBg ? parsedBg.hex8 : null,
+        },
+        color: {
+            raw: colorRaw,
+            rgba: parsedColor ? parsedColor.rgba : null,
+            hex8: parsedColor ? parsedColor.hex8 : null,
+        },
+        borderColor: {
+            raw: borderRaw,
+            rgba: parsedBorder ? parsedBorder.rgba : null,
+            hex8: parsedBorder ? parsedBorder.hex8 : null,
+        },
+        shadow: {
+            boxShadowRaw,
+            shadowPresence: shadowPresence as any,
+            shadowLayerCount,
+        },
+        typography: {
+            fontFamily: get("font-family") || "",
+            fontSize: get("font-size") || "",
+            fontWeight: get("font-weight") || "",
+            lineHeight: get("line-height") || "",
+        },
+        radius: {
+            topLeft: get("border-top-left-radius") || "",
+            topRight: get("border-top-right-radius") || "",
+            bottomRight: get("border-bottom-right-radius") || "",
+            bottomLeft: get("border-bottom-left-radius") || "",
+        },
+        opacity: Number.isFinite(opacity as any) ? opacity : null,
+    };
+}
+
 function extractDeclarationValue(cssText: string, propertyName: string): string | null {
     // Best-effort parse of "prop: value;" from rule style.cssText
     if (!cssText) return null;
@@ -145,6 +278,41 @@ function extractDeclarationValue(cssText: string, propertyName: string): string 
     const re = new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, "i");
     const match = cssText.match(re);
     return match ? normalizeWhitespace(match[1]) : null;
+}
+
+function extractValueFromCssProperties(cssProperties: any, propertyName: string): string | null {
+    const list: any[] = Array.isArray(cssProperties) ? cssProperties : [];
+    for (const p of list) {
+        if (!p || typeof p.name !== "string") continue;
+        if (p.name.toLowerCase() === propertyName.toLowerCase()) {
+            const v = typeof p.value === "string" ? p.value : "";
+            return normalizeWhitespace(v);
+        }
+    }
+    return null;
+}
+function extractVarTokensFromValue(value: string): string[] {
+    const tokens = new Set<string>();
+    // Extract every var(--token ...) occurrence, including nested fallbacks like:
+    // var(--a, var(--b))  -> should yield ["--a","--b"]
+    const re = /var\(\s*(--[A-Za-z0-9_-]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(value)) !== null) {
+        const t = m[1];
+        if (t && t.startsWith("--")) tokens.add(t);
+    }
+    return Array.from(tokens);
+}
+
+function extractCustomPropDefinitions(cssText: string): string[] {
+    // Best-effort extract of custom property names defined in cssText: "--foo: ..."
+    const found = new Set<string>();
+    const re = /(?:^|;)\s*(--[A-Za-z0-9_-]+)\s*:/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(cssText)) !== null) {
+        found.add(m[1]);
+    }
+    return Array.from(found);
 }
 
 function pickTopProvenance(list: AuthorStyleProvenance[], max = 5): AuthorStyleProvenance[] {
@@ -342,8 +510,25 @@ async function collectAuthorStylesForCapture(
     options?: {
         captureUrl?: string; // Used to find the correct frame for marker resolution (best-effort)
         markerId?: string; // If provided, resolve node via marker instead of hit-test points
+        forcedPseudoClasses?: Array<"hover" | "active" | "focus">;
+        applyFocus?: boolean;
+        setAttributes?: Record<string, string | null>; // null => remove attribute
+        disableTransitions?: boolean; // best-effort: set transition/animation none on the target while capturing
+        mouseMoveTo?: { x: number; y: number }; // best-effort: move pointer to ensure real :hover is on/off
+        settleMs?: number; // best-effort: wait after forcing state before reading styles
+        screenshot?: {
+            boundingBox: { left: number; top: number; width: number; height: number };
+            devicePixelRatio: number;
+        };
     }
-): Promise<{ author: AuthorStyleEvidence; evidenceMethod: "cdp"; provenanceMap: Map<string, { url?: string; origin?: string }> }>{
+): Promise<{
+    author: AuthorStyleEvidence;
+    evidenceMethod: "cdp";
+    provenanceMap: Map<string, { url?: string; origin?: string }>;
+    tokens?: TokenEvidence;
+    computedStyles?: Record<string, string>;
+    screenshot?: CaptureRecordV2["screenshot"] | null;
+}>{
     // Collect stylesheet headers (id -> {url, origin}) while CSS is enabled.
     const provenanceMap = new Map<string, { url?: string; origin?: string }>();
     const contextByFrameId = new Map<string, number>();
@@ -374,6 +559,10 @@ async function collectAuthorStylesForCapture(
 
     chrome.debugger.onEvent.addListener(onEvent);
 
+    // State/mutation cleanup needs these in finally scope
+    let nodeId: number | null = null;
+    const prevAttrs = new Map<string, string | null>();
+
     try {
         await chrome.debugger.attach({ tabId }, "1.3");
         cdpAttachedTabs.add(tabId);
@@ -388,7 +577,6 @@ async function collectAuthorStylesForCapture(
         await sendCdpCommand(tabId, "DOM.getDocument", { depth: 1, pierce: true });
 
         // Resolve nodeId via marker (frame-aware) or via hit-test points (scoring)
-        let nodeId: number | null = null;
 
         const markerId = options?.markerId;
         if (markerId && typeof markerId === "string" && markerId.trim() !== "") {
@@ -464,10 +652,96 @@ async function collectAuthorStylesForCapture(
             throw new Error("Failed to resolve nodeId from hit-test points");
         }
 
+        // Optional: apply state forcing/mutations BEFORE reading styles and capturing screenshot
+        const forced = options?.forcedPseudoClasses?.length ? options.forcedPseudoClasses : null;
+        const willFocus = options?.applyFocus === true;
+        const setAttrs = options?.setAttributes ?? null;
+        const disableTransitions = options?.disableTransitions === true;
+        const mouseMoveTo = options?.mouseMoveTo;
+
+        try {
+            if (mouseMoveTo && Number.isFinite(mouseMoveTo.x) && Number.isFinite(mouseMoveTo.y)) {
+                try {
+                    await sendCdpCommand(tabId, "Input.dispatchMouseEvent", {
+                        type: "mouseMoved",
+                        x: Math.round(mouseMoveTo.x),
+                        y: Math.round(mouseMoveTo.y),
+                        buttons: 0,
+                    });
+                } catch {
+                    // ignore
+                }
+            }
+            if (setAttrs || disableTransitions) {
+                try {
+                    const desc: any = await sendCdpCommand(tabId, "DOM.describeNode", { nodeId });
+                    const attrs: any[] = Array.isArray(desc?.node?.attributes) ? desc.node.attributes : [];
+                    const attrMap = new Map<string, string>();
+                    for (let i = 0; i + 1 < attrs.length; i += 2) {
+                        attrMap.set(String(attrs[i] ?? ""), String(attrs[i + 1] ?? ""));
+                    }
+                    if (disableTransitions) {
+                        const prevStyle = attrMap.has("style") ? attrMap.get("style")! : null;
+                        // Only capture previous style once (in case other branches also touch it)
+                        if (!prevAttrs.has("style")) {
+                            prevAttrs.set("style", prevStyle);
+                        }
+                        const base = (prevStyle ?? "").trim();
+                        const nextStyle = `${base}${base && !base.endsWith(";") ? ";" : ""}transition:none !important;animation:none !important;`;
+                        await sendCdpCommand(tabId, "DOM.setAttributeValue", { nodeId, name: "style", value: nextStyle });
+                    }
+                    for (const [k, v] of Object.entries(setAttrs)) {
+                        prevAttrs.set(k, attrMap.has(k) ? attrMap.get(k)! : null);
+                        if (v === null) {
+                            await sendCdpCommand(tabId, "DOM.removeAttribute", { nodeId, name: k });
+                        } else {
+                            await sendCdpCommand(tabId, "DOM.setAttributeValue", { nodeId, name: k, value: v });
+                        }
+                    }
+                } catch {
+                    // ignore mutation failures
+                }
+            }
+            if (willFocus) {
+                try {
+                    await sendCdpCommand(tabId, "DOM.focus", { nodeId });
+                } catch {
+                    // ignore
+                }
+            }
+            if (forced) {
+                try {
+                    await sendCdpCommand(tabId, "CSS.forcePseudoState", { nodeId, forcedPseudoClasses: forced });
+                } catch {
+                    // ignore
+                }
+            }
+        } catch {
+            // ignore
+        }
+
+        // Best-effort settle delay to allow style recalc/paint after pseudo forcing
+        const settleMs = options?.settleMs;
+        if (typeof settleMs === "number" && Number.isFinite(settleMs) && settleMs > 0) {
+            await new Promise<void>(resolve => setTimeout(resolve, Math.min(250, Math.round(settleMs))));
+        }
+
+        // Capture screenshot while state forcing is applied (best-effort)
+        const screenshot = options?.screenshot
+            ? await captureScreenshot(tabId, options.screenshot.boundingBox, options.screenshot.devicePixelRatio)
+            : null;
+
         const matchedResp: any = await sendCdpCommand(tabId, "CSS.getMatchedStylesForNode", { nodeId });
         const computedResp: any = await sendCdpCommand(tabId, "CSS.getComputedStyleForNode", { nodeId });
 
         const matchedCSSRules = Array.isArray(matchedResp?.matchedCSSRules) ? matchedResp.matchedCSSRules : [];
+        const inherited = Array.isArray(matchedResp?.inherited) ? matchedResp.inherited : [];
+        const inlineStyle = matchedResp?.inlineStyle;
+        const attributesStyle = matchedResp?.attributesStyle;
+        const inheritedRuleMatches: any[] = inherited.flatMap((b: any) =>
+            Array.isArray(b?.matchedCSSRules) ? b.matchedCSSRules : []
+        );
+        const allRuleMatches: any[] = [...matchedCSSRules, ...inheritedRuleMatches];
         const computedStyle = Array.isArray(computedResp?.computedStyle) ? computedResp.computedStyle : [];
         const computedMap = new Map<string, string>();
         for (const entry of computedStyle) {
@@ -475,42 +749,67 @@ async function collectAuthorStylesForCapture(
                 computedMap.set(entry.name, String(entry.value ?? ""));
             }
         }
+        const computedStyles: Record<string, string> = {};
+        for (const [k, v] of computedMap.entries()) computedStyles[k] = v;
 
         const properties: AuthorStyleEvidence["properties"] = {};
+        const tokensUsed: TokenEvidence["used"] = [];
+        const tokensUsedSet = new Set<string>();
 
-        // For each property, scan matched rules and capture authored + provenance list
+        // For each property, scan matched + inherited rules and capture authored + provenance list.
+        // IMPORTANT: prefer matched rules over inherited, so we don't accidentally pick inherited `color`
+        // when the element has an overriding declaration (e.g. `color: var(--a, var(--b))`).
         for (const [key, cssProp] of Object.entries(AUTHOR_PROP_MAP) as Array<[AuthorStylePropertyKey, string]>) {
             const provList: AuthorStyleProvenance[] = [];
             let authoredValue: string | null = null;
 
-            for (const ruleMatch of matchedCSSRules) {
-                const rule = ruleMatch?.rule;
-                const selectorText = rule?.selectorList?.text;
-                const styleSheetId = rule?.styleSheetId;
-                const origin = rule?.origin;
-                const cssText = rule?.style?.cssText;
+            const scan = (rules: any[]) => {
+                for (let idx = rules.length - 1; idx >= 0; idx--) {
+                    const ruleMatch = rules[idx];
+                    const rule = ruleMatch?.rule;
+                    const selectorText = rule?.selectorList?.text;
+                    const styleSheetId = rule?.styleSheetId;
+                    const origin = rule?.origin;
+                    const cssText = rule?.style?.cssText;
+                    const cssProperties = rule?.style?.cssProperties;
 
-                let declVal = extractDeclarationValue(String(cssText ?? ""), cssProp);
-                if (declVal === null) {
-                    const fallbacks = AUTHOR_PROP_SHORTHAND_FALLBACKS[key] ?? [];
-                    for (const fb of fallbacks) {
-                        declVal = extractDeclarationValue(String(cssText ?? ""), fb);
-                        if (declVal !== null) break;
+                    let declVal = extractDeclarationValue(String(cssText ?? ""), cssProp);
+                    if (declVal === null) {
+                        const fallbacks = AUTHOR_PROP_SHORTHAND_FALLBACKS[key] ?? [];
+                        for (const fb of fallbacks) {
+                            declVal = extractDeclarationValue(String(cssText ?? ""), fb);
+                            if (declVal !== null) break;
+                        }
+                    }
+                    // Fallback: use structured cssProperties (more reliable than cssText)
+                    if (declVal === null) {
+                        declVal = extractValueFromCssProperties(cssProperties, cssProp);
+                        if (declVal === null) {
+                            const fallbacks = AUTHOR_PROP_SHORTHAND_FALLBACKS[key] ?? [];
+                            for (const fb of fallbacks) {
+                                declVal = extractValueFromCssProperties(cssProperties, fb);
+                                if (declVal !== null) break;
+                            }
+                        }
+                    }
+
+                    if (declVal !== null) {
+                        const header = typeof styleSheetId === "string" ? provenanceMap.get(styleSheetId) : undefined;
+                        provList.push({
+                            selectorText: typeof selectorText === "string" ? selectorText : "(unknown selector)",
+                            styleSheetUrl: header?.url ?? null,
+                            origin: (header?.origin ?? origin ?? null) as any,
+                        });
+                        if (authoredValue === null) authoredValue = declVal;
+                        if (provList.length >= 5) return;
                     }
                 }
+            };
 
-                if (declVal !== null) {
-                    const header = typeof styleSheetId === "string" ? provenanceMap.get(styleSheetId) : undefined;
-                    provList.push({
-                        selectorText: typeof selectorText === "string" ? selectorText : "(unknown selector)",
-                        styleSheetUrl: header?.url ?? null,
-                        origin: (header?.origin ?? origin ?? null) as any,
-                    });
-                    if (authoredValue === null) {
-                        authoredValue = declVal;
-                    }
-                    if (provList.length >= 5) break;
-                }
+            // Prefer matched rules (element-specific), then inherited.
+            scan(matchedCSSRules);
+            if (authoredValue === null) {
+                scan(inheritedRuleMatches);
             }
 
             const resolvedValue = normalizeWhitespace(computedMap.get(cssProp) ?? "");
@@ -522,12 +821,114 @@ async function collectAuthorStylesForCapture(
                     resolvedValue: resolvedValue || null,
                     provenance: provList.length ? pickTopProvenance(provList, 5) : undefined,
                 };
+
+                // Token usage extraction (authoredValue only)
+                if (authoredValue) {
+                    const tokens = extractVarTokensFromValue(authoredValue);
+                    for (const token of tokens) {
+                        const usageKey = `${key}|${token}`;
+                        if (tokensUsedSet.has(usageKey)) continue;
+                        tokensUsedSet.add(usageKey);
+                        tokensUsed.push({
+                            property: key,
+                            token,
+                            resolvedValue: resolvedValue || null,
+                        });
+                    }
+                }
             }
         }
 
-        return { author: { properties }, evidenceMethod: "cdp", provenanceMap };
+        // Best-effort token definition provenance: scan matched + inherited rules for "--token:" declarations
+        const definitions: NonNullable<TokenEvidence["definitions"]> = [];
+        if (tokensUsed.length > 0) {
+            const want = new Set(tokensUsed.map((t) => t.token));
+            const seenDef = new Set<string>(); // token|selector|url
+
+            for (const ruleMatch of allRuleMatches) {
+                const rule = ruleMatch?.rule;
+                const selectorText = rule?.selectorList?.text;
+                const styleSheetId = rule?.styleSheetId;
+                const origin = rule?.origin;
+                const cssText = String(rule?.style?.cssText ?? "");
+                if (!cssText) continue;
+
+                // Prefer structured cssProperties for custom property definitions
+                const definedTokens = (() => {
+                    const fromProps = Array.isArray(rule?.style?.cssProperties)
+                        ? rule.style.cssProperties
+                              .filter((p: any) => typeof p?.name === "string" && p.name.startsWith("--"))
+                              .map((p: any) => p.name)
+                        : [];
+                    if (fromProps.length) return Array.from(new Set(fromProps));
+                    return extractCustomPropDefinitions(cssText);
+                })();
+                if (definedTokens.length === 0) continue;
+
+                const header = typeof styleSheetId === "string" ? provenanceMap.get(styleSheetId) : undefined;
+                const url = header?.url ?? null;
+                const sel = typeof selectorText === "string" ? selectorText : "(unknown selector)";
+                const org = (header?.origin ?? origin ?? null) as any;
+
+                for (const token of definedTokens) {
+                    if (!want.has(token)) continue;
+                    const key = `${token}|${sel}|${url ?? ""}`;
+                    if (seenDef.has(key)) continue;
+                    seenDef.add(key);
+                    const definedValue =
+                        extractValueFromCssProperties(rule?.style?.cssProperties, token) ??
+                        extractDeclarationValue(cssText, token);
+                    definitions.push({
+                        token,
+                        definedValue: definedValue ?? null,
+                        selectorText: sel,
+                        styleSheetUrl: url,
+                        origin: org,
+                    });
+                    if (definitions.length >= 50) break; // cap payload
+                }
+                if (definitions.length >= 50) break;
+            }
+        }
+
+        const tokens: TokenEvidence | undefined = (tokensUsed.length || definitions.length)
+            ? {
+                used: tokensUsed,
+                definitions: definitions.length ? definitions : undefined,
+            }
+            : undefined;
+
+        return { author: { properties }, evidenceMethod: "cdp", provenanceMap, tokens, computedStyles, screenshot };
     } finally {
         chrome.debugger.onEvent.removeListener(onEvent);
+        // Clear forced pseudo state and restore attributes (best-effort)
+        try {
+            // nodeId is defined in the outer scope of this function; guard on presence
+            if (typeof nodeId === "number" && nodeId > 0) {
+                if (options?.forcedPseudoClasses?.length) {
+                    try {
+                        await sendCdpCommand(tabId, "CSS.forcePseudoState", { nodeId, forcedPseudoClasses: [] });
+                    } catch {
+                        // ignore
+                    }
+                }
+                if (prevAttrs.size > 0) {
+                    for (const [k, prev] of prevAttrs.entries()) {
+                        try {
+                            if (prev === null) {
+                                await sendCdpCommand(tabId, "DOM.removeAttribute", { nodeId, name: k });
+                            } else {
+                                await sendCdpCommand(tabId, "DOM.setAttributeValue", { nodeId, name: k, value: prev });
+                            }
+                        } catch {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        } catch {
+            // ignore
+        }
         try {
             await chrome.debugger.detach({ tabId });
         } catch {
@@ -1257,13 +1658,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             // Extract devicePixelRatio for screenshot capture
             const devicePixelRatio = recordV1.conditions?.devicePixelRatio || recordV1.viewport?.devicePixelRatio || 1;
 
-            // Capture screenshot
-            const screenshot = await captureScreenshot(tabId, recordV1.boundingBox, devicePixelRatio);
+            // Capture mode (used by button-state popover in content script)
+            const captureMode: string | undefined = msg?.captureOptions?.mode;
+            const forcedPseudoClasses: Array<"hover" | "active"> | null =
+                captureMode === "force_hover" ? ["hover"] :
+                captureMode === "force_active" ? ["active"] :
+                null;
+            const centerX = Number(recordV1?.boundingBox?.left || 0) + Number(recordV1?.boundingBox?.width || 0) / 2;
+            const centerY = Number(recordV1?.boundingBox?.top || 0) + Number(recordV1?.boundingBox?.height || 0) / 2;
+            const mouseMoveTo =
+                captureMode === "default" ? { x: 1, y: 1 } :
+                (captureMode === "force_hover" || captureMode === "force_active") ? { x: centerX, y: centerY } :
+                undefined;
+            const disableTransitions = !!forcedPseudoClasses;
+            const settleMs = disableTransitions ? 60 : 0;
+            const evidenceState: "default" | "hover" | "active" =
+                forcedPseudoClasses?.includes("hover") ? "hover" :
+                forcedPseudoClasses?.includes("active") ? "active" :
+                "default";
+
+            let screenshot: CaptureRecordV2["screenshot"] | null = null;
 
             // Phase 1: best-effort authored+resolved styles via CDP (CDP-first, computed fallback)
             let author: AuthorStyleEvidence | undefined;
+            let tokens: TokenEvidence | undefined;
             let evidenceMethod: "cdp" | "computed" = "computed";
             let cdpError: string | undefined;
+            let computedStylesFromCdp: Record<string, string> | undefined;
             try {
                 const senderFrameId = typeof sender.frameId === "number" ? sender.frameId : undefined;
                 const points: HitTestPoint[] = Array.isArray(recordV1?.__uiinv_cdp?.hitTestPoints)
@@ -1282,12 +1703,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 };
 
                 const captureUrl = typeof recordV1?.url === "string" ? recordV1.url : undefined;
-                const preferMarker = typeof senderFrameId === "number" && senderFrameId !== 0;
+                const tagNameLower = String(recordV1?.element?.tagName ?? "").toLowerCase();
+                const roleLower = String(recordV1?.element?.role ?? "").toLowerCase();
+                const isStatefulCandidate =
+                    ["button", "a", "input", "select", "textarea"].includes(tagNameLower) ||
+                    ["button", "link", "textbox", "combobox", "checkbox", "radio", "switch"].includes(roleLower);
+                const preferMarker =
+                    isStatefulCandidate || (typeof senderFrameId === "number" && senderFrameId !== 0);
 
                 const tryCollect = async (markerId?: string) => {
                     return await collectAuthorStylesForCapture(tabId, points, targetBox, {
                         captureUrl,
                         markerId,
+                        forcedPseudoClasses: forcedPseudoClasses ?? undefined,
+                        disableTransitions,
+                        mouseMoveTo,
+                        settleMs,
+                        screenshot: {
+                            boundingBox: recordV1.boundingBox,
+                            devicePixelRatio,
+                        },
                     });
                 };
 
@@ -1298,6 +1733,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/MARK_TARGET", markerId });
                         const collected = await tryCollect(markerId);
                         author = collected.author;
+                        tokens = collected.tokens;
+                        computedStylesFromCdp = collected.computedStyles;
+                        screenshot = collected.screenshot ?? null;
                         evidenceMethod = "cdp";
                     } finally {
                         try {
@@ -1311,13 +1749,46 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     try {
                         const collected = await tryCollect(undefined);
                         author = collected.author;
+                        tokens = collected.tokens;
+                        computedStylesFromCdp = collected.computedStyles;
+                        screenshot = collected.screenshot ?? null;
                         evidenceMethod = "cdp";
+
+                        // Sanity check: if CDP resolved node's computed color doesn't match content-script computed color,
+                        // we likely hit an overlay/backdrop. Fall back to marker resolution to target the clicked node.
+                        const primitiveColorRaw = recordV1?.styles?.primitives?.color?.raw ?? null;
+                        const cdpColorResolved = author?.properties?.color?.resolvedValue ?? null;
+                        const shouldRunSanityCheck = !forcedPseudoClasses && !mouseMoveTo && captureMode !== "default";
+                        const mismatch = !!(shouldRunSanityCheck && primitiveColorRaw && cdpColorResolved && !colorsMatch(primitiveColorRaw, cdpColorResolved));
+
+                        if (mismatch) {
+                            const markerId = `uiinv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                            try {
+                                await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/MARK_TARGET", markerId });
+                                const recollected = await tryCollect(markerId);
+                                author = recollected.author;
+                                tokens = recollected.tokens;
+                                computedStylesFromCdp = recollected.computedStyles;
+                                screenshot = recollected.screenshot ?? null;
+                                evidenceMethod = "cdp";
+
+                            } finally {
+                                try {
+                                    await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/UNMARK_TARGET", markerId });
+                                } catch {
+                                    // ignore
+                                }
+                            }
+                        }
                     } catch (primaryErr) {
                         const markerId = `uiinv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
                         try {
                             await sendMessageToTabFrame(tabId, senderFrameId, { type: "AUDIT/MARK_TARGET", markerId });
                             const collected = await tryCollect(markerId);
                             author = collected.author;
+                            tokens = collected.tokens;
+                            computedStylesFromCdp = collected.computedStyles;
+                            screenshot = collected.screenshot ?? null;
                             evidenceMethod = "cdp";
                         } finally {
                             try {
@@ -1332,9 +1803,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         }
                     }
                 }
+
             } catch (err) {
                 cdpError = String(err);
                 evidenceMethod = "computed";
+
+            }
+
+            // If CDP screenshot wasn't available, fall back to a normal tab screenshot.
+            if (!screenshot) {
+                try {
+                    screenshot = await captureScreenshot(tabId, recordV1.boundingBox, devicePixelRatio);
+                } catch {
+                    screenshot = null;
+                }
             }
 
             const recordV2: CaptureRecordV2 = {
@@ -1376,14 +1858,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
                 styles: {
                     // Use primitives from content script if available, otherwise use placeholders
-                    primitives: recordV1.styles?.primitives || makeDefaultPrimitives(),
+                    primitives: (evidenceMethod === "cdp" && computedStylesFromCdp)
+                        ? derivePrimitivesFromCdpComputedMap(computedStylesFromCdp)
+                        : (recordV1.styles?.primitives || makeDefaultPrimitives()),
                     computed: recordV1.styles?.computed,
                     author,
                     evidence: {
                         method: evidenceMethod,
                         cdpError,
                         capturedAt: Date.now(),
+                        state: evidenceState,
                     },
+                    tokens,
                 },
 
                 screenshot: screenshot || null,
@@ -1990,6 +2476,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // async response
     }
 
+    if (msg?.type === "UI/GET_CAPTURE") {
+        (async () => {
+            try {
+                const captureId = msg.captureId;
+
+                // Validate captureId
+                if (!captureId || typeof captureId !== "string" || captureId.trim() === "") {
+                    sendResponse({ ok: false, error: "Invalid captureId" });
+                    return;
+                }
+
+                const capture = await getCapture(captureId);
+                if (!capture) {
+                    sendResponse({ ok: false, error: "Capture not found" });
+                    return;
+                }
+
+                sendResponse({ ok: true, capture });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get capture:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
     if (msg?.type === "UI/DELETE_CAPTURE") {
         (async () => {
             try {
@@ -2117,6 +2630,95 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 sendResponse({ ok: true });
             } catch (err) {
                 console.error("[UI Inventory] Failed to delete annotation:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Export to Figma
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "EXPORT/GET_PROJECT_DATA") {
+        (async () => {
+            const projectId = msg.projectId;
+            console.log("[UI Inventory] EXPORT/GET_PROJECT_DATA request for:", projectId);
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            try {
+                // Get project record by listing all projects and finding the one with matching ID
+                const allProjects = await listProjects();
+                const project = allProjects.find(p => p.id === projectId);
+                if (!project) {
+                    sendResponse({ ok: false, error: "Project not found" });
+                    return;
+                }
+
+                // Get all session IDs linked to this project
+                const sessionIds = await listSessionIdsForProject(projectId);
+
+                // Get all captures for these sessions (non-draft only)
+                const allCaptures: CaptureRecordV2[] = [];
+                for (const sessionId of sessionIds) {
+                    const sessionCaptures = await listCapturesBySession(sessionId);
+                    // Filter out drafts
+                    const savedCaptures = sessionCaptures.filter(c => !c.isDraft);
+                    allCaptures.push(...savedCaptures);
+                }
+
+                sendResponse({
+                    ok: true,
+                    data: {
+                        project: {
+                            id: project.id,
+                            name: project.name,
+                        },
+                        captures: allCaptures,
+                    },
+                });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get project data for export:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "EXPORT/GET_BLOB_BYTES") {
+        (async () => {
+            const blobId = msg.blobId;
+
+            if (!blobId || typeof blobId !== "string") {
+                sendResponse({ ok: false, error: "Invalid blobId" });
+                return;
+            }
+
+            try {
+                const blobRecord = await getBlob(blobId);
+                if (!blobRecord || !blobRecord.blob) {
+                    sendResponse({ ok: false, error: "Blob not found" });
+                    return;
+                }
+
+                // Convert blob to ArrayBuffer, then to plain array for Chrome messaging
+                const arrayBuffer = await blobRecord.blob.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                const plainArray = Array.from(uint8Array);
+                
+                sendResponse({
+                    ok: true,
+                    bytes: plainArray,
+                    mimeType: blobRecord.blob.type, // Include MIME type for conversion
+                });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get blob bytes:", err);
                 sendResponse({ ok: false, error: String(err) });
             }
         })();

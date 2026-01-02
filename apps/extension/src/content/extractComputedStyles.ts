@@ -142,7 +142,17 @@ function extractColor(computed: CSSStyleDeclaration, property: string): ColorPri
   const raw = computed.getPropertyValue(property) || "transparent";
   const rgba = parseColorToRgba(raw);
 
-  return { raw, rgba };
+  const hex8 = (() => {
+    if (!rgba) return null;
+    const toHex2 = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0").toUpperCase();
+    const r = toHex2(rgba.r);
+    const g = toHex2(rgba.g);
+    const b = toHex2(rgba.b);
+    const a = toHex2(rgba.a * 255);
+    return `#${r}${g}${b}${a}`;
+  })();
+
+  return { raw, rgba, hex8 };
 }
 
 /**

@@ -27,6 +27,36 @@ function normalizeCssValue(v: string | undefined | null): string {
   return v;
 }
 
+function pxToNumber(v: string | undefined | null): number {
+  const s = String(v ?? '').trim();
+  if (!s) return 0;
+  const m = s.match(/^(-?\d+(?:\.\d+)?)px$/);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function hasBorder(primitives: StylePrimitives): boolean {
+  const bw = primitives.borderWidth;
+  if (!bw) return false;
+  return (
+    pxToNumber(bw.top) > 0 ||
+    pxToNumber(bw.right) > 0 ||
+    pxToNumber(bw.bottom) > 0 ||
+    pxToNumber(bw.left) > 0
+  );
+}
+
+function formatBorderWidth(borderWidth: NonNullable<StylePrimitives["borderWidth"]>): string {
+  const t = normalizeCssValue(borderWidth.top);
+  const r = normalizeCssValue(borderWidth.right);
+  const b = normalizeCssValue(borderWidth.bottom);
+  const l = normalizeCssValue(borderWidth.left);
+
+  if (t !== '—' && t === r && r === b && b === l) return t;
+  return `${t} / ${r} / ${b} / ${l}`;
+}
+
 /**
  * Format padding as T / R / B / L
  */
@@ -146,8 +176,18 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
       evidence: styles.sources?.backgroundColor
     });
   }
+
+  const borderIsPresent = hasBorder(styles);
+  if (borderIsPresent && styles.borderWidth) {
+    surfaceRows.push({
+      label: 'Border width',
+      value: formatBorderWidth(styles.borderWidth),
+      evidence: styles.sources?.borderTopWidth || styles.sources?.borderRightWidth || styles.sources?.borderBottomWidth || styles.sources?.borderLeftWidth
+    });
+  }
+
   const borderColor = normalizeCssValue(styles.borderColor?.raw);
-  if (borderColor !== '—') {
+  if (borderIsPresent && borderColor !== '—') {
     surfaceRows.push({
       label: 'Border color',
       value: borderColor,

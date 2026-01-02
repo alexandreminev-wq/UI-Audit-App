@@ -1,0 +1,19 @@
+{
+  "name": "ui-inventory-figma-plugin",
+  "version": "1.0.0",
+  "description": "Figma plugin to import UI Inventory exports",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "concurrently \"esbuild code.ts --bundle --outfile=dist/code.js --target=es6 --watch\" \"esbuild ui.ts --bundle --outfile=dist/ui.js --target=es6 --watch\""
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.104.0",
+    "esbuild": "^0.24.2",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.9.3"
+  }
+}
+

@@ -13,7 +13,7 @@ function sendMessageAsync<T, R>(msg: T): Promise<R> {
   });
 }
 
-import type { StylePrimitives } from '../../../types/capture';
+import type { AuthorStyleEvidence, StyleEvidenceMeta, StylePrimitives, TokenEvidence } from '../../../types/capture';
 
 async function getActivePageTabId(): Promise<number | null> {
   try {
@@ -27,17 +27,35 @@ async function getActivePageTabId(): Promise<number | null> {
 }
 
 export interface Component {
-  id: string;
+  id: string; // Primary capture ID (typically the default state)
   componentKey: string; // Deterministic grouping key (shared with Viewer)
   name: string;
   category: string;
   type: string;
   status: string;
+  
+  // Multi-state support: all captured states for this component
+  availableStates: Array<{
+    state: "default" | "hover" | "active" | "focus" | "disabled" | "open";
+    captureId: string;
+    screenshotBlobId?: string;
+  }>;
+  selectedState: "default" | "hover" | "active" | "focus" | "disabled" | "open";
+  
+  // State-specific data (reflects currently selected state)
   imageUrl: string;
-  url: string;
+  screenshotBlobId?: string;
   html: string;
-  styles: Record<string, string>;
-  stylePrimitives?: StylePrimitives; // Added for Visual Essentials display
+  stylePrimitives?: StylePrimitives;
+  styleEvidence?: {
+    author?: AuthorStyleEvidence;
+    tokens?: TokenEvidence;
+    evidence?: StyleEvidenceMeta;
+  };
+  
+  // Shared across all states
+  url: string;
+  styles: Record<string, string>; // Legacy, kept for compatibility
   comments: string;
   tags: string[];
   overrides?: {

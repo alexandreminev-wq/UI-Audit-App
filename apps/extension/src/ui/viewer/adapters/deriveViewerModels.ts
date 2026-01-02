@@ -132,12 +132,13 @@ export function deriveComponentInventory(
 ): ViewerComponent[] {
     // 7.4.1: Deterministic component grouping (MVP)
     // CONTRACT: VIEWER_DATA_CONTRACT.md §4
+    // Updated: Group by componentKey and collapse multi-state captures
 
     if (captures.length === 0) {
         return [];
     }
 
-    // Group captures by signature
+    // Group captures by signature (componentKey)
     const groups = new Map<string, CaptureRecordV2[]>();
 
     for (const capture of captures) {
@@ -154,12 +155,28 @@ export function deriveComponentInventory(
     const components: ViewerComponent[] = [];
 
     for (const [componentId, groupCaptures] of groups.entries()) {
-        const first = groupCaptures[0];
+        // Sort captures by state priority: default > hover > active > focus > disabled > open
+        const stateOrder = ["default", "hover", "active", "focus", "disabled", "open"];
+        const sortedCaptures = [...groupCaptures].sort((a, b) => {
+            const aState = (a.styles as any)?.evidence?.state || "default";
+            const bState = (b.styles as any)?.evidence?.state || "default";
+            return stateOrder.indexOf(aState) - stateOrder.indexOf(bState);
+        });
+
+        // Use first capture (default state if available) as primary
+        const first = sortedCaptures[0];
         const element = first.element;
         const thumbnailBlobId = first.screenshot?.screenshotBlobId || undefined;
 
-        // Derive name (CONTRACT §4.3)
-        const name =
+        // Build availableStates array
+        const availableStates = sortedCaptures.map(capture => ({
+            state: ((capture.styles as any)?.evidence?.state || "default") as "default" | "hover" | "active" | "focus" | "disabled" | "open",
+            captureId: capture.id,
+            screenshotBlobId: capture.screenshot?.screenshotBlobId,
+        }));
+
+        // Derive name (CONTRACT §4.3) - NO state suffix
+        const baseName =
             element.intent?.accessibleName ||
             element.textPreview ||
             `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}`;
@@ -175,13 +192,15 @@ export function deriveComponentInventory(
 
         components.push({
             id: componentId,
-            name,
+            name: baseName,
             category,
             type,
             status: "Unknown", // CONTRACT §6 - always Unknown in 7.4.x
             source,
             capturesCount: groupCaptures.length,
             thumbnailBlobId,
+            availableStates,
+            selectedState: availableStates[0].state,
         });
     }
 
@@ -1058,6 +1077,32 @@ export function deriveVisualEssentialsFromCapture(
     const primitives = capture.styles.primitives;
     const rows: ViewerVisualEssentialsRow[] = [];
 
+    const pxToNumber = (v: string | undefined | null) => {
+        const s = String(v ?? "").trim();
+        const m = s.match(/^(-?\d+(?:\.\d+)?)px$/);
+        if (!m) return 0;
+        const n = Number(m[1]);
+        return Number.isFinite(n) ? n : 0;
+    };
+    const borderIsPresent = (() => {
+        const bw = primitives.borderWidth;
+        if (!bw) return false;
+        return (
+            pxToNumber(bw.top) > 0 ||
+            pxToNumber(bw.right) > 0 ||
+            pxToNumber(bw.bottom) > 0 ||
+            pxToNumber(bw.left) > 0
+        );
+    })();
+    const formatBorderWidth = (bw: any) => {
+        const t = bw?.top ?? "—";
+        const r = bw?.right ?? "—";
+        const b = bw?.bottom ?? "—";
+        const l = bw?.left ?? "—";
+        if (t && t === r && r === b && b === l) return t;
+        return `${t} ${r} ${b} ${l}`;
+    };
+
     // Text section
     if (primitives.color) {
         rows.push({
@@ -1099,7 +1144,15 @@ export function deriveVisualEssentialsFromCapture(
         });
     }
 
-    if (primitives.borderColor) {
+    if (borderIsPresent && primitives.borderWidth) {
+        rows.push({
+            section: "Surface",
+            label: "Border width",
+            value: formatBorderWidth(primitives.borderWidth) || "—",
+        });
+    }
+
+    if (borderIsPresent && primitives.borderColor) {
         rows.push({
             section: "Surface",
             label: "Border color",

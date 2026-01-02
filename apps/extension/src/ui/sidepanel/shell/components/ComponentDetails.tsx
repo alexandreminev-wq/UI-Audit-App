@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Trash2, ExternalLink, X } from 'lucide-react';
 import type { Component } from '../App';
 import { formatVisualEssentials } from '../utils/formatVisualEssentials';
+import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
+import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -77,6 +79,17 @@ export function ComponentDetails({
   const [draftType, setDraftType] = useState<string>(component.type || "Unclassified");
   const [draftStatus, setDraftStatus] = useState<string>(component.status || "Unreviewed");
 
+  // State selection for multi-state components
+  const [selectedState, setSelectedState] = useState(component.selectedState);
+  const [isLoadingState, setIsLoadingState] = useState(false);
+
+  // Load screenshot blob URL
+  const { url: screenshotUrl } = useBlobUrl(component.screenshotBlobId);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:82',message:'ComponentDetails rendered',data:{componentId:component.id,availableStatesCount:component.availableStates?.length||0,availableStates:component.availableStates?.map(s=>s.state)||[],selectedState,isLoadingState,screenshotBlobId:component.screenshotBlobId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D1,D2,B1'})}).catch(()=>{});
+  // #endregion
+
   // Update draft when component changes (e.g., user selects different component)
   useEffect(() => {
     setDraftNotes(component.comments);
@@ -86,8 +99,9 @@ export function ComponentDetails({
     setDraftCategory(component.category || "Unknown");
     setDraftType(component.type || "Unclassified");
     setDraftStatus(component.status || "Unreviewed");
+    setSelectedState(component.selectedState);
     setIsDirty(false);
-  }, [component.id, component.comments, component.tags, component.name, component.category, component.type, component.status]);
+  }, [component.id, component.comments, component.tags, component.name, component.category, component.type, component.status, component.selectedState]);
 
   // Track dirty state
   useEffect(() => {
@@ -267,6 +281,60 @@ export function ComponentDetails({
     }
   };
 
+  const handleStateChange = async (newState: string) => {
+    const stateEntry = component.availableStates.find(s => s.state === newState);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:1',message:'State change requested',data:{newState,stateEntry,componentId:component.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
+    // #endregion
+    if (!stateEntry) return;
+
+    setIsLoadingState(true);
+    try {
+      const captureResp = await chrome.runtime.sendMessage({
+        type: "UI/GET_CAPTURE",
+        captureId: stateEntry.captureId,
+      });
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:2',message:'UI/GET_CAPTURE response',data:{ok:captureResp?.ok,hasCaptureResp:!!captureResp,captureId:captureResp?.capture?.id,screenshotBlobId:captureResp?.capture?.screenshot?.screenshotBlobId,error:captureResp?.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
+      // #endregion
+
+      if (captureResp?.ok && captureResp.capture) {
+        const capture = captureResp.capture;
+        const updatedComponent = {
+          ...component,
+          // DO NOT change id - keep it stable for handleUpdateComponent to find it
+          selectedState: newState as any,
+          html: capture.element?.outerHTML || '',
+          screenshotBlobId: capture.screenshot?.screenshotBlobId,
+          stylePrimitives: capture.styles?.primitives,
+          styleEvidence: {
+            author: capture.styles?.author,
+            tokens: capture.styles?.tokens,
+            evidence: capture.styles?.evidence,
+          },
+        };
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:3',message:'Calling onUpdateComponent',data:{componentId:updatedComponent.id,updatedScreenshotBlobId:updatedComponent.screenshotBlobId,newState:updatedComponent.selectedState},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
+        // #endregion
+        // Update component with new state's data
+        onUpdateComponent(updatedComponent);
+        setSelectedState(newState as any);
+      }
+    } catch (err) {
+      console.error("[ComponentDetails] Failed to load state:", err);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:error',message:'State change error',data:{error:String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
+      // #endregion
+    } finally {
+      setIsLoadingState(false);
+    }
+  };
+
+  const capitalizeState = (state: string): string => {
+    return state.charAt(0).toUpperCase() + state.slice(1);
+  };
+
   return (
     <div className="p-4 space-y-4">
       {/* Component Name */}
@@ -367,9 +435,43 @@ export function ComponentDetails({
         </div>
       </div>
 
+      {/* State Selector */}
+      {component.availableStates && component.availableStates.length > 1 ? (
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500">State</label>
+          <select
+            value={selectedState}
+            onChange={(e) => handleStateChange(e.target.value)}
+            disabled={isLoadingState}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+          >
+            {component.availableStates.map(({state}) => (
+              <option key={state} value={state}>
+                {capitalizeState(state)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        component.availableStates && component.availableStates.length === 1 && (
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500">State</label>
+            <div className="text-sm text-gray-700 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              {capitalizeState(selectedState)}
+            </div>
+          </div>
+        )
+      )}
+
       {/* Component Image */}
       <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-        {component.imageUrl ? (
+        {screenshotUrl ? (
+          <img
+            src={screenshotUrl}
+            alt={component.name}
+            className="w-full h-auto"
+          />
+        ) : component.imageUrl ? (
           <img
             src={component.imageUrl}
             alt={component.name}
@@ -410,7 +512,13 @@ export function ComponentDetails({
 
       {/* Visual Essentials */}
       <div className="space-y-2">
-        <label className="text-sm text-gray-600">Visual Essentials</label>
+        <div className="flex items-baseline justify-between gap-3">
+          <label className="text-sm text-gray-600">Visual Essentials</label>
+          <span className="text-xs text-gray-400">
+            Authored styles:{" "}
+            {component.styleEvidence?.evidence?.method === "cdp" ? "available (CDP)" : "computed"}
+          </span>
+        </div>
         {component.stylePrimitives ? (
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             {formatVisualEssentials(component.stylePrimitives).map((section) => (
@@ -423,10 +531,50 @@ export function ComponentDetails({
                 <div className="divide-y divide-gray-100">
                   {section.rows.map((row, idx) => (
                     <div key={idx} className="px-3 py-2">
-                      <div className="flex justify-between items-start gap-3 text-xs">
-                        <span className="text-gray-600 flex-shrink-0">{row.label}</span>
-                        <span className="text-gray-900 font-mono text-right break-all">{row.value}</span>
-                      </div>
+                      {(() => {
+                        const isColorRow =
+                          row.label === "Text color" ||
+                          row.label === "Background" ||
+                          row.label === "Border color";
+                        if (!isColorRow) {
+                          return (
+                            <div className="flex justify-between items-start gap-3 text-xs">
+                              <span className="text-gray-600 flex-shrink-0">{row.label}</span>
+                              <span className="text-gray-900 font-mono text-right break-all">{row.value}</span>
+                            </div>
+                          );
+                        }
+
+                        const prop =
+                          row.label === "Text color"
+                            ? "color"
+                            : row.label === "Background"
+                              ? "backgroundColor"
+                              : "borderColor";
+
+                        const primitives: any = component.stylePrimitives;
+                        const hex8 =
+                          prop === "color"
+                            ? primitives?.color?.hex8
+                            : prop === "backgroundColor"
+                              ? primitives?.backgroundColor?.hex8
+                              : primitives?.borderColor?.hex8;
+
+                        const authoredValue =
+                          (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
+
+                        return (
+                          <TokenTraceValue
+                            property={prop as any}
+                            label={row.label}
+                            resolvedValue={row.value}
+                            hex8={hex8 ?? null}
+                            authoredValue={authoredValue}
+                            tokens={component.styleEvidence?.tokens ?? null}
+                            showCopyActions={false}
+                          />
+                        );
+                      })()}
                       {row.evidence && (
                         <div className="mt-1 text-xs text-gray-400 font-mono">{row.evidence}</div>
                       )}

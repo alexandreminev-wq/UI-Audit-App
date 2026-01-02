@@ -43,6 +43,7 @@ function collapseWhitespace(str: string): string {
  */
 function getBestLabel(capture: any): string {
   const candidates = [
+    capture?.element?.intent?.accessibleName,
     capture?.accessibleName,
     capture?.accessibleLabel,
     capture?.name,
@@ -80,8 +81,20 @@ export function classifyCapture(capture: any): Classification {
   // Extract signals defensively
   const tag = (capture?.element?.tagName || capture?.element?.tag || '').toLowerCase();
   const role = (capture?.element?.role || capture?.element?.ariaRole || '').toLowerCase();
-  const inputType = (capture?.element?.inputType || capture?.element?.type || '').toLowerCase();
+
+  // v2.2+ stores intent anchors under element.intent (service worker transforms v1 -> v2)
+  const intent = capture?.element?.intent || {};
+
+  const inputType = (
+    intent?.inputType ||
+    capture?.element?.inputType ||
+    capture?.element?.type ||
+    capture?.element?.attributes?.type
+  || ''
+  ).toLowerCase();
+
   const href =
+    intent?.href ||
     capture?.element?.href ||
     capture?.element?.attributes?.href ||
     capture?.element?.props?.href ||
@@ -115,10 +128,21 @@ export function classifyCapture(capture: any): Classification {
 
   // Forms
   else if (role === 'textbox' ||
-           (tag === 'input' && ['text', 'email', 'search', 'url', 'tel', 'password'].includes(inputType))) {
+           (tag === 'input' && ['text', 'email', 'search', 'url', 'tel', 'password', 'number'].includes(inputType)) ||
+           (tag === 'input' && inputType === '')) {
     functionalCategory = 'Forms';
     typeKey = 'textInput';
     confidence += role === 'textbox' ? 30 : 10;
+  }
+  else if (tag === 'input' && ['date', 'datetime-local', 'month', 'time', 'week'].includes(inputType)) {
+    functionalCategory = 'Forms';
+    typeKey = 'dateInput';
+    confidence += 10;
+  }
+  else if (tag === 'input' && inputType === 'file') {
+    functionalCategory = 'Forms';
+    typeKey = 'fileUpload';
+    confidence += 10;
   }
   else if (tag === 'textarea') {
     functionalCategory = 'Forms';

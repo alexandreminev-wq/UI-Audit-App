@@ -68,12 +68,49 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
       if (resp?.ok && Array.isArray(resp.captures)) {
         const captures: CaptureRecordV2[] = resp.captures;
 
-        // 1) Build base components immediately (independent of annotations)
-        const baseComponents: Component[] = captures.map((capture) => {
-          const componentKey = deriveComponentKey(capture);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:69',message:'Captures loaded',data:{captureCount:captures.length,captureIds:captures.map(c=>c.id),captureStates:captures.map(c=>c.styles?.evidence?.state||'none')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A2'})}).catch(()=>{});
+        // #endregion
 
-          // Use classifier for designer-friendly categorization and naming
-          const classification = classifyCapture(capture);
+        // 1) Group captures by componentKey
+        const capturesByKey = new Map<string, CaptureRecordV2[]>();
+        for (const capture of captures) {
+          const key = deriveComponentKey(capture);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:77',message:'Derived componentKey',data:{captureId:capture.id,componentKey:key,state:capture.styles?.evidence?.state||'none',tagName:capture.element?.tagName,role:capture.element?.role},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A1'})}).catch(()=>{});
+          // #endregion
+          if (!capturesByKey.has(key)) {
+            capturesByKey.set(key, []);
+          }
+          capturesByKey.get(key)!.push(capture);
+        }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:82',message:'Grouping complete',data:{mapSize:capturesByKey.size,keys:Array.from(capturesByKey.keys()),capturesByKeyDetails:Array.from(capturesByKey.entries()).map(([k,v])=>({key:k,captureCount:v.length,captureIds:v.map(c=>c.id)}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A3'})}).catch(()=>{});
+        // #endregion
+
+        // 2) Build one component per componentKey
+        const baseComponents: Component[] = Array.from(capturesByKey.entries()).map(([componentKey, stateCaptures]) => {
+          // Sort captures by state priority: default > hover > active > focus > disabled > open
+          const stateOrder = ["default", "hover", "active", "focus", "disabled", "open"];
+          const sortedCaptures = [...stateCaptures].sort((a, b) => {
+            const aState = a.styles?.evidence?.state || "default";
+            const bState = b.styles?.evidence?.state || "default";
+            return stateOrder.indexOf(aState) - stateOrder.indexOf(bState);
+          });
+
+          // Use first capture (default state if available) as the primary/display capture
+          const primaryCapture = sortedCaptures[0];
+          
+          // Build availableStates array
+          const availableStates = sortedCaptures.map(capture => ({
+            state: (capture.styles?.evidence?.state || "default") as "default" | "hover" | "active" | "focus" | "disabled" | "open",
+            captureId: capture.id,
+            screenshotBlobId: capture.screenshot?.screenshotBlobId,
+          }));
+
+          // Use classifier for designer-friendly categorization and naming (NO state suffix)
+          const classification = classifyCapture(primaryCapture);
           const titleType = (classification.typeKey || "")
             .replace(/([A-Z])/g, ' $1')
             .replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -84,33 +121,47 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
             .join(' ');
 
           // Convert styles to Record<string, string>
-          const stylesObj = capture.styles?.primitives || capture.styles || {};
+          const stylesObj = primaryCapture.styles?.primitives || primaryCapture.styles || {};
           const styles: Record<string, string> = {};
           for (const [key, value] of Object.entries(stylesObj)) {
             styles[key] = typeof value === 'string' ? value : JSON.stringify(value);
           }
 
           // Extract URL with fallbacks
-          const captureUrl = capture.page?.url || capture.url || (capture as any).pageUrl || '';
+          const captureUrl = primaryCapture.page?.url || primaryCapture.url || (primaryCapture as any).pageUrl || '';
 
-          return {
-            id: capture.id, // captureId
-            componentKey, // deterministic grouping id (matches Viewer)
-            name: classification.displayName,
+          const component = {
+            id: primaryCapture.id, // primary captureId (default state)
+            componentKey,
+            name: classification.displayName, // NO state suffix
             category: classification.functionalCategory,
-            type: titleType || classification.typeKey || capture.element?.tagName?.toLowerCase?.() || "Element",
+            type: titleType || classification.typeKey || primaryCapture.element?.tagName?.toLowerCase?.() || "Element",
             status: "Unreviewed",
+            availableStates,
+            selectedState: availableStates[0].state,
             url: captureUrl,
-            html: capture.element?.outerHTML || '',
+            html: primaryCapture.element?.outerHTML || '',
             styles,
-            stylePrimitives: capture.styles?.primitives, // Pass through for Visual Essentials
+            stylePrimitives: primaryCapture.styles?.primitives,
+            styleEvidence: {
+              author: primaryCapture.styles?.author,
+              tokens: primaryCapture.styles?.tokens,
+              evidence: primaryCapture.styles?.evidence,
+            },
             imageUrl: '',
+            screenshotBlobId: primaryCapture.screenshot?.screenshotBlobId,
             comments: '',
             tags: [],
             typeKey: classification.typeKey,
             confidence: classification.confidence,
-            isDraft: capture.isDraft, // 7.8: Draft status
+            isDraft: primaryCapture.isDraft,
           };
+
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:138',message:'Component created',data:{componentKey,name:component.name,availableStatesCount:availableStates.length,availableStates:availableStates.map(s=>s.state),screenshotBlobId:component.screenshotBlobId,selectedState:component.selectedState},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B1,D1'})}).catch(()=>{});
+          // #endregion
+
+          return component;
         });
 
         setCapturedComponents(baseComponents);

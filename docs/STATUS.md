@@ -3,13 +3,15 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟢 **Viewer + Sidepanel parity (annotations + overrides) in place**
+  🟢 **Production-ready capture, multi-state components, and Figma export**
 
   The app now supports:
   - Cross-surface annotations (Notes + Tags)
   - Cross-surface identity overrides (Display Name / Category / Type / Status)
   - Draft-until-save capture flow in Sidepanel
   - Viewer component cards with screenshot thumbnails
+  - **Multi-state component capture** (Default, Hover, Active, Focus, Disabled, Open)
+  - **Figma export** with full inventory and screenshots
 
   ---
 
@@ -20,17 +22,24 @@
   - CaptureRecords written to IndexedDB
   - Captures are created as **drafts** and committed on explicit Save
   - Sidepanel enforces **one active audit tab** at a time (reduces confusion)
+  - **Multi-state capture** for buttons and links:
+    - Default, Hover, Active, Focus, Disabled, Open states
+    - CDP-based state forcing with mouse automation fallback
+    - State menu UI for selecting which state to capture
+    - Multiple states grouped into single component entry
   - Each capture includes:
     - id
     - projectId
     - sessionId
     - element metadata
-    - style primitives
+    - style primitives (state-specific)
     - screenshot reference
     - URL
+    - state identifier (stored in styles.evidence.state)
   - Sidepanel capture confirmed working end-to-end
-  - Notes + Tags editable with explicit Save / Cancel
-  - Identity overrides editable with explicit Save / Cancel
+  - Notes + Tags editable with explicit Save / Cancel (shared across all states)
+  - Identity overrides editable with explicit Save / Cancel (shared across all states)
+  - State dropdown switches between captured states with live preview updates
 
   ---
 
@@ -42,9 +51,16 @@
   - Project scoping enforced at boundary
   - Selection hygiene guarantees in place
   - Component cards show **screenshot thumbnails**
+  - **Multi-state components** displayed with state selector
+  - State switching updates screenshot, HTML, and Visual Essentials dynamically
   - Notes + Tags editable with explicit Save / Cancel
   - Identity overrides editable with explicit Save / Cancel
   - Style drawer supports Preview + Copy token/value
+  - **Figma Export:**
+    - "Export to Figma" button generates ZIP package
+    - Exports inventory.json with full component metadata
+    - Exports screenshots (WebP → PNG conversion)
+    - One-click download ready for Figma plugin import
 
   ---
 
@@ -56,6 +72,8 @@
 The Viewer Details Drawer and Sidepanel details now support:
 - Notes + Tags (annotations store)
 - Identity overrides (component_overrides store)
+- Multi-state component capture and display
+- Figma export with full inventory
 
 ### Completed
 - Viewer shell, layout, scrolling, and preview canvas
@@ -71,6 +89,19 @@ The Viewer Details Drawer and Sidepanel details now support:
 - Delete parity with Sidepanel confirmed working
 - Screenshot thumbnails on Viewer component cards (Grid + Table)
 - Manual identity overrides (name/category/type/status) shared across surfaces
+- **Multi-state component capture (7.10):**
+  - Buttons and links support Default/Hover/Active/Focus/Disabled/Open states
+  - CDP-based state forcing with fallback logic
+  - Component grouping by structural identity (excludes state-dependent styles)
+  - State selector in both Sidepanel and Viewer
+  - Shared annotations/overrides across all states
+- **Figma export (7.11):**
+  - ZIP package export from Viewer
+  - inventory.json with structured component metadata
+  - Screenshot export with WebP → PNG conversion
+  - Figma plugin for import (drag-drop + file input)
+  - Visual layout with frames, images, and metadata text nodes
+  - Full documentation in docs/FIGMA_EXPORT.md
 
 ### Key Architectural Decisions
 - Annotations are keyed by `projectId + componentKey`
@@ -78,16 +109,21 @@ The Viewer Details Drawer and Sidepanel details now support:
 - Identity overrides are keyed by `projectId + componentKey` in `component_overrides`
 - Edits require explicit Save (no implicit onBlur persistence)
 - Sidepanel and Viewer are converging on the same mental model
+- **componentKey is state-agnostic** (derived from tagName + role + accessibleName only)
+- State-specific data (styles, screenshot) stored per capture
+- Figma export uses plain array transfer for Chrome message passing compatibility
 
 ### Known Gaps (Intentional)
-- Export is not yet implemented (JSON/CSV/Figma)
 - HTML Structure editing not supported
 - No annotation history / versioning
+- State capture only supports buttons and links (not other interactive elements yet)
+- Figma plugin requires manual installation (not published to Figma Community)
 
 ### Next Up
+- **Styling standardization:** Migrate Sidepanel from Tailwind to CSS variables + Radix UI for consistency with Viewer
 - 7.5.3: Minor interaction polish (drawer toggle on re-select, Escape to close)
 - 7.6: Viewer usability refinements (empty project UX, default sorts, filter persistence)
-- Export MVP slice (define minimal export for reviewed inventory)
+- Expand state capture to other interactive elements (dropdowns, tabs, accordions)
 
 
   ---
@@ -113,10 +149,10 @@ The Viewer Details Drawer and Sidepanel details now support:
   - Screenshot thumbnails: now rendered on Viewer cards; further polish remains
   - HTML structure not shown in drawer (requires new section)
   - No annotation history / versioning
-  - No export from real data yet
   - No dark mode toggle
   - No bulk operations or automation
-  - No Figma export
+  - Figma plugin not published (requires manual installation)
+  - State capture limited to buttons and links (not all interactive elements)
 
   ---
 
