@@ -18,11 +18,10 @@ type Props = {
 
 function swatchStyle(color: string | null | undefined): React.CSSProperties {
   return {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
+    width: 16,
+    height: 16,
+    borderRadius: 4,
     background: color || "transparent",
-    border: "1px solid hsl(var(--border, 0 0% 80%))",
     flexShrink: 0,
   };
 }
@@ -75,14 +74,14 @@ export function TokenTraceValue({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <div style={swatchStyle(hex8 || resolvedValue)} />
-          <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground, 0 0% 45%))", flexShrink: 0 }}>{label}</div>
-        </div>
+        <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground, 0 0% 45%))", flexShrink: 0 }}>{label}</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, color: "hsl(var(--foreground, 0 0% 10%))", textAlign: "right" }}>
-            {primary}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={swatchStyle(hex8 || resolvedValue)} />
+            <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, color: "hsl(var(--foreground, 0 0% 10%))", textAlign: "right" }}>
+              {primary}
+            </div>
           </div>
           {trace ? (
             <button
