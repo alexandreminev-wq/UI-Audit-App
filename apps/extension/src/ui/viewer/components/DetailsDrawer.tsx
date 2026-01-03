@@ -521,9 +521,6 @@ export function DetailsDrawer({
             rows.push({ label: "Background", value: primitives.backgroundColor.hex8, section: "Surface" });
         }
         const hasBorder = primitives.borderWidth && Object.values(primitives.borderWidth).some((w: any) => parseFloat(String(w)) > 0);
-        if (hasBorder && primitives.borderColor?.hex8) {
-            rows.push({ label: "Border color", value: primitives.borderColor.hex8, section: "Surface" });
-        }
         if (hasBorder && primitives.borderWidth) {
             const b = primitives.borderWidth;
             rows.push({ 
@@ -531,6 +528,11 @@ export function DetailsDrawer({
                 value: format4SidedValue(b.top, b.right, b.bottom, b.left), 
                 section: "Surface" 
             });
+        }
+        // Use hex8 if available, otherwise fall back to raw
+        const borderColorValue = primitives.borderColor?.hex8 || primitives.borderColor?.raw;
+        if (hasBorder && borderColorValue) {
+            rows.push({ label: "Border color", value: borderColorValue, section: "Surface" });
         }
         if (primitives.radius) {
             const r = primitives.radius;

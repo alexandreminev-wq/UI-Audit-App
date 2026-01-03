@@ -196,11 +196,12 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
     });
   }
 
-  const borderColor = normalizeCssValue(styles.borderColor?.raw);
-  if (borderIsPresent && borderColor !== '—') {
+  // Use hex8 if available, otherwise fall back to raw
+  const borderColorValue = styles.borderColor?.hex8 || styles.borderColor?.raw;
+  if (borderIsPresent && borderColorValue) {
     surfaceRows.push({
       label: 'Border color',
-      value: borderColor,
+      value: borderColorValue,
       evidence: styles.sources?.borderColor
     });
   }
