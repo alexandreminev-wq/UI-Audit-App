@@ -12,6 +12,7 @@ import type {
   SpacingPrimitive,
   MarginPrimitive,
   BorderWidthPrimitive,
+  BorderColorPrimitive,
   GapPrimitive,
   TypographyPrimitive,
   RadiusPrimitive,
@@ -126,6 +127,19 @@ function extractBorderWidth(computed: CSSStyleDeclaration): BorderWidthPrimitive
     right: (computed.getPropertyValue("border-right-width") || "0px").trim(),
     bottom: (computed.getPropertyValue("border-bottom-width") || "0px").trim(),
     left: (computed.getPropertyValue("border-left-width") || "0px").trim(),
+  };
+}
+
+function extractBorderColor(computed: CSSStyleDeclaration): BorderColorPrimitive {
+  const topColor = extractColor(computed, "border-top-color");
+  const rightColor = extractColor(computed, "border-right-color");
+  const bottomColor = extractColor(computed, "border-bottom-color");
+  const leftColor = extractColor(computed, "border-left-color");
+  return {
+    top: topColor,
+    right: rightColor,
+    bottom: bottomColor,
+    left: leftColor,
   };
 }
 
@@ -275,7 +289,7 @@ export function extractStylePrimitives(el: Element): StylePrimitives {
     gap: extractGap(computed),
     backgroundColor: extractColor(computed, "background-color"),
     color: extractColor(computed, "color"),
-    borderColor: extractColor(computed, "border-color"),
+    borderColor: extractBorderColor(computed),
     shadow: extractShadow(computed),
     typography: extractTypography(computed),
     radius: extractRadius(computed),

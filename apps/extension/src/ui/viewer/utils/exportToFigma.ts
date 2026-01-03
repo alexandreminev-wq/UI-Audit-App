@@ -144,7 +144,11 @@ export async function exportProject(projectId: string): Promise<void> {
         }
 
         // Step 6: Sort components by name
-        inventory.components.sort((a, b) => a.name.localeCompare(b.name));
+        inventory.components.sort((a, b) => {
+            const nameA = a.name || "";
+            const nameB = b.name || "";
+            return nameA.localeCompare(nameB);
+        });
 
         // Step 7: Fetch all screenshot blobs
         const imageData = await fetchBlobBytes(imagesToFetch);

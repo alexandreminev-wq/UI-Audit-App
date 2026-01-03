@@ -128,6 +128,7 @@ export interface ViewerVisualEssentialsRow {
     section: "Text" | "Surface" | "Spacing" | "State";
     label: string;
     value: string;
+    hex8?: string | null; // Optional hex8 value for colors
 }
 
 /**

@@ -182,16 +182,19 @@ function derivePrimitivesFromCdpComputedMap(computed: Record<string, string>): S
 
     const colorRaw = get("color") || "inherit";
     const bgRaw = get("background-color") || "transparent";
-    const borderRaw =
-        get("border-color") ||
-        [get("border-top-color"), get("border-right-color"), get("border-bottom-color"), get("border-left-color")]
-            .filter(Boolean)
-            .join(" ") ||
-        "transparent";
+    
+    // Extract border colors per side (not shorthand)
+    const borderTopRaw = get("border-top-color") || "transparent";
+    const borderRightRaw = get("border-right-color") || "transparent";
+    const borderBottomRaw = get("border-bottom-color") || "transparent";
+    const borderLeftRaw = get("border-left-color") || "transparent";
 
     const parsedColor = parseRgbOrRgba(colorRaw);
     const parsedBg = parseRgbOrRgba(bgRaw);
-    const parsedBorder = parseRgbOrRgba(borderRaw);
+    const parsedBorderTop = parseRgbOrRgba(borderTopRaw);
+    const parsedBorderRight = parseRgbOrRgba(borderRightRaw);
+    const parsedBorderBottom = parseRgbOrRgba(borderBottomRaw);
+    const parsedBorderLeft = parseRgbOrRgba(borderLeftRaw);
 
     const boxShadowRaw = get("box-shadow") || "none";
     const shadowPresence = !boxShadowRaw || boxShadowRaw === "none" ? "none" : "some";
@@ -246,9 +249,26 @@ function derivePrimitivesFromCdpComputedMap(computed: Record<string, string>): S
             hex8: parsedColor ? parsedColor.hex8 : null,
         },
         borderColor: {
-            raw: borderRaw,
-            rgba: parsedBorder ? parsedBorder.rgba : null,
-            hex8: parsedBorder ? parsedBorder.hex8 : null,
+            top: {
+                raw: borderTopRaw,
+                rgba: parsedBorderTop ? parsedBorderTop.rgba : null,
+                hex8: parsedBorderTop ? parsedBorderTop.hex8 : null,
+            },
+            right: {
+                raw: borderRightRaw,
+                rgba: parsedBorderRight ? parsedBorderRight.rgba : null,
+                hex8: parsedBorderRight ? parsedBorderRight.hex8 : null,
+            },
+            bottom: {
+                raw: borderBottomRaw,
+                rgba: parsedBorderBottom ? parsedBorderBottom.rgba : null,
+                hex8: parsedBorderBottom ? parsedBorderBottom.hex8 : null,
+            },
+            left: {
+                raw: borderLeftRaw,
+                rgba: parsedBorderLeft ? parsedBorderLeft.rgba : null,
+                hex8: parsedBorderLeft ? parsedBorderLeft.hex8 : null,
+            },
         },
         shadow: {
             boxShadowRaw,

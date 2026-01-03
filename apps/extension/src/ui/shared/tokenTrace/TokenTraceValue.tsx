@@ -74,7 +74,7 @@ export function TokenTraceValue({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground, 0 0% 45%))", flexShrink: 0 }}>{label}</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "hsl(var(--foreground))", flexShrink: 0 }}>{label}</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -179,7 +179,8 @@ export function deriveComponentInventory(
         const baseName =
             element.intent?.accessibleName ||
             element.textPreview ||
-            `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}`;
+            `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}` ||
+            "Unnamed Component";
 
         // Derive category (CONTRACT §7)
         const category = inferCategory(element);
@@ -209,7 +210,10 @@ export function deriveComponentInventory(
         if (b.capturesCount !== a.capturesCount) {
             return b.capturesCount - a.capturesCount;
         }
-        return a.name.localeCompare(b.name);
+        // Safety check: ensure both names exist
+        const nameA = a.name || "";
+        const nameB = b.name || "";
+        return nameA.localeCompare(nameB);
     });
 
     return components;
@@ -459,9 +463,13 @@ export function deriveStyleInventory(
             return b.usageCount - a.usageCount;
         }
         if (a.kind !== b.kind) {
-            return a.kind.localeCompare(b.kind);
+            const kindA = a.kind || "";
+            const kindB = b.kind || "";
+            return kindA.localeCompare(kindB);
         }
-        return a.value.localeCompare(b.value);
+        const valueA = a.value || "";
+        const valueB = b.value || "";
+        return valueA.localeCompare(valueB);
     });
 
     return styles;
@@ -847,9 +855,13 @@ export function deriveComponentCaptures(
     // Sort by sourceLabel asc, then url asc (deterministic)
     result.sort((a, b) => {
         if (a.sourceLabel !== b.sourceLabel) {
-            return a.sourceLabel.localeCompare(b.sourceLabel);
+            const labelA = a.sourceLabel || "";
+            const labelB = b.sourceLabel || "";
+            return labelA.localeCompare(labelB);
         }
-        return a.url.localeCompare(b.url);
+        const urlA = a.url || "";
+        const urlB = b.url || "";
+        return urlA.localeCompare(urlB);
     });
 
     return result;
@@ -897,7 +909,15 @@ export function deriveStyleLocations(
         if (selectedStyle.kind === "color") {
             if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
             if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
-            if (primitives.borderColor?.raw === selectedStyle.value) hasStyle = true;
+            // Check borderColor - handle both old ColorPrimitive and new BorderColorPrimitive
+            if (primitives.borderColor) {
+                const bc = primitives.borderColor as any;
+                if (bc.raw === selectedStyle.value) hasStyle = true; // Old format
+                if (bc.top?.raw === selectedStyle.value) hasStyle = true; // New format
+                if (bc.right?.raw === selectedStyle.value) hasStyle = true;
+                if (bc.bottom?.raw === selectedStyle.value) hasStyle = true;
+                if (bc.left?.raw === selectedStyle.value) hasStyle = true;
+            }
         } else if (selectedStyle.kind === "spacing") {
             if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
             if (primitives.spacing.paddingRight === selectedStyle.value) hasStyle = true;
@@ -951,7 +971,9 @@ export function deriveStyleLocations(
         if (b.uses !== a.uses) {
             return b.uses - a.uses;
         }
-        return a.sourceLabel.localeCompare(b.sourceLabel);
+        const labelA = a.sourceLabel || "";
+        const labelB = b.sourceLabel || "";
+        return labelA.localeCompare(labelB);
     });
 
     return locations;
@@ -993,7 +1015,15 @@ export function deriveRelatedComponentsForStyle(
         if (selectedStyle.kind === "color") {
             if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
             if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
-            if (primitives.borderColor?.raw === selectedStyle.value) hasStyle = true;
+            // Check borderColor - handle both old ColorPrimitive and new BorderColorPrimitive
+            if (primitives.borderColor) {
+                const bc = primitives.borderColor as any;
+                if (bc.raw === selectedStyle.value) hasStyle = true; // Old format
+                if (bc.top?.raw === selectedStyle.value) hasStyle = true; // New format
+                if (bc.right?.raw === selectedStyle.value) hasStyle = true;
+                if (bc.bottom?.raw === selectedStyle.value) hasStyle = true;
+                if (bc.left?.raw === selectedStyle.value) hasStyle = true;
+            }
         } else if (selectedStyle.kind === "spacing") {
             if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
             if (primitives.spacing.paddingRight === selectedStyle.value) hasStyle = true;
@@ -1044,7 +1074,10 @@ export function deriveRelatedComponentsForStyle(
         if (usageB !== usageA) {
             return usageB - usageA;
         }
-        return a.name.localeCompare(b.name);
+        // Safety check: ensure both names exist
+        const nameA = a.name || "";
+        const nameB = b.name || "";
+        return nameA.localeCompare(nameB);
     });
 
     // Limit to 12 items

@@ -128,6 +128,13 @@ export interface BorderWidthPrimitive {
   left: string;
 }
 
+export interface BorderColorPrimitive {
+  top: ColorPrimitive;
+  right: ColorPrimitive;
+  bottom: ColorPrimitive;
+  left: ColorPrimitive;
+}
+
 export interface GapPrimitive {
   rowGap: string;
   columnGap: string;
@@ -168,7 +175,7 @@ export interface StylePrimitives {
   gap?: GapPrimitive; // Phase 2: full box model (optional)
   backgroundColor: ColorPrimitive;
   color: ColorPrimitive;
-  borderColor?: ColorPrimitive;
+  borderColor?: BorderColorPrimitive; // Phase 2: per-side border colors
   shadow: ShadowPrimitive;
   typography?: TypographyPrimitive; // Optional for backwards compatibility
   radius?: RadiusPrimitive; // Optional for backwards compatibility

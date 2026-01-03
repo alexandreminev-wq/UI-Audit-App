@@ -500,8 +500,9 @@ export function DetailsDrawer({
         const rows: ViewerVisualEssentialsRow[] = [];
         
         // Text section
-        if (primitives.color?.hex8) {
-            rows.push({ label: "Text color", value: primitives.color.hex8, section: "Text" });
+        const textColor = primitives.color?.hex8 || primitives.color?.raw;
+        if (textColor) {
+            rows.push({ label: "Text color", value: textColor, section: "Text", hex8: primitives.color?.hex8 });
         }
         if (primitives.typography?.fontFamily) {
             rows.push({ label: "Font family", value: primitives.typography.fontFamily, section: "Text" });
@@ -517,8 +518,9 @@ export function DetailsDrawer({
         }
         
         // Surface section
-        if (primitives.backgroundColor?.hex8) {
-            rows.push({ label: "Background", value: primitives.backgroundColor.hex8, section: "Surface" });
+        const bgColor = primitives.backgroundColor?.hex8 || primitives.backgroundColor?.raw;
+        if (bgColor) {
+            rows.push({ label: "Background", value: bgColor, section: "Surface", hex8: primitives.backgroundColor?.hex8 });
         }
         const hasBorder = primitives.borderWidth && Object.values(primitives.borderWidth).some((w: any) => parseFloat(String(w)) > 0);
         if (hasBorder && primitives.borderWidth) {
@@ -529,10 +531,28 @@ export function DetailsDrawer({
                 section: "Surface" 
             });
         }
-        // Use hex8 if available, otherwise fall back to raw
-        const borderColorValue = primitives.borderColor?.hex8 || primitives.borderColor?.raw;
-        if (hasBorder && borderColorValue) {
-            rows.push({ label: "Border color", value: borderColorValue, section: "Surface" });
+        // Handle border color (new format: per-side, old format: single color)
+        if (hasBorder && primitives.borderColor) {
+            const bc = primitives.borderColor as any;
+            
+            // Check if it's the new per-side format
+            if (bc.top && bc.right && bc.bottom && bc.left) {
+                const topHex = bc.top?.hex8 || bc.top?.raw;
+                const rightHex = bc.right?.hex8 || bc.right?.raw;
+                const bottomHex = bc.bottom?.hex8 || bc.bottom?.raw;
+                const leftHex = bc.left?.hex8 || bc.left?.raw;
+
+                if (topHex) {
+                    const borderColorValue = format4SidedValue(topHex, rightHex || topHex, bottomHex || topHex, leftHex || topHex);
+                    rows.push({ label: "Border color", value: borderColorValue, section: "Surface", hex8: bc.top?.hex8 });
+                }
+            } else {
+                // Old format: single ColorPrimitive
+                const borderColorValue = bc.hex8 || bc.raw;
+                if (borderColorValue) {
+                    rows.push({ label: "Border color", value: borderColorValue, section: "Surface", hex8: bc.hex8 });
+                }
+            }
         }
         if (primitives.radius) {
             const r = primitives.radius;
@@ -1280,13 +1300,20 @@ export function DetailsDrawer({
                                                                 ? "backgroundColor"
                                                                 : "borderColor";
 
-                                                    const primitives: any = currentStateData.visualEssentialsTrace.primitives;
-                                                    const hex8 =
-                                                        prop === "color"
-                                                            ? primitives?.color?.hex8
-                                                            : prop === "backgroundColor"
-                                                                ? primitives?.backgroundColor?.hex8
-                                                                : primitives?.borderColor?.hex8;
+                                                    // Use hex8 from row if available, otherwise look it up
+                                                    const hex8 = row.hex8 || (() => {
+                                                        const primitives: any = currentStateData.visualEssentialsTrace.primitives;
+                                                        if (prop === "color") return primitives?.color?.hex8;
+                                                        if (prop === "backgroundColor") return primitives?.backgroundColor?.hex8;
+                                                        if (prop === "borderColor") {
+                                                            // Handle new BorderColorPrimitive format
+                                                            if (primitives?.borderColor?.top?.hex8) {
+                                                                return primitives.borderColor.top.hex8;
+                                                            }
+                                                            return primitives?.borderColor?.hex8;
+                                                        }
+                                                        return null;
+                                                    })();
 
                                                     const authoredValue =
                                                         (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
@@ -1302,7 +1329,7 @@ export function DetailsDrawer({
                                                                 hex8={hex8 ?? null}
                                                                 authoredValue={authoredValue}
                                                                 tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
-                                                                showCopyActions={row.label !== "Background"}
+                                                                showCopyActions={row.label !== "Background" && row.label !== "Border color"}
                                                             />
                                                         ),
                                                     };

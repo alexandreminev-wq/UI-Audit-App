@@ -196,14 +196,37 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
     });
   }
 
-  // Use hex8 if available, otherwise fall back to raw
-  const borderColorValue = styles.borderColor?.hex8 || styles.borderColor?.raw;
-  if (borderIsPresent && borderColorValue) {
-    surfaceRows.push({
-      label: 'Border color',
-      value: borderColorValue,
-      evidence: styles.sources?.borderColor
-    });
+  // Handle border color (new format: per-side, old format: single color)
+  if (borderIsPresent && styles.borderColor) {
+    const bc = styles.borderColor as any;
+    
+    // Check if it's the new per-side format
+    if (bc.top && bc.right && bc.bottom && bc.left) {
+      const topHex = bc.top?.hex8 || bc.top?.raw;
+      const rightHex = bc.right?.hex8 || bc.right?.raw;
+      const bottomHex = bc.bottom?.hex8 || bc.bottom?.raw;
+      const leftHex = bc.left?.hex8 || bc.left?.raw;
+
+      if (topHex) {
+        const borderColorValue = format4SidedValue(topHex, rightHex || topHex, bottomHex || topHex, leftHex || topHex);
+        
+        surfaceRows.push({
+          label: 'Border color',
+          value: borderColorValue,
+          evidence: styles.sources?.borderColor
+        });
+      }
+    } else {
+      // Old format: single ColorPrimitive
+      const borderColorValue = bc.hex8 || bc.raw;
+      if (borderColorValue) {
+        surfaceRows.push({
+          label: 'Border color',
+          value: borderColorValue,
+          evidence: styles.sources?.borderColor
+        });
+      }
+    }
   }
 
   // Add radius if available
