@@ -1871,6 +1871,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     id: recordV1.element.id || null,
                     classList: recordV1.element.classList,
                     textPreview: recordV1.element.textPreview,
+                    outerHTML: recordV1.element.outerHTML || null, // Preserve outerHTML from content script
                     intent,
                 },
 

@@ -940,6 +940,7 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
             classList: Array.from(target.classList || []),
             role: target.getAttribute("role"),
             textPreview,
+            outerHTML: target.outerHTML, // Add outerHTML for HTML Structure display
 
             // v1 attributes (kept for backward compatibility)
             attributes: {

@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2025-01-02*
+  *Last updated: 2026-01-03*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -358,28 +358,137 @@ Viewer and Sidepanel now share the same annotation data model, lifecycle, and in
 Full round-trip workflow: Capture → Review → Export → Import to Figma for design system audits.
 
 
-  ## Milestone 8 — Capture Depth & Intelligence (Future)
-  Out of scope for MVP stabilization:
-  - Smarter component signatures
-  - Token normalization
-  - Hierarchies and relationships
-  - Cross-session comparisons
+---
 
+## Milestone 8 — UI Polish & Standardization 🎨
+**Branch:** `m9-polish-v1`  
+**Status:** 🟡 In Progress (Phase 1)
 
-  ## Milestone 9 — Manual Refinement Workflows
+**Goal:** Standardize styling, layout, and component libraries across Sidepanel and Viewer for consistency and maintainability.
 
-  * Bulk select
-  * Bulk status/tag updates
-  * Variant grouping (canonical selection)
-  * Pattern marking (styles → tokens/patterns)
+### 8.0 — Foundation Analysis ✅
+**Status:** ✅ Complete
 
-  ## Milestone 10 — Automated Suggestions
+- Completed delta analysis of Visual Essentials tables (Sidepanel vs Viewer)
+- Completed delta analysis of layout containers and structure
+- Documented styling inconsistencies (Tailwind vs CSS variables)
+- Created prioritized incremental plan (Phase 1-9)
 
-  * Status/category/type suggestions
-  * Pattern detection that learns from manual edits
+### 8.1 — Phase 1: CSS Variables Foundation 🟡
+**Status:** 🟡 In Progress
 
-  ## Milestone 11 — Figma Export (Real)
+**Goal:** Convert Sidepanel from Tailwind to inline styles with CSS variables
 
-  * Frames / boards
-  * Thumbnails
-  * Token + pattern mapping
+**Tasks:**
+- [ ] Convert ComponentDetails container styles
+- [ ] Convert section headers and labels
+- [ ] Convert form inputs (identity fields)
+- [ ] Convert borders and backgrounds
+- [ ] Convert spacing utilities
+
+**Outcome:** Both UIs use same styling system (CSS variables)
+
+### 8.2 — Phase 2: Button Parity 🔄
+**Status:** 🟡 Partial (Sidepanel done)
+
+**Tasks:**
+- [x] Add destructive variant to Button component
+- [x] Convert Sidepanel footer buttons to shared Button component
+- [x] Convert Sidepanel delete confirmation modal buttons
+- [ ] Convert Viewer footer buttons to shared Button component
+- [ ] Convert Viewer close button
+- [ ] Standardize Sidepanel close button
+- [ ] Audit and convert remaining buttons (popovers, modals)
+
+**Outcome:** All buttons use shared Button component with consistent behavior
+
+### 8.3 — Phase 3: Close Button Consistency
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Decide: Lucide X icon or Unicode ✕
+- [ ] Standardize button style (ghost variant + icon)
+- [ ] Align positioning and padding
+- [ ] Ensure proper aria-labels
+
+### 8.4 — Phase 4: Spacing & Padding Polish
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Standardize container padding (16px or 24px horizontal)
+- [ ] Align section gaps (16px vs 24px)
+- [ ] Standardize footer padding
+- [ ] Align header padding
+- [ ] Ensure consistent spacing around inputs
+
+### 8.5 — Phase 5: Content Order Alignment
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Decide canonical section order
+- [ ] Reorder Sidepanel sections to match
+- [ ] Update scroll-to and focus logic
+- [ ] Test tab order and keyboard navigation
+
+### 8.6 — Phase 6: Footer Behavior
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Decide: Always render or conditional
+- [ ] Implement chosen strategy in both UIs
+- [ ] Update logic depending on footer presence
+- [ ] Test save/cancel/delete flows
+
+### 8.7 — Phase 7: Header Behavior
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Decide: Fixed header or scrollable
+- [ ] Implement chosen strategy
+- [ ] Update close button positioning
+- [ ] Test scroll behavior and focus
+
+### 8.8 — Phase 8: Layout Architecture
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Convert Sidepanel to 3-section flexbox (if needed)
+- [ ] Update body padding for footer height
+- [ ] Test scroll behavior thoroughly
+- [ ] Test on different viewport sizes
+
+### 8.9 — Phase 9: Accessibility Improvements
+**Status:** ⏳ Not Started
+
+**Tasks:**
+- [ ] Add ARIA labels to Sidepanel sections
+- [ ] Consider Radix Dialog/Sheet primitive
+- [ ] Add visually-hidden headings
+- [ ] Test keyboard navigation
+- [ ] Test with screen reader
+- [ ] Ensure proper focus management
+
+**Milestone 8 Timeline:** 12-18 hours estimated
+
+---
+
+## Milestone 9 — Capture Depth & Intelligence (Future)
+Out of scope for current stabilization:
+- Smarter component signatures
+- Token normalization
+- Hierarchies and relationships
+- Cross-session comparisons
+
+---
+
+## Milestone 10 — Manual Refinement Workflows (Future)
+
+* Bulk select
+* Bulk status/tag updates
+* Variant grouping (canonical selection)
+* Pattern marking (styles → tokens/patterns)
+
+## Milestone 11 — Automated Suggestions (Future)
+
+* Status/category/type suggestions
+* Pattern detection that learns from manual edits

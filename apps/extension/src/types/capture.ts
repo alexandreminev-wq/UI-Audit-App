@@ -84,6 +84,7 @@ export interface ElementCore {
   id?: string | null;
   classList?: string[];
   textPreview?: string;
+  outerHTML?: string | null; // HTML structure for display
   // intent anchors (v2.2)
   intent: ElementIntent;
 }

@@ -4,7 +4,7 @@ import type { Component } from '../App';
 import { formatVisualEssentials } from '../utils/formatVisualEssentials';
 import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
 import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
-import { StylePropertiesTable, type StylePropertiesSection } from '../../../shared/components';
+import { StylePropertiesTable, type StylePropertiesSection, Button } from '../../../shared/components';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -337,60 +337,101 @@ export function ComponentDetails({
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Component Name */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-gray-900">{component.name}</h3>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              {component.name}
+            </h3>
             {component.isDraft && (
-              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#ea580c',
+                background: '#ffedd5',
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}>
                 Unsaved
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500">{component.category}</p>
+          <p style={{ margin: 0, marginTop: 4, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+            {component.category}
+          </p>
         </div>
         <button
           onClick={onClose}
-          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+          style={{
+            padding: 8,
+            color: 'hsl(var(--muted-foreground))',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius)',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background 0.15s ease',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           title="Close"
         >
-          <X className="w-4 h-4" />
+          <X style={{ width: 16, height: 16 }} />
         </button>
       </div>
 
       {/* Identity overrides */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-sm text-gray-600">Identity</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Identity</label>
           <button
             type="button"
             onClick={handleResetOverrides}
             disabled={!component.overrides}
-            className={`text-xs px-2 py-1 rounded border ${
-              component.overrides
-                ? "border-gray-300 text-gray-700 hover:bg-gray-100"
-                : "border-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
+            style={{
+              fontSize: 11,
+              padding: '4px 8px',
+              borderRadius: 'var(--radius)',
+              border: '1px solid hsl(var(--border))',
+              background: 'hsl(var(--background))',
+              color: component.overrides ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+              cursor: component.overrides ? 'pointer' : 'not-allowed',
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={(e) => component.overrides && (e.currentTarget.style.background = 'hsl(var(--muted))')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'hsl(var(--background))')}
             title="Reset identity overrides (revert to derived values)"
           >
             Reset
           </button>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs text-gray-500">Display name</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Display name</label>
           <input
             value={draftDisplayName}
             onChange={(e) => setDraftDisplayName(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: 13,
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 'var(--radius)',
+              background: 'hsl(var(--background))',
+              color: 'hsl(var(--foreground))',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-gray-500">Category</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Category</label>
             <select
               value={draftCategory}
               onChange={(e) => {
@@ -401,19 +442,43 @@ export function ComponentDetails({
                   setDraftType(options[0]);
                 }
               }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 13,
+                border: '1px solid hsl(var(--border))',
+                borderRadius: 'var(--radius)',
+                background: 'hsl(var(--background))',
+                color: 'hsl(var(--foreground))',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
             >
               {CATEGORY_OPTIONS.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-gray-500">Type</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Type</label>
             <select
               value={draftType}
               onChange={(e) => setDraftType(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 13,
+                border: '1px solid hsl(var(--border))',
+                borderRadius: 'var(--radius)',
+                background: 'hsl(var(--background))',
+                color: 'hsl(var(--foreground))',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
             >
               {getTypeOptions(draftCategory || "Unknown", draftType).map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -422,12 +487,24 @@ export function ComponentDetails({
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs text-gray-500">Status</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Status</label>
           <select
             value={draftStatus}
             onChange={(e) => setDraftStatus(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: 13,
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 'var(--radius)',
+              background: 'hsl(var(--background))',
+              color: 'hsl(var(--foreground))',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -438,13 +515,26 @@ export function ComponentDetails({
 
       {/* State Selector */}
       {component.availableStates && component.availableStates.length > 1 ? (
-        <div className="space-y-1">
-          <label className="text-xs text-gray-500">State</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
           <select
             value={selectedState}
             onChange={(e) => handleStateChange(e.target.value)}
             disabled={isLoadingState}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: 13,
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 'var(--radius)',
+              background: isLoadingState ? 'hsl(var(--muted))' : 'hsl(var(--background))',
+              color: 'hsl(var(--foreground))',
+              outline: 'none',
+              cursor: isLoadingState ? 'not-allowed' : 'pointer',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => !isLoadingState && (e.currentTarget.style.borderColor = 'hsl(var(--ring))')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'hsl(var(--border))')}
           >
             {component.availableStates.map(({state}) => (
               <option key={state} value={state}>
@@ -455,9 +545,16 @@ export function ComponentDetails({
         </div>
       ) : (
         component.availableStates && component.availableStates.length === 1 && (
-          <div className="space-y-1">
-            <label className="text-xs text-gray-500">State</label>
-            <div className="text-sm text-gray-700 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
+            <div style={{
+              fontSize: 13,
+              color: 'hsl(var(--foreground))',
+              padding: '8px 12px',
+              background: 'hsl(var(--muted))',
+              borderRadius: 'var(--radius)',
+              border: '1px solid hsl(var(--border))',
+            }}>
               {capitalizeState(selectedState)}
             </div>
           </div>
@@ -465,57 +562,112 @@ export function ComponentDetails({
       )}
 
       {/* Component Image */}
-      <div className="bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+      <div style={{
+        background: 'hsl(var(--muted))',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+        border: '1px solid hsl(var(--border))',
+      }}>
         {screenshotUrl ? (
           <img
             src={screenshotUrl}
             alt={component.name}
-            className="w-full h-auto"
+            style={{ width: '100%', height: 'auto', display: 'block' }}
           />
         ) : component.imageUrl ? (
           <img
             src={component.imageUrl}
             alt={component.name}
-            className="w-full h-auto"
+            style={{ width: '100%', height: 'auto', display: 'block' }}
           />
         ) : (
-          <div className="w-full p-8 text-center text-gray-500">
+          <div style={{
+            width: '100%',
+            padding: 32,
+            textAlign: 'center',
+            color: 'hsl(var(--muted-foreground))',
+            fontSize: 13,
+          }}>
             No screenshot yet
           </div>
         )}
       </div>
 
       {/* URL */}
-      <div className="space-y-1">
-        <label className="text-sm text-gray-600">Captured From</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Captured From</label>
         {component.url ? (
           <a
             href={component.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 break-all"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 13,
+              color: 'hsl(var(--primary))',
+              textDecoration: 'none',
+              wordBreak: 'break-all',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--primary) / 0.8)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--primary))'}
           >
-            <span className="flex-1">{component.url}</span>
-            <ExternalLink className="w-3 h-3 flex-shrink-0" />
+            <span style={{ flex: 1 }}>{component.url}</span>
+            <ExternalLink style={{ width: 12, height: 12, flexShrink: 0 }} />
           </a>
         ) : (
-          <div className="text-sm text-gray-400">Unknown</div>
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Unknown</div>
         )}
       </div>
 
       {/* HTML Structure */}
-      <div className="space-y-1">
-        <label className="text-sm text-gray-600">HTML Structure</label>
-        <pre className="text-xs bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto">
-          <code>{component.html}</code>
-        </pre>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <details style={{ cursor: 'pointer' }}>
+          <summary style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'hsl(var(--foreground))',
+            listStyle: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            userSelect: 'none',
+          }}>
+            <span style={{
+              display: 'inline-block',
+              transition: 'transform 0.2s',
+            }}>▸</span>
+            HTML Structure
+          </summary>
+          <div style={{
+            marginTop: 8,
+            padding: 12,
+            background: 'hsl(var(--muted))',
+            borderRadius: 'var(--radius)',
+            border: '1px solid hsl(var(--border))',
+            fontSize: 13,
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            lineHeight: 1.5,
+            color: component.html ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+          }}>
+            {component.html || 'No HTML available'}
+          </div>
+        </details>
+        <style>{`
+          details[open] > summary > span {
+            transform: rotate(90deg);
+          }
+        `}</style>
       </div>
 
       {/* Visual Essentials */}
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <label className="text-sm text-gray-600">Visual Essentials</label>
-          <span className="text-xs text-gray-400">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Visual Essentials</label>
+          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
             Authored styles:{" "}
             {component.styleEvidence?.evidence?.method === "cdp" ? "available (CDP)" : "computed"}
           </span>
@@ -574,23 +726,34 @@ export function ComponentDetails({
             }))}
           />
         ) : (
-          <div className="text-sm text-gray-400">No style primitives available</div>
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No style primitives available</div>
         )}
 
         {/* Debug: Style primitives */}
-        <details className="text-xs">
-          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+        <details style={{ fontSize: 11 }}>
+          <summary style={{
+            cursor: 'pointer',
+            color: 'hsl(var(--muted-foreground))',
+          }}>
             Debug: Style primitives
           </summary>
-          <pre className="mt-2 bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto text-xs">
+          <pre style={{
+            marginTop: 8,
+            background: '#111827',
+            color: '#f3f4f6',
+            padding: 12,
+            borderRadius: 'var(--radius)',
+            overflowX: 'auto',
+            fontSize: 11,
+          }}>
             {JSON.stringify(component.stylePrimitives ?? component.styles, null, 2)}
           </pre>
         </details>
       </div>
 
       {/* Notes (no onBlur - explicit Save only) */}
-      <div className="space-y-1">
-        <label htmlFor="notes" className="text-sm text-gray-600">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label htmlFor="notes" style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>
           Notes
         </label>
         <textarea
@@ -599,25 +762,59 @@ export function ComponentDetails({
           onChange={(e) => setDraftNotes(e.target.value)}
           placeholder="Add notes about this component..."
           rows={4}
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none"
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            fontSize: 13,
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 'var(--radius)',
+            background: 'hsl(var(--background))',
+            color: 'hsl(var(--foreground))',
+            outline: 'none',
+            resize: 'none',
+            fontFamily: 'inherit',
+            boxSizing: 'border-box',
+          }}
+          onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+          onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
         />
       </div>
 
       {/* Tags (explicit Save only) */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-600">Tags</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Tags</label>
 
         {draftTags.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {draftTags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-gray-100 text-gray-900 border border-gray-200 rounded-md"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  background: 'hsl(var(--muted))',
+                  color: 'hsl(var(--foreground))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 6,
+                }}
               >
                 {tag}
                 <button
                   onClick={() => handleRemoveTag(tag)}
-                  className="text-gray-500 hover:text-gray-700"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'hsl(var(--muted-foreground))',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: 14,
+                    lineHeight: 1,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--foreground))'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--muted-foreground))'}
                   title="Remove tag"
                   type="button"
                 >
@@ -627,10 +824,10 @@ export function ComponentDetails({
             ))}
           </div>
         ) : (
-          <div className="text-sm text-gray-400">No tags yet.</div>
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No tags yet.</div>
         )}
 
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: 8 }}>
           <input
             type="text"
             value={newTagInput}
@@ -642,16 +839,36 @@ export function ComponentDetails({
               }
             }}
             placeholder="Add a tag..."
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              fontSize: 13,
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 'var(--radius)',
+              background: 'hsl(var(--background))',
+              color: 'hsl(var(--foreground))',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
           />
           <button
             onClick={handleAddTag}
             disabled={newTagInput.trim() === ""}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              newTagInput.trim() === ""
-                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 'var(--radius)',
+              fontSize: 13,
+              fontWeight: 500,
+              transition: 'all 0.15s ease',
+              border: 'none',
+              cursor: newTagInput.trim() === "" ? 'not-allowed' : 'pointer',
+              background: newTagInput.trim() === "" ? 'hsl(var(--muted))' : 'hsl(var(--primary))',
+              color: newTagInput.trim() === "" ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary-foreground))',
+            }}
+            onMouseEnter={(e) => newTagInput.trim() !== "" && (e.currentTarget.style.filter = 'brightness(0.9)')}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
             type="button"
           >
             Add
@@ -661,69 +878,108 @@ export function ComponentDetails({
 
       {/* Footer: Save / Cancel / Delete (sticky, avoids covering content) */}
       <div
-        className="sticky bottom-0 -mx-4 px-4 pt-3 border-t border-gray-200 bg-white flex gap-2"
-        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+        style={{
+          position: 'sticky',
+          bottom: 0,
+          marginLeft: -16,
+          marginRight: -16,
+          paddingLeft: 16,
+          paddingRight: 16,
+          paddingTop: 12,
+          paddingBottom: 12,
+          borderTop: '1px solid hsl(var(--border))',
+          background: 'hsl(var(--background))',
+          display: 'flex',
+          gap: 8,
+        }}
       >
-        <button
+        <Button
           onClick={handleSave}
           disabled={!(component.isDraft || isDirty) || isSaving}
-          className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
-            (component.isDraft || isDirty) && !isSaving
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
+          variant="primary"
+          size="md"
+          style={{ flex: 1 }}
         >
           {isSaving ? 'Saving...' : 'Save'}
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleCancel}
           disabled={!isDirty}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isDirty
-              ? 'border border-gray-300 text-gray-700 hover:bg-gray-100'
-              : 'border border-gray-200 text-gray-400 cursor-not-allowed'
-          }`}
+          variant="ghost"
+          size="md"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => setShowDeleteConfirm(true)}
           disabled={isDeleting}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isDeleting
-              ? 'border border-gray-200 text-gray-400 cursor-not-allowed'
-              : 'border border-gray-300 text-red-600 hover:bg-red-50'
-          }`}
+          variant="ghost"
+          size="md"
+          style={{ color: isDeleting ? undefined : 'hsl(var(--destructive))' }}
         >
           {isDeleting ? 'Deleting...' : 'Delete'}
-        </button>
+        </Button>
       </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm mx-4 space-y-4">
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+        }}>
+          <div style={{
+            background: 'hsl(var(--background))',
+            borderRadius: 'var(--radius)',
+            padding: 24,
+            maxWidth: 384,
+            margin: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
             <div>
-              <h4 className="text-gray-900 mb-2">Delete Component?</h4>
-              <p className="text-sm text-gray-600">
+              <h4 style={{
+                margin: 0,
+                marginBottom: 8,
+                fontSize: 16,
+                fontWeight: 600,
+                color: 'hsl(var(--foreground))',
+              }}>
+                Delete Component?
+              </h4>
+              <p style={{
+                margin: 0,
+                fontSize: 13,
+                color: 'hsl(var(--muted-foreground))',
+                lineHeight: 1.5,
+              }}>
                 {component.isDraft
                   ? `Are you sure you want to delete this unsaved draft of "${component.name}"? This action cannot be undone.`
                   : `Are you sure you want to delete "${component.name}"? This action cannot be undone.`}
               </p>
             </div>
-            <div className="flex gap-2">
-              <button
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
                 onClick={handleDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                variant="destructive"
+                size="md"
+                style={{ flex: 1 }}
               >
                 Delete
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                variant="ghost"
+                size="md"
+                style={{ flex: 1 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>

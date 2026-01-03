@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive';
   size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
   disabled?: boolean;
@@ -70,6 +70,11 @@ export function Button({
       color: 'hsl(var(--foreground))',
       border: '1px solid hsl(var(--border))',
     },
+    destructive: {
+      background: 'hsl(var(--destructive))',
+      color: 'hsl(var(--destructive-foreground))',
+      border: 'none',
+    },
   };
 
   // Hover styles (applied via inline onMouseEnter/onMouseLeave for simplicity)
@@ -82,6 +87,9 @@ export function Button({
     },
     ghost: {
       background: 'hsl(var(--muted))',
+    },
+    destructive: {
+      filter: 'brightness(0.9)',
     },
   };
 

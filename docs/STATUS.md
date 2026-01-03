@@ -3,7 +3,7 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟢 **Production-ready capture, multi-state components, and Figma export**
+  🟡 **Production-ready capture + Figma export; UI polish in progress**
 
   The app now supports:
   - Cross-surface annotations (Notes + Tags)
@@ -12,6 +12,7 @@
   - Viewer component cards with screenshot thumbnails
   - **Multi-state component capture** (Default, Hover, Active, Focus, Disabled, Open)
   - **Figma export** with full inventory and screenshots
+  - **Milestone 8 (UI Polish):** Standardizing styling and components across Sidepanel and Viewer
 
   ---
 
@@ -65,9 +66,26 @@
   ---
 
   ## Recent Milestones
+
+**Milestone 7.11 — Figma Export** ✅ Complete
+- ZIP package export from Viewer with inventory.json and screenshots
+- Figma plugin for import with visual layout
+- WebP → PNG conversion for compatibility
+
+**Milestone 8 — UI Polish & Standardization** 🟡 In Progress
+- **Phase 1:** CSS Variables Foundation (in progress)
+- **Completed:**
+  - Visual Essentials delta analysis
+  - Layout container delta analysis
+  - Shared Button component with destructive variant
+  - Sidepanel footer buttons converted to Button component
+  - Incremental standardization plan (9 phases)
+
+---
+
 ## Current Focus
 
-**Milestone 7 — Viewer completion + parity layers**
+**Milestone 8.1 — CSS Variables Foundation (Phase 1)**
 
 The Viewer Details Drawer and Sidepanel details now support:
 - Notes + Tags (annotations store)
@@ -118,9 +136,14 @@ The Viewer Details Drawer and Sidepanel details now support:
 - No annotation history / versioning
 - State capture only supports buttons and links (not other interactive elements yet)
 - Figma plugin requires manual installation (not published to Figma Community)
+- **Styling inconsistencies between Sidepanel (Tailwind) and Viewer (CSS vars)** — being addressed in Milestone 8
+- Layout differences (single scroll vs 3-section flexbox) — planned for Milestone 8 Phase 8
 
 ### Next Up
-- **Styling standardization:** Migrate Sidepanel from Tailwind to CSS variables + Radix UI for consistency with Viewer
+- **Milestone 8 (UI Polish):** Continue incremental standardization
+  - Phase 1: Convert Sidepanel to CSS variables (in progress)
+  - Phase 2: Complete button parity (Viewer footer + close buttons)
+  - Phases 3-9: Close button, spacing, content order, footer/header behavior, layout, accessibility
 - 7.5.3: Minor interaction polish (drawer toggle on re-select, Escape to close)
 - 7.6: Viewer usability refinements (empty project UX, default sorts, filter persistence)
 - Expand state capture to other interactive elements (dropdowns, tabs, accordions)
