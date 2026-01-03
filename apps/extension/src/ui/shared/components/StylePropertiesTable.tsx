@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 export interface StylePropertyRow {
@@ -20,6 +21,20 @@ interface StylePropertiesTableProps {
  * Used for displaying Visual Essentials in both Sidepanel and Viewer
  */
 export function StylePropertiesTable({ sections }: StylePropertiesTableProps) {
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (rowKey: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) {
+        next.delete(rowKey);
+      } else {
+        next.add(rowKey);
+      }
+      return next;
+    });
+  };
+
   return (
     <div
       style={{
@@ -60,46 +75,64 @@ export function StylePropertiesTable({ sections }: StylePropertiesTableProps) {
 
           {/* Section Rows */}
           <div>
-            {section.rows.map((row, rowIdx) => (
-              <div
-                key={`${section.title}-${rowIdx}`}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px 24px',
-                  background: rowIdx % 2 === 0 ? 'transparent' : 'hsl(var(--muted) / 0.3)',
-                  borderRadius: '8px',
-                }}
-              >
-                {row.customContent ? (
-                  // Custom rendering (e.g., TokenTraceValue)
-                  <div style={{ width: '100%' }}>{row.customContent}</div>
-                ) : (
-                  // Default label-value pair
-                  <>
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        color: 'hsl(var(--foreground))',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {row.label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                        color: '#374151', // Exact color from the screenshot
-                      }}
-                    >
-                      {row.value}
-                    </span>
-                  </>
-                )}
-              </div>
-            ))}
+            {section.rows.map((row, rowIdx) => {
+              const rowKey = `${section.title}-${rowIdx}`;
+              const isExpanded = expandedRows.has(rowKey);
+              const isFontFamily = row.label === 'Font family';
+              const shouldTruncate = isFontFamily && !isExpanded;
+
+              return (
+                <div
+                  key={rowKey}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 24px',
+                    background: rowIdx % 2 === 0 ? 'transparent' : 'hsl(var(--muted) / 0.3)',
+                    borderRadius: '8px',
+                    gap: '8px', // 8px gap between columns
+                  }}
+                >
+                  {row.customContent ? (
+                    // Custom rendering (e.g., TokenTraceValue)
+                    <div style={{ width: '100%' }}>{row.customContent}</div>
+                  ) : (
+                    // Default label-value pair
+                    <>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          color: 'hsl(var(--foreground))',
+                          fontWeight: 500,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {row.label}
+                      </span>
+                      <span
+                        onClick={isFontFamily ? () => toggleRow(rowKey) : undefined}
+                        style={{
+                          fontSize: '13px',
+                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          color: '#374151',
+                          textAlign: 'right',
+                          overflow: shouldTruncate ? 'hidden' : 'visible',
+                          textOverflow: shouldTruncate ? 'ellipsis' : 'clip',
+                          whiteSpace: shouldTruncate ? 'nowrap' : 'normal',
+                          cursor: isFontFamily ? 'pointer' : 'default',
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                        title={isFontFamily ? 'Click to expand/collapse' : undefined}
+                      >
+                        {row.value}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

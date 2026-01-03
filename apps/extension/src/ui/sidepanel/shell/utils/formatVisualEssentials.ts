@@ -118,11 +118,9 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
   if (styles.typography) {
     const fontFamily = styles.typography.fontFamily;
     if (fontFamily) {
-      // Show only first font family in the stack
-      const firstFamily = fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
       textRows.push({
         label: 'Font family',
-        value: firstFamily,
+        value: fontFamily,
         evidence: styles.sources?.fontFamily
       });
     }
