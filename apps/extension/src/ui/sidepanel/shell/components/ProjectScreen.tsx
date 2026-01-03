@@ -6,6 +6,7 @@ import { ComponentDirectory } from './ComponentDirectory';
 import { ComponentDetails } from './ComponentDetails';
 import { classifyCapture } from '../utils/classifyCapture';
 import { deriveComponentKey } from '../../../shared/componentKey';
+import { Button } from '../../../shared/components';
 
 interface ProjectScreenProps {
   project: Project;
@@ -460,41 +461,47 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex items-center gap-2 mb-3">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onBack}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            style={{ padding: '4px' }}
           >
             <ArrowLeft className="w-4 h-4" />
-          </button>
+          </Button>
           <h2 className="flex-1 truncate">{project.title}</h2>
         </div>
 
-        <div className="flex gap-2">
-          <button
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            variant="primary"
+            size="md"
             onClick={handleCaptureElement}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            style={{ flex: 1 }}
           >
             <Camera className="w-4 h-4" />
             <span>{isCaptureEnabledHere ? 'Stop Capture' : 'Capture Element'}</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
             onClick={() => {
               if (currentPageTabId !== null) {
                 loadCapturesForTab(currentPageTabId);
               }
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
             title="Refresh list"
           >
             <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
             onClick={handleOpenViewer}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
             title="Open Viewer"
           >
             <ExternalLink className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
