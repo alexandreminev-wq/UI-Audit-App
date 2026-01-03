@@ -13,17 +13,10 @@ export type VisualEssentialsSection = {
 
 /**
  * Normalize CSS values for display
+ * Updated to keep px units for consistency with Viewer
  */
 function normalizeCssValue(v: string | undefined | null): string {
   if (!v || v === '') return '—';
-
-  // Convert "16px" -> "16", "0px" -> "0"
-  const pxMatch = v.match(/^(\d+(?:\.\d+)?)px$/);
-  if (pxMatch) {
-    const num = parseFloat(pxMatch[1]);
-    return num === 0 ? '0' : pxMatch[1];
-  }
-
   return v;
 }
 
@@ -250,12 +243,6 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
     evidence: paddingEvidence
   });
   sections.push({ title: 'Spacing', rows: spacingRows });
-
-  // State section (placeholders for now)
-  const stateRows: VisualEssentialsRow[] = [];
-  stateRows.push({ label: 'Disabled', value: '—' });
-  stateRows.push({ label: 'Focusable', value: '—' });
-  sections.push({ title: 'State', rows: stateRows });
 
   return sections;
 }
