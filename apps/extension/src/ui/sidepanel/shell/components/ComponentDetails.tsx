@@ -4,6 +4,7 @@ import type { Component } from '../App';
 import { formatVisualEssentials } from '../utils/formatVisualEssentials';
 import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
 import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
+import { StylePropertiesTable, type StylePropertiesSection } from '../../../shared/components';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -520,70 +521,58 @@ export function ComponentDetails({
           </span>
         </div>
         {component.stylePrimitives ? (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            {formatVisualEssentials(component.stylePrimitives).map((section) => (
-              <div key={section.title} className="border-b border-gray-200 last:border-b-0">
-                <div className="px-3 py-2 bg-gray-50">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {section.title}
-                  </h4>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {section.rows.map((row, idx) => (
-                    <div key={idx} className="px-3 py-2">
-                      {(() => {
-                        const isColorRow =
-                          row.label === "Text color" ||
-                          row.label === "Background" ||
-                          row.label === "Border color";
-                        if (!isColorRow) {
-                          return (
-                            <div className="flex justify-between items-start gap-3 text-xs">
-                              <span className="text-gray-600 flex-shrink-0">{row.label}</span>
-                              <span className="text-gray-900 font-mono text-right break-all">{row.value}</span>
-                            </div>
-                          );
-                        }
+          <StylePropertiesTable
+            sections={formatVisualEssentials(component.stylePrimitives).map((section) => ({
+              title: section.title,
+              rows: section.rows.map((row) => {
+                const isColorRow =
+                  row.label === "Text color" ||
+                  row.label === "Background" ||
+                  row.label === "Border color";
 
-                        const prop =
-                          row.label === "Text color"
-                            ? "color"
-                            : row.label === "Background"
-                              ? "backgroundColor"
-                              : "borderColor";
+                if (!isColorRow) {
+                  return {
+                    label: row.label,
+                    value: row.value,
+                  };
+                }
 
-                        const primitives: any = component.stylePrimitives;
-                        const hex8 =
-                          prop === "color"
-                            ? primitives?.color?.hex8
-                            : prop === "backgroundColor"
-                              ? primitives?.backgroundColor?.hex8
-                              : primitives?.borderColor?.hex8;
+                const prop =
+                  row.label === "Text color"
+                    ? "color"
+                    : row.label === "Background"
+                      ? "backgroundColor"
+                      : "borderColor";
 
-                        const authoredValue =
-                          (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
+                const primitives: any = component.stylePrimitives;
+                const hex8 =
+                  prop === "color"
+                    ? primitives?.color?.hex8
+                    : prop === "backgroundColor"
+                      ? primitives?.backgroundColor?.hex8
+                      : primitives?.borderColor?.hex8;
 
-                        return (
-                          <TokenTraceValue
-                            property={prop as any}
-                            label={row.label}
-                            resolvedValue={row.value}
-                            hex8={hex8 ?? null}
-                            authoredValue={authoredValue}
-                            tokens={component.styleEvidence?.tokens ?? null}
-                            showCopyActions={false}
-                          />
-                        );
-                      })()}
-                      {row.evidence && (
-                        <div className="mt-1 text-xs text-gray-400 font-mono">{row.evidence}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+                const authoredValue =
+                  (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
+
+                return {
+                  label: row.label,
+                  value: row.value,
+                  customContent: (
+                    <TokenTraceValue
+                      property={prop as any}
+                      label={row.label}
+                      resolvedValue={row.value}
+                      hex8={hex8 ?? null}
+                      authoredValue={authoredValue}
+                      tokens={component.styleEvidence?.tokens ?? null}
+                      showCopyActions={false}
+                    />
+                  ),
+                };
+              }),
+            }))}
+          />
         ) : (
           <div className="text-sm text-gray-400">No style primitives available</div>
         )}

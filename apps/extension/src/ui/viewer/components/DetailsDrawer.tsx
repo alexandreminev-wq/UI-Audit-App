@@ -10,6 +10,7 @@ import type {
 import type { AuthorStyleEvidence, StylePrimitives, TokenEvidence } from "../../../types/capture";
 import { useBlobUrl } from "../hooks/useBlobUrl";
 import { TokenTraceValue } from "../../shared/tokenTrace/TokenTraceValue";
+import { StylePropertiesTable, type StylePropertiesSection } from "../../shared/components";
 
 // ─────────────────────────────────────────────────────────────
 // DEV-only logging helpers (7.4.5)
@@ -1220,105 +1221,60 @@ export function DetailsDrawer({
                                         No visual details available.
                                     </div>
                                 ) : (
-                                    <div style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 12,
-                                    }}>
-                                        {/* Group rows by section */}
-                                        {["Text", "Surface", "Spacing", "State"].map((section) => {
+                                    <StylePropertiesTable
+                                        sections={["Text", "Surface", "Spacing", "State"].map((section) => {
                                             const sectionRows = currentStateData.visualEssentials?.rows.filter((r) => r.section === section) || [];
-                                            if (sectionRows.length === 0) return null;
+                                            return {
+                                                title: section,
+                                                rows: sectionRows.map((row) => {
+                                                    const isColorRow =
+                                                        row.label === "Text color" ||
+                                                        row.label === "Background" ||
+                                                        row.label === "Border color";
 
-                                            return (
-                                                <div key={section}>
-                                                    {/* Section divider */}
-                                                    <div style={{
-                                                        fontSize: 11,
-                                                        fontWeight: 600,
-                                                        textTransform: "uppercase",
-                                                        color: "hsl(var(--muted-foreground))",
-                                                        marginBottom: 6,
-                                                        letterSpacing: "0.05em",
-                                                    }}>
-                                                        {section}
-                                                    </div>
-                                                    {/* Rows for this section */}
-                                                    <div style={{
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        gap: 6,
-                                                    }}>
-                                                        {sectionRows.map((row, idx) => (
-                                                            (() => {
-                                                                const isColorRow =
-                                                                    row.label === "Text color" ||
-                                                                    row.label === "Background" ||
-                                                                    row.label === "Border color";
+                                                    if (!isColorRow || !currentStateData.visualEssentialsTrace?.tokens) {
+                                                        return {
+                                                            label: row.label,
+                                                            value: row.value,
+                                                        };
+                                                    }
 
-                                                                if (!isColorRow || !currentStateData.visualEssentialsTrace?.tokens) {
-                                                                    return (
-                                                                        <div
-                                                                            key={`${section}-${idx}`}
-                                                                            style={{
-                                                                                display: "flex",
-                                                                                justifyContent: "space-between",
-                                                                                padding: 8,
-                                                                                background: "hsl(var(--muted))",
-                                                                                borderRadius: "calc(var(--radius) - 2px)",
-                                                                                fontSize: 13,
-                                                                            }}
-                                                                        >
-                                                                            <span style={{ color: "hsl(var(--foreground))", fontWeight: 500 }}>{row.label}</span>
-                                                                            <span style={{ color: "hsl(var(--muted-foreground))", fontFamily: "monospace" }}>{row.value}</span>
-                                                                        </div>
-                                                                    );
-                                                                }
+                                                    const prop =
+                                                        row.label === "Text color"
+                                                            ? "color"
+                                                            : row.label === "Background"
+                                                                ? "backgroundColor"
+                                                                : "borderColor";
 
-                                                                const prop =
-                                                                    row.label === "Text color"
-                                                                        ? "color"
-                                                                        : row.label === "Background"
-                                                                            ? "backgroundColor"
-                                                                            : "borderColor";
+                                                    const primitives: any = currentStateData.visualEssentialsTrace.primitives;
+                                                    const hex8 =
+                                                        prop === "color"
+                                                            ? primitives?.color?.hex8
+                                                            : prop === "backgroundColor"
+                                                                ? primitives?.backgroundColor?.hex8
+                                                                : primitives?.borderColor?.hex8;
 
-                                                                const primitives: any = currentStateData.visualEssentialsTrace.primitives;
-                                                                const hex8 =
-                                                                    prop === "color"
-                                                                        ? primitives?.color?.hex8
-                                                                        : prop === "backgroundColor"
-                                                                            ? primitives?.backgroundColor?.hex8
-                                                                            : primitives?.borderColor?.hex8;
+                                                    const authoredValue =
+                                                        (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
 
-                                                                const authoredValue =
-                                                                    (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
-
-                                                                return (
-                                                                    <div
-                                                                        key={`${section}-${idx}`}
-                                                                        style={{
-                                                                            padding: 8,
-                                                                            background: "hsl(var(--muted))",
-                                                                            borderRadius: "calc(var(--radius) - 2px)",
-                                                                        }}
-                                                                    >
-                                                                        <TokenTraceValue
-                                                                            property={prop as any}
-                                                                            label={row.label}
-                                                                            resolvedValue={row.value}
-                                                                            hex8={hex8 ?? null}
-                                                                            authoredValue={authoredValue}
-                                                                            tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
-                                                                        />
-                                                                    </div>
-                                                                );
-                                                            })()
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                                    return {
+                                                        label: row.label,
+                                                        value: row.value,
+                                                        customContent: (
+                                                            <TokenTraceValue
+                                                                property={prop as any}
+                                                                label={row.label}
+                                                                resolvedValue={row.value}
+                                                                hex8={hex8 ?? null}
+                                                                authoredValue={authoredValue}
+                                                                tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
+                                                            />
+                                                        ),
+                                                    };
+                                                }),
+                                            };
+                                        }).filter(section => section.rows.length > 0)}
+                                    />
                                 )}
                             </div>
                         </div>
