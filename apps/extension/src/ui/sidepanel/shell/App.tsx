@@ -255,7 +255,7 @@ export default function App() {
     activeAuditTabId !== null && currentPageTabId !== null && currentPageTabId !== activeAuditTabId;
 
   return (
-    <div className="w-[360px] h-screen bg-white">
+    <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: 'hsl(var(--background))' }}>
       {shouldShowInactiveScreen ? (
         <InactiveTabScreen error={error} onActivate={handleActivateInThisTab} />
       ) : !currentProject ? (
