@@ -40,26 +40,51 @@ function hasBorder(primitives: StylePrimitives): boolean {
   );
 }
 
-function formatBorderWidth(borderWidth: NonNullable<StylePrimitives["borderWidth"]>): string {
-  const t = normalizeCssValue(borderWidth.top);
-  const r = normalizeCssValue(borderWidth.right);
-  const b = normalizeCssValue(borderWidth.bottom);
-  const l = normalizeCssValue(borderWidth.left);
+/**
+ * Format 4-sided values using CSS shorthand format
+ * - All equal: "5px"
+ * - Top/bottom equal, left/right equal: "5px 20px"
+ * - All different: "25px 10px 4px 35px" (top right bottom left)
+ */
+function format4SidedValue(top: string, right: string, bottom: string, left: string): string {
+  const t = normalizeCssValue(top);
+  const r = normalizeCssValue(right);
+  const b = normalizeCssValue(bottom);
+  const l = normalizeCssValue(left);
 
-  if (t !== '—' && t === r && r === b && b === l) return t;
-  return `${t} / ${r} / ${b} / ${l}`;
+  // All sides equal
+  if (t !== '—' && t === r && r === b && b === l) {
+    return t;
+  }
+
+  // Top/bottom equal and left/right equal
+  if (t === b && r === l) {
+    return `${t} ${r}`;
+  }
+
+  // All different
+  return `${t} ${r} ${b} ${l}`;
+}
+
+function formatBorderWidth(borderWidth: NonNullable<StylePrimitives["borderWidth"]>): string {
+  return format4SidedValue(
+    borderWidth.top || '0px',
+    borderWidth.right || '0px',
+    borderWidth.bottom || '0px',
+    borderWidth.left || '0px'
+  );
 }
 
 /**
- * Format padding as T / R / B / L
+ * Format padding as CSS shorthand
  */
 function formatPadding(spacing: StylePrimitives['spacing']): string {
-  const t = normalizeCssValue(spacing.paddingTop);
-  const r = normalizeCssValue(spacing.paddingRight);
-  const b = normalizeCssValue(spacing.paddingBottom);
-  const l = normalizeCssValue(spacing.paddingLeft);
-
-  return `${t} / ${r} / ${b} / ${l}`;
+  return format4SidedValue(
+    spacing.paddingTop || '0px',
+    spacing.paddingRight || '0px',
+    spacing.paddingBottom || '0px',
+    spacing.paddingLeft || '0px'
+  );
 }
 
 /**
@@ -78,23 +103,17 @@ function formatShadow(shadow: StylePrimitives['shadow']): string {
 }
 
 /**
- * Format radius - show single value if all corners match, otherwise TL / TR / BR / BL
+ * Format radius using CSS shorthand
  */
 function formatRadius(radius: StylePrimitives['radius']): string {
   if (!radius) return '—';
 
-  const tl = normalizeCssValue(radius.topLeft);
-  const tr = normalizeCssValue(radius.topRight);
-  const br = normalizeCssValue(radius.bottomRight);
-  const bl = normalizeCssValue(radius.bottomLeft);
-
-  // If all corners are the same and non-empty, show single value
-  if (tl !== '—' && tl === tr && tr === br && br === bl) {
-    return tl;
-  }
-
-  // Otherwise show all four corners
-  return `${tl} / ${tr} / ${br} / ${bl}`;
+  return format4SidedValue(
+    radius.topLeft || '0px',
+    radius.topRight || '0px',
+    radius.bottomRight || '0px',
+    radius.bottomLeft || '0px'
+  );
 }
 
 /**

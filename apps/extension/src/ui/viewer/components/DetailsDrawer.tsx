@@ -480,6 +480,22 @@ export function DetailsDrawer({
     };
 
     // Helper to derive visual essentials from primitives (simplified version of deriveViewerModels logic)
+    // Helper to format 4-sided values using CSS shorthand
+    function format4SidedValue(top: string, right: string, bottom: string, left: string): string {
+        // All sides equal
+        if (top === right && right === bottom && bottom === left) {
+            return top;
+        }
+
+        // Top/bottom equal and left/right equal
+        if (top === bottom && right === left) {
+            return `${top} ${right}`;
+        }
+
+        // All different (CSS order: top right bottom left)
+        return `${top} ${right} ${bottom} ${left}`;
+    }
+
     function deriveVisualEssentialsFromPrimitives(primitives: any): ViewerVisualEssentials {
         const rows: ViewerVisualEssentialsRow[] = [];
         
@@ -510,11 +526,19 @@ export function DetailsDrawer({
         }
         if (hasBorder && primitives.borderWidth) {
             const b = primitives.borderWidth;
-            rows.push({ label: "Border width", value: `${b.top} / ${b.right} / ${b.bottom} / ${b.left}`, section: "Surface" });
+            rows.push({ 
+                label: "Border width", 
+                value: format4SidedValue(b.top, b.right, b.bottom, b.left), 
+                section: "Surface" 
+            });
         }
         if (primitives.radius) {
             const r = primitives.radius;
-            rows.push({ label: "Radius", value: `${r.topLeft} / ${r.topRight} / ${r.bottomRight} / ${r.bottomLeft}`, section: "Surface" });
+            rows.push({ 
+                label: "Radius", 
+                value: format4SidedValue(r.topLeft, r.topRight, r.bottomRight, r.bottomLeft), 
+                section: "Surface" 
+            });
         }
         if (primitives.shadow?.boxShadowRaw) {
             rows.push({ label: "Shadow", value: primitives.shadow.boxShadowRaw, section: "Surface" });
@@ -523,11 +547,19 @@ export function DetailsDrawer({
         // Spacing section
         if (primitives.spacing) {
             const p = primitives.spacing;
-            rows.push({ label: "Padding", value: `${p.paddingTop} / ${p.paddingRight} / ${p.paddingBottom} / ${p.paddingLeft}`, section: "Spacing" });
+            rows.push({ 
+                label: "Padding", 
+                value: format4SidedValue(p.paddingTop, p.paddingRight, p.paddingBottom, p.paddingLeft), 
+                section: "Spacing" 
+            });
         }
         if (primitives.margin) {
             const m = primitives.margin;
-            rows.push({ label: "Margin", value: `${m.marginTop} / ${m.marginRight} / ${m.marginBottom} / ${m.marginLeft}`, section: "Spacing" });
+            rows.push({ 
+                label: "Margin", 
+                value: format4SidedValue(m.marginTop, m.marginRight, m.marginBottom, m.marginLeft), 
+                section: "Spacing" 
+            });
         }
         if (primitives.gap) {
             rows.push({ label: "Gap", value: `${primitives.gap.rowGap} / ${primitives.gap.columnGap}`, section: "Spacing" });
@@ -1268,6 +1300,7 @@ export function DetailsDrawer({
                                                                 hex8={hex8 ?? null}
                                                                 authoredValue={authoredValue}
                                                                 tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
+                                                                showCopyActions={row.label !== "Background"}
                                                             />
                                                         ),
                                                     };
