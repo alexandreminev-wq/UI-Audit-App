@@ -195,7 +195,7 @@
   name: string;                        // "Primary Button", "Search Input", etc
   category: string;                    // "Actions", "Forms", "Layout", "Feedback", "Navigation"
   type: string;                        // "button", "input", "div", "a"
-  status: string;                      // "Canonical" | "Variant" | "Unknown"
+  status: string;                      // "Canonical" | "Variant" | "Unreviewed" | "Deviation" | "Legacy" | "Experimental"
   source: string;                      // "Homepage", "Dashboard", "Product Page", etc
   capturesCount: number;               // Number of capture instances
 }
@@ -234,7 +234,7 @@
 | `name` | **Inferred** | From `element.intent.accessibleName` or `element.textPreview` or heuristic |
 | `category` | **Inferred** | Categorize by role/tagName/intent (e.g. button → "Actions", input → "Forms", nav role → "Navigation") |
 | `type` | `element.tagName` | Direct copy (lowercase) |
-| `status` | **Decision needed** | "Canonical" vs "Variant" vs "Unknown" — what defines this? |
+| `status` | **Defaults to "Unreviewed"** | User-assigned review state: "Unreviewed" (default), "Canonical", "Variant", "Deviation", "Legacy", "Experimental" |
 | `source` | **Inferred** | From `url` (extract page label or hostname) or `scope.nearestLandmarkRole` |
 | `capturesCount` | **Derived** | Count captures in same component group |
 

@@ -102,16 +102,17 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
 
           // Use first capture (default state if available) as the primary/display capture
           const primaryCapture = sortedCaptures[0];
-          
-          // Build availableStates array
+
+          // Use classifier for designer-friendly categorization and naming (NO state suffix)
+          const classification = classifyCapture(primaryCapture);
+
+          // Build availableStates array - include ALL captured states
+          // UI will decide whether to show based on current category (including overrides)
           const availableStates = sortedCaptures.map(capture => ({
             state: (capture.styles?.evidence?.state || "default") as "default" | "hover" | "active" | "focus" | "disabled" | "open",
             captureId: capture.id,
             screenshotBlobId: capture.screenshot?.screenshotBlobId,
           }));
-
-          // Use classifier for designer-friendly categorization and naming (NO state suffix)
-          const classification = classifyCapture(primaryCapture);
           const titleType = (classification.typeKey || "")
             .replace(/([A-Z])/g, ' $1')
             .replace(/([a-z])([A-Z])/g, '$1 $2')

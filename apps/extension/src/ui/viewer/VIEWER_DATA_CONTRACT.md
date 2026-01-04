@@ -144,7 +144,7 @@ No fuzzy matching, clustering heuristics, or learning in the MVP.
 | `name`           | Derived  | Accessible name or fallback |
 | `category`       | Derived  | Taxonomy helper (§7) |
 | `type`           | Derived  | Tag/role-based |
-| `status`         | Derived + Optional Override | Defaults to `"Unknown"`; can be overridden via `component_overrides` |
+| `status`         | Derived + Optional Override | Defaults to `"Unreviewed"`; can be overridden via `component_overrides` |
 | `source`         | Derived  | Most common or first-seen page |
 | `capturesCount`  | Derived  | Number of grouped captures |
 
@@ -212,7 +212,7 @@ This avoids churn and preserves future flexibility.
 
 For the MVP:
 
-- Default derived status is `"Unknown"`
+- Default derived status is `"Unreviewed"`
 - Status can be overridden via `component_overrides`
 
 > Status automation/heuristics remain deferred; only manual overrides exist.

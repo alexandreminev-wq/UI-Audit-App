@@ -168,13 +168,6 @@ export function deriveComponentInventory(
         const element = first.element;
         const thumbnailBlobId = first.screenshot?.screenshotBlobId || undefined;
 
-        // Build availableStates array
-        const availableStates = sortedCaptures.map(capture => ({
-            state: ((capture.styles as any)?.evidence?.state || "default") as "default" | "hover" | "active" | "focus" | "disabled" | "open",
-            captureId: capture.id,
-            screenshotBlobId: capture.screenshot?.screenshotBlobId,
-        }));
-
         // Derive name (CONTRACT §4.3) - NO state suffix
         const baseName =
             element.intent?.accessibleName ||
@@ -184,6 +177,14 @@ export function deriveComponentInventory(
 
         // Derive category (CONTRACT §7)
         const category = inferCategory(element);
+
+        // Build availableStates array - include ALL captured states
+        // UI will decide whether to show based on current category (including overrides)
+        const availableStates = sortedCaptures.map(capture => ({
+            state: ((capture.styles as any)?.evidence?.state || "default") as "default" | "hover" | "active" | "focus" | "disabled" | "open",
+            captureId: capture.id,
+            screenshotBlobId: capture.screenshot?.screenshotBlobId,
+        }));
 
         // Derive type (CONTRACT §4.3)
         const type = element.role || element.tagName.toLowerCase();
@@ -196,7 +197,7 @@ export function deriveComponentInventory(
             name: baseName,
             category,
             type,
-            status: "Unknown", // CONTRACT §6 - always Unknown in 7.4.x
+            status: "Unreviewed", // CONTRACT §6 - default status for new captures
             source,
             capturesCount: groupCaptures.length,
             thumbnailBlobId,
@@ -546,6 +547,16 @@ export function inferCategory(element: CaptureRecordV2["element"]): string {
 
     // Navigation
     if (tag === "nav" || role === "navigation") return "Navigation";
+    if (role === "tablist" || role === "tab") return "Navigation";
+    if (role === "menu" || role === "menubar" || role === "menuitem") return "Navigation";
+    if (role === "tree" || role === "treeitem") return "Navigation";
+
+    // Content
+    if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(tag) || role === "heading") return "Content";
+    if (tag === "p") return "Content";
+    if (["ul", "ol"].includes(tag) || role === "list") return "Content";
+    if (tag === "li" || role === "listitem") return "Content";
+    if (tag === "span" || tag === "label") return "Content";
 
     // Feedback
     if (role === "alert" || role === "status") return "Feedback";
@@ -554,8 +565,8 @@ export function inferCategory(element: CaptureRecordV2["element"]): string {
     if (tag === "img" || tag === "video" || tag === "svg") return "Media";
     if (role === "img") return "Media";
 
-    // Layout (default fallback)
-    return "Layout";
+    // Layout/Unknown (default fallback)
+    return "Unknown";
 }
 
 /**
@@ -617,9 +628,9 @@ export function inferSource(
  */
 export function inferStatus(
     _group: CaptureRecordV2[]
-): "Canonical" | "Variant" | "Unknown" {
+): "Canonical" | "Variant" | "Unreviewed" {
     // STUB: Return placeholder
-    return "Unknown"; // In 7.4.x, implement clustering-based status inference
+    return "Unreviewed"; // In 7.4.x, implement clustering-based status inference
 }
 
 /**

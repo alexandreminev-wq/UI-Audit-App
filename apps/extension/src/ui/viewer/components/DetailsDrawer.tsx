@@ -800,8 +800,7 @@ export function DetailsDrawer({
                                     fontSize: 11,
                                     padding: "3px 8px",
                                     background: "hsl(var(--muted))",
-                                    color: selectedComponent.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
-                                    border: selectedComponent.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
+                                    color: "hsl(var(--muted-foreground))",
                                     borderRadius: "calc(var(--radius) - 2px)",
                                 }}>
                                     {selectedComponent.status}
@@ -899,8 +898,8 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
-                            {/* State Selector */}
-                            {selectedComponent.availableStates && selectedComponent.availableStates.length > 1 ? (
+                            {/* State Selector - only show for interactive categories */}
+                            {selectedComponent.availableStates && selectedComponent.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) ? (
                                 <div style={{ marginBottom: 24 }}>
                                     <h3 style={drawerSectionTitleStyle}>State</h3>
                                     <select
@@ -921,7 +920,7 @@ export function DetailsDrawer({
                                     </select>
                                 </div>
                             ) : (
-                                selectedComponent.availableStates && selectedComponent.availableStates.length === 1 && (
+                                selectedComponent.availableStates && selectedComponent.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) && (
                                     <div style={{ marginBottom: 24 }}>
                                         <h3 style={drawerSectionTitleStyle}>State</h3>
                                         <div style={{

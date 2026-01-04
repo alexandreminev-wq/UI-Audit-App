@@ -99,6 +99,13 @@
 
 ## Current Focus
 
+**Data Model Refinements & Classification Improvements**
+
+Recent updates:
+- **Status values cleaned up**: Removed redundant "Unknown" status (use Category: Unknown instead)
+- **State field restriction**: Only shows for interactive categories (Actions, Forms, Navigation)
+- **Classification improvements**: Fixed categorization for paragraphs, nav elements, and navigation roles
+
 **Milestone 8 — UI Polish & Standardization**
 
 Phase 1 (CSS Variables Foundation) and Phase 1.1 (StartScreen Redesign) are complete. Moving to Phase 2 (Button Parity).

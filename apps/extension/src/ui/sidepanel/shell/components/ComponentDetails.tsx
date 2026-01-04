@@ -42,7 +42,6 @@ export function ComponentDetails({
     "Deviation",
     "Legacy",
     "Experimental",
-    "Unknown",
   ];
 
   const TYPE_OPTIONS_BY_CATEGORY: Record<string, string[]> = {
@@ -513,8 +512,8 @@ export function ComponentDetails({
         </div>
       </div>
 
-      {/* State Selector */}
-      {component.availableStates && component.availableStates.length > 1 ? (
+      {/* State Selector - only show for interactive categories */}
+      {component.availableStates && component.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(component.category) ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
           <select
@@ -544,7 +543,7 @@ export function ComponentDetails({
           </select>
         </div>
       ) : (
-        component.availableStates && component.availableStates.length === 1 && (
+        component.availableStates && component.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(component.category) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
             <div style={{

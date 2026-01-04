@@ -171,19 +171,39 @@ export function classifyCapture(capture: any): Classification {
   }
 
   // Navigation
-  else if (role === 'navigation') {
+  else if (role === 'navigation' || tag === 'nav') {
     functionalCategory = 'Navigation';
     typeKey = 'navigation';
-    confidence += 30;
+    confidence += role === 'navigation' ? 30 : 15;
   }
   else if (role === 'tablist') {
     functionalCategory = 'Navigation';
     typeKey = 'tabs';
     confidence += 30;
   }
+  else if (role === 'tab') {
+    functionalCategory = 'Navigation';
+    typeKey = 'tab';
+    confidence += 30;
+  }
   else if (role === 'menu' || role === 'menubar') {
     functionalCategory = 'Navigation';
     typeKey = 'menu';
+    confidence += 30;
+  }
+  else if (role === 'menuitem') {
+    functionalCategory = 'Navigation';
+    typeKey = 'menuItem';
+    confidence += 30;
+  }
+  else if (role === 'tree') {
+    functionalCategory = 'Navigation';
+    typeKey = 'tree';
+    confidence += 30;
+  }
+  else if (role === 'treeitem') {
+    functionalCategory = 'Navigation';
+    typeKey = 'treeItem';
     confidence += 30;
   }
 
@@ -192,6 +212,11 @@ export function classifyCapture(capture: any): Classification {
     functionalCategory = 'Content';
     typeKey = 'heading';
     confidence += role === 'heading' ? 30 : 15;
+  }
+  else if (tag === 'p') {
+    functionalCategory = 'Content';
+    typeKey = 'paragraph';
+    confidence += 15;
   }
   else if (role === 'list' || ['ul', 'ol'].includes(tag)) {
     functionalCategory = 'Content';
@@ -202,6 +227,11 @@ export function classifyCapture(capture: any): Classification {
     functionalCategory = 'Content';
     typeKey = 'listItem';
     confidence += role === 'listitem' ? 30 : 15;
+  }
+  else if (tag === 'span' || tag === 'label') {
+    functionalCategory = 'Content';
+    typeKey = 'text';
+    confidence += 10;
   }
 
   // Media

@@ -29,7 +29,7 @@ export interface ViewerComponent {
     name: string;                  // Inferred from element.intent.accessibleName or textPreview (NO state suffix)
     category: string;              // Inferred from element role/tagName
     type: string;                  // From element.tagName (lowercase)
-    status: "Unreviewed" | "Canonical" | "Variant" | "Deviation" | "Legacy" | "Experimental" | "Unknown";
+    status: "Unreviewed" | "Canonical" | "Variant" | "Deviation" | "Legacy" | "Experimental";
     source: string;                // Inferred from url or scope
     capturesCount: number;         // Count of captures in this component group
     notes?: string | null;         // 7.6.3: aligns with Sidepanel comments field (future)

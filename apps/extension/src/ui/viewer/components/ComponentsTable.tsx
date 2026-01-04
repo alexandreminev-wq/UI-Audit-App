@@ -131,8 +131,7 @@ export function ComponentsTable({
                     fontSize: 11,
                     padding: "2px 6px",
                     background: "hsl(var(--muted))",
-                    color: comp.status === "Unknown" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))",
-                    border: comp.status === "Unknown" ? "1px solid hsl(var(--destructive))" : undefined,
+                    color: "hsl(var(--muted-foreground))",
                     borderRadius: "calc(var(--radius) - 2px)",
                 }}>
                     {comp.status}

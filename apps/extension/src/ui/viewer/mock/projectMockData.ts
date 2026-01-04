@@ -7,7 +7,7 @@ export const MOCK_COMPONENTS = [
     { id: "c1", name: "Primary Button", category: "Actions", type: "button", status: "Canonical", source: "Homepage", capturesCount: 12 },
     { id: "c2", name: "Search Input", category: "Forms", type: "input", status: "Variant", source: "Dashboard", capturesCount: 8 },
     { id: "c3", name: "Card Header", category: "Layout", type: "div", status: "Canonical", source: "Product Page", capturesCount: 5 },
-    { id: "c4", name: "Alert Banner", category: "Feedback", type: "div", status: "Unknown", source: "Checkout", capturesCount: 3 },
+    { id: "c4", name: "Alert Banner", category: "Feedback", type: "div", status: "Unreviewed", source: "Checkout", capturesCount: 3 },
     { id: "c5", name: "Navigation Link", category: "Navigation", type: "a", status: "Variant", source: "Header", capturesCount: 15 },
     { id: "c6", name: "Checkbox", category: "Forms", type: "input", status: "Canonical", source: "Settings", capturesCount: 7 },
 ];

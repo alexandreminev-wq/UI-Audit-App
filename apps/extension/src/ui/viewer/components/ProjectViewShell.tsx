@@ -208,9 +208,9 @@ export function ProjectViewShell({
             result = result.filter(c => selectedSources.has(c.source));
         }
 
-        // Apply unknownOnly filter (Components tab only)
+        // Apply unknownOnly filter (Components tab only) - filters by Category: Unknown
         if (ui.filters.unknownOnly) {
-            result = result.filter(c => c.status === "Unknown");
+            result = result.filter(c => c.category === "Unknown");
         }
 
         // Apply search filter
