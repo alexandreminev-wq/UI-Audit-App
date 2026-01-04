@@ -72,6 +72,8 @@ export interface Component {
 export interface Project {
   id: string;
   title: string;
+  createdAt: number;
+  updatedAt: number;
   components: Component[];
 }
 
@@ -189,6 +191,8 @@ export default function App() {
         setCurrentProject({
           id: resp.project.id,
           title: resp.project.name,
+          createdAt: resp.project.createdAt,
+          updatedAt: resp.project.updatedAt,
           components: [],
         });
 
@@ -248,6 +252,8 @@ export default function App() {
   const shellProjects: Project[] = projects.map((p) => ({
     id: p.id,
     title: p.name,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
     components: [],
   }));
 
@@ -255,7 +261,7 @@ export default function App() {
     activeAuditTabId !== null && currentPageTabId !== null && currentPageTabId !== activeAuditTabId;
 
   return (
-    <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: 'hsl(var(--background))' }}>
+    <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: '#fafafa' }}>
       {shouldShowInactiveScreen ? (
         <InactiveTabScreen error={error} onActivate={handleActivateInThisTab} />
       ) : !currentProject ? (
