@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2026-01-03*
+  *Last updated: 2026-01-04*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -362,7 +362,7 @@ Full round-trip workflow: Capture → Review → Export → Import to Figma for 
 
 ## Milestone 8 — UI Polish & Standardization 🎨
 **Branch:** `m9-polish-v1`  
-**Status:** 🟡 In Progress (Phase 1)
+**Status:** 🟡 In Progress (Phase 1 Complete, Phase 2 Partial)
 
 **Goal:** Standardize styling, layout, and component libraries across Sidepanel and Viewer for consistency and maintainability.
 
@@ -374,19 +374,41 @@ Full round-trip workflow: Capture → Review → Export → Import to Figma for 
 - Documented styling inconsistencies (Tailwind vs CSS variables)
 - Created prioritized incremental plan (Phase 1-9)
 
-### 8.1 — Phase 1: CSS Variables Foundation 🟡
-**Status:** 🟡 In Progress
+### 8.1 — Phase 1: CSS Variables Foundation ✅
+**Status:** ✅ Complete
 
 **Goal:** Convert Sidepanel from Tailwind to inline styles with CSS variables
 
-**Tasks:**
-- [ ] Convert ComponentDetails container styles
-- [ ] Convert section headers and labels
-- [ ] Convert form inputs (identity fields)
-- [ ] Convert borders and backgrounds
-- [ ] Convert spacing utilities
+**Completed:**
+- [x] Convert ComponentDetails container styles
+- [x] Convert section headers and labels
+- [x] Convert form inputs (identity fields)
+- [x] Convert borders and backgrounds
+- [x] Convert spacing utilities
+- [x] All inline styles using CSS variables
+- [x] Consistent hover/focus handlers
+- [x] Elastic sidepanel width (360px minimum, 100% width)
+- [x] HTML Structure section formatting matches Viewer (collapsible details)
 
 **Outcome:** Both UIs use same styling system (CSS variables)
+
+### 8.1.1 — StartScreen Redesign ✅
+**Status:** ✅ Complete
+
+**Goal:** Modernize StartScreen with fixed footer, empty state, and slide-in drawer
+
+**Completed:**
+- [x] Fixed header/content/footer layout architecture (matches Viewer pattern)
+- [x] Header: "Audits" title + "Inventory" button (ghost variant, white bg, grid icon)
+- [x] Project cards: Date display (last modified), chevron icons, enhanced hover states
+- [x] Fixed footer: "+ Create New Audit" button (dark theme)
+- [x] Slide-in drawer: Bottom drawer with backdrop, smooth animation, Enter/Escape handlers
+- [x] Empty state: Illustration card + "Your audit is one step away" messaging
+- [x] Background color: #fafafa
+- [x] No separator line between header and content
+- [x] Added createdAt/updatedAt to Project interface
+
+**Outcome:** Professional, modern StartScreen with intuitive onboarding UX
 
 ### 8.2 — Phase 2: Button Parity 🔄
 **Status:** 🟡 Partial (Sidepanel done)

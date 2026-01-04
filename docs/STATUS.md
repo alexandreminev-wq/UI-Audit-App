@@ -3,7 +3,7 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟡 **Production-ready capture + Figma export; UI polish in progress**
+  🟡 **Production-ready capture + Figma export; UI polish Phase 1 complete**
 
   The app now supports:
   - Cross-surface annotations (Notes + Tags)
@@ -12,7 +12,7 @@
   - Viewer component cards with screenshot thumbnails
   - **Multi-state component capture** (Default, Hover, Active, Focus, Disabled, Open)
   - **Figma export** with full inventory and screenshots
-  - **Milestone 8 (UI Polish):** Standardizing styling and components across Sidepanel and Viewer
+  - **Milestone 8 Phase 1 Complete:** Sidepanel fully converted to CSS variables with modern StartScreen layout
 
   ---
 
@@ -72,26 +72,58 @@
 - Figma plugin for import with visual layout
 - WebP → PNG conversion for compatibility
 
-**Milestone 8 — UI Polish & Standardization** 🟡 In Progress
-- **Phase 1:** CSS Variables Foundation (in progress)
+**Milestone 8 — UI Polish & Standardization** 🟡 Phase 1 Complete
+- **Phase 1: CSS Variables Foundation** ✅ Complete
+  - ComponentDetails fully converted to inline styles with CSS variables
+  - HTML Structure section formatting matches Viewer
+  - Elastic sidepanel width (360px minimum)
+  - All hover/focus states using CSS variables
+- **Phase 1.1: StartScreen Redesign** ✅ Complete
+  - Fixed header/content/footer layout (matches Viewer pattern)
+  - Modern header with "Audits" title + "Inventory" button
+  - Project cards with date display and chevron icons
+  - Fixed footer with "+ Create New Audit" button
+  - Slide-in drawer for project creation
+  - Empty state with illustration and onboarding message
+  - Background: #fafafa
+- **Phase 2: Button Parity** 🟡 Partial
+  - Sidepanel buttons converted to shared Button component
+  - Viewer button conversion pending
 - **Completed:**
   - Visual Essentials delta analysis
   - Layout container delta analysis
   - Shared Button component with destructive variant
-  - Sidepanel footer buttons converted to Button component
   - Incremental standardization plan (9 phases)
 
 ---
 
 ## Current Focus
 
-**Milestone 8.1 — CSS Variables Foundation (Phase 1)**
+**Milestone 8 — UI Polish & Standardization**
 
-The Viewer Details Drawer and Sidepanel details now support:
-- Notes + Tags (annotations store)
-- Identity overrides (component_overrides store)
-- Multi-state component capture and display
-- Figma export with full inventory
+Phase 1 (CSS Variables Foundation) and Phase 1.1 (StartScreen Redesign) are complete. Moving to Phase 2 (Button Parity).
+
+### Phase 1 Complete ✅
+- Sidepanel ComponentDetails fully converted to CSS variables
+- All colors use `hsl(var(--...))` tokens
+- Inline styles with hover/focus handlers
+- HTML Structure section matches Viewer formatting
+- Elastic sidepanel width (360px minimum, expands to 100%)
+
+### Phase 1.1 Complete ✅
+- StartScreen redesigned with modern layout:
+  - Fixed header with "Audits" + "Inventory" button
+  - Scrollable content with project cards
+  - Fixed footer with "Create New Audit" button
+  - Slide-in drawer for project creation
+  - Empty state with illustration
+  - Date display on project cards
+  - Background: #fafafa
+
+### Next: Phase 2 (Button Parity)
+- Convert Viewer footer buttons to shared Button component
+- Convert close buttons to standardized style
+- Audit remaining buttons across both UIs
 
 ### Completed
 - Viewer shell, layout, scrolling, and preview canvas
@@ -120,6 +152,12 @@ The Viewer Details Drawer and Sidepanel details now support:
   - Figma plugin for import (drag-drop + file input)
   - Visual layout with frames, images, and metadata text nodes
   - Full documentation in docs/FIGMA_EXPORT.md
+- **Milestone 8 Phase 1 & 1.1:**
+  - ComponentDetails converted to CSS variables
+  - StartScreen redesigned with fixed footer and empty state
+  - Elastic sidepanel width
+  - Slide-in drawer for project creation
+  - Modern project cards with date display
 
 ### Key Architectural Decisions
 - Annotations are keyed by `projectId + componentKey`
@@ -141,7 +179,6 @@ The Viewer Details Drawer and Sidepanel details now support:
 
 ### Next Up
 - **Milestone 8 (UI Polish):** Continue incremental standardization
-  - Phase 1: Convert Sidepanel to CSS variables (in progress)
   - Phase 2: Complete button parity (Viewer footer + close buttons)
   - Phases 3-9: Close button, spacing, content order, footer/header behavior, layout, accessibility
 - 7.5.3: Minor interaction polish (drawer toggle on re-select, Escape to close)
