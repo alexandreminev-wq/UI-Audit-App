@@ -81,13 +81,20 @@ export function ComponentDirectory({
                   <ChevronRight className="w-4 h-4 text-gray-500" />
                 )}
                 <span className="text-gray-900">{category}</span>
-                <div className="ml-auto flex items-center gap-2">
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   {draftCount > 0 && (
-                    <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#ea580c',
+                      background: '#ffedd5',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                    }}>
                       {draftCount} {draftCount === 1 ? 'Draft' : 'Drafts'}
                     </span>
                   )}
-                  <span className="text-xs text-gray-500">
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
                     {items.length}
                   </span>
                 </div>
