@@ -1712,7 +1712,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
                 
-                const projectId = activeProjectByTabId.get(tabId);
+                // Rehydrate active project after SW restart (mirror AUDIT/CAPTURE behavior)
+                let projectId = activeProjectByTabId.get(tabId);
+                if (!projectId) {
+                    projectId = await getActiveProjectPersisted(tabId);
+                    if (projectId) {
+                        activeProjectByTabId.set(tabId, projectId);
+                        console.log("[UI Inventory] AUDIT/CHECK_DUPLICATE: Rehydrated active project for tab", tabId, ":", projectId);
+                    }
+                }
                 if (!projectId) {
                     // No project mapped, treat as not duplicate
                     sendResponse({ ok: true, isDuplicate: false, componentKey });
