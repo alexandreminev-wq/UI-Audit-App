@@ -222,14 +222,16 @@ export default function App() {
     }
 
     // First, disable capture mode to avoid confusion during reload
-    chrome.runtime.sendMessage(
-      { type: 'AUDIT/TOGGLE', enabled: false, tabId },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.warn('[App] Failed to disable capture before activation:', chrome.runtime.lastError.message);
-        }
-      }
-    );
+    // Wait for this to complete before proceeding
+    const toggleResp = await sendMessageAsync<{ type: string; enabled: boolean; tabId: number }, any>({
+      type: 'AUDIT/TOGGLE',
+      enabled: false,
+      tabId,
+    });
+
+    if (!toggleResp?.ok) {
+      console.warn('[App] Failed to disable capture before activation:', toggleResp?.error);
+    }
 
     const resp = await sendMessageAsync<{ type: string; tabId: number }, any>({
       type: 'AUDIT/CLAIM_TAB',
