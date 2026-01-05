@@ -126,6 +126,7 @@ export default function App() {
   }, []);
 
   // Cleanup: Disable capture mode when sidepanel is closed/hidden
+  // Auto-claim: When sidepanel is reopened in a different tab, claim that tab as active
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -138,6 +139,24 @@ export default function App() {
                 // Ignore errors
                 if (chrome.runtime.lastError) {
                   console.log('[App] Cleanup: Failed to disable capture on hide');
+                }
+              }
+            );
+          }
+        });
+      } else {
+        // Sidepanel is being shown/reopened
+        // Claim the current tab as the active audit tab
+        getActivePageTabId().then((tabId) => {
+          if (tabId !== null) {
+            chrome.runtime.sendMessage(
+              { type: 'AUDIT/CLAIM_TAB', tabId },
+              (resp) => {
+                if (chrome.runtime.lastError) {
+                  console.log('[App] Failed to claim tab on reopen:', chrome.runtime.lastError.message);
+                } else if (resp?.ok) {
+                  setActiveAuditTabId(tabId);
+                  refreshRoutingState();
                 }
               }
             );
