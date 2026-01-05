@@ -3,19 +3,21 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟡 **Production-ready capture + Figma export; UI polish Phase 1 complete; Data model enhanced**
+  🟢 **Production-ready capture + Figma export; UI polish Phase 1-2 complete; Data model enhanced; Project-wide tagging system complete**
 
   *Last updated: 2026-01-05*
 
   The app now supports:
   - Cross-surface annotations (Notes + Tags)
+  - **Project-wide tagging system** with autocomplete, reuse, and management
   - Cross-surface identity overrides (Display Name / Category / Type / Status)
   - **Separate displayName and description fields** for better UX and flexibility
   - Draft-until-save capture flow in Sidepanel
   - Viewer component cards with screenshot thumbnails
   - **Multi-state component capture** (Default, Hover, Active, Focus, Disabled, Open)
   - **Figma export** with full inventory and screenshots
-  - **Milestone 8 Phase 1 Complete:** Sidepanel fully converted to CSS variables with modern StartScreen layout
+  - **Milestone 8 Phase 1-2 Complete:** Sidepanel fully converted to CSS variables with modern StartScreen layout and button parity
+  - **Milestone 10 Complete:** Full project-wide tagging system with autocomplete and management
 
   ---
 
@@ -75,7 +77,7 @@
 - Figma plugin for import with visual layout
 - WebP → PNG conversion for compatibility
 
-**Milestone 8 — UI Polish & Standardization** 🟡 Phase 1 Complete
+**Milestone 8 — UI Polish & Standardization** ✅ Phase 1-2 Complete
 - **Phase 1: CSS Variables Foundation** ✅ Complete
   - ComponentDetails fully converted to inline styles with CSS variables
   - HTML Structure section formatting matches Viewer
@@ -117,17 +119,55 @@
   - Shared Button component with destructive variant
   - Incremental standardization plan (9 phases)
 
+**Milestone 10 — Project-Wide Tagging System** ✅ Complete (2026-01-05)
+- **Database Layer** ✅
+  - Added `ProjectTagRecord` interface with usage tracking
+  - Upgraded IndexedDB from v5 → v6 with `projectTags` store
+  - Indexes: `byProjectId` and `byLastUsedAt`
+  - CRUD functions: getAllProjectTags, incrementTagUsage, decrementTagUsage, deleteProjectTag, getComponentsWithTag
+- **Service Worker Integration** ✅
+  - `TAGS/GET_ALL` message handler (returns sorted tags)
+  - `TAGS/DELETE` message handler (removes from all components)
+  - Auto-sync tag usage counts in `ANNOTATIONS/UPSERT`
+- **Tag Autocomplete Component** ✅
+  - Dropdown with real-time filtering (case-insensitive)
+  - Shows usage count next to each tag
+  - Keyboard navigation (↑↓, Enter, ESC)
+  - "Create new tag" option for new tags
+  - Click-outside to close
+- **ComponentDetails Integration** ✅
+  - Replaced manual input with TagAutocomplete
+  - Maintains tag pills and remove functionality
+- **Tag Management UI** ✅
+  - Full-screen overlay with tag list
+  - Shows usage count per tag
+  - Delete with confirmation dialog
+  - Empty state with illustration
+  - Toast notifications
+- **ProjectView Integration** ✅
+  - "Tags" button in header next to "Library"
+  - Opens TagManagement overlay
+- **Bug Fixes** ✅
+  - Fixed `setNewTagInput is not defined` error
+  - Fixed duplicate `onFocus` attribute in TagAutocomplete
+
 ---
 
 ## Current Focus
 
-**Milestone 9 — Data Model Enhancement** ✅ Complete
+**Milestone 10 — Project-Wide Tagging System** ✅ Complete (2026-01-05)
 
 Recent completion:
-- **DisplayName/Description Split** (2026-01-05): Component naming now uses two separate fields for better UX
-- **Button Parity Fix** (2026-01-05): Resolved runtime errors by replacing Button component with inline-styled buttons
+- **Full tagging system** with autocomplete dropdown, tag reuse, and management UI
+- **Auto-sync tag usage counts** when tags are added/removed from components
+- **Tag Management UI** with delete confirmation and usage tracking
+- **Bug fixes** for setNewTagInput error and duplicate onFocus attribute
 
-**Milestone 8 — UI Polish & Standardization** ✅ Phase 2 Complete
+**Milestone 9 — Data Model Enhancement** ✅ Complete (2026-01-05)
+- **DisplayName/Description Split**: Component naming now uses two separate fields for better UX
+- **Button Parity Fix**: Resolved runtime errors by replacing Button component with inline-styled buttons
+
+**Milestone 8 — UI Polish & Standardization** ✅ Phase 1-2 Complete
 
 All phases of Milestone 8 Button Parity are complete. Ready for next polish phase or new features.
 
@@ -214,11 +254,12 @@ All phases of Milestone 8 Button Parity are complete. Ready for next polish phas
 
 ### Next Up
 - **Milestone 8 (UI Polish):** Continue incremental standardization
-  - Phase 2: Complete button parity (Viewer footer + close buttons)
   - Phases 3-9: Close button, spacing, content order, footer/header behavior, layout, accessibility
 - 7.5.3: Minor interaction polish (drawer toggle on re-select, Escape to close)
 - 7.6: Viewer usability refinements (empty project UX, default sorts, filter persistence)
 - Expand state capture to other interactive elements (dropdowns, tabs, accordions)
+- Consider tag filtering in ComponentDirectory
+- Consider tag-based component search
 
 
   ---

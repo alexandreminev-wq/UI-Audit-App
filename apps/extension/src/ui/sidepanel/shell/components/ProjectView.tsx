@@ -1,9 +1,11 @@
-import { Camera, LayoutGrid, ChevronLeft } from 'lucide-react';
+import { Camera, LayoutGrid, ChevronLeft, Tag } from 'lucide-react';
+import { useState } from 'react';
 import type { Project, Component } from '../App';
 import { ComponentDirectory } from './ComponentDirectory';
 import { ComponentDetails } from './ComponentDetails';
 import { EmptyState } from './EmptyState';
 import { InactiveTabScreen } from './InactiveTabScreen';
+import { TagManagement } from './TagManagement';
 
 interface ProjectViewProps {
   project: Project;
@@ -38,6 +40,8 @@ export function ProjectView({
   tabActivationError,
   isLoadingComponents,
 }: ProjectViewProps) {
+  const [showTagManagement, setShowTagManagement] = useState(false);
+  
   const reviewingComponent = reviewingComponentId
     ? components.find(c => c.id === reviewingComponentId)
     : null;
@@ -103,33 +107,58 @@ export function ProjectView({
           </div>
         </div>
 
-        {/* Right: Library button */}
-        <button
-          onClick={() => {
-            const url = chrome.runtime.getURL("viewer.html") + "?project=" + encodeURIComponent(project.id);
-            chrome.tabs.create({ url });
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 8px',
-            background: 'transparent',
-            border: 'none',
-            color: 'hsl(var(--muted-foreground))',
-            cursor: 'pointer',
-            borderRadius: 'var(--radius)',
-            fontSize: '14px',
-            fontWeight: 500,
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          title="Open Library"
-        >
-          <LayoutGrid style={{ width: 18, height: 18 }} />
-          <span>Library</span>
-        </button>
+        {/* Right: Manage Tags + Library buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setShowTagManagement(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              background: 'transparent',
+              border: 'none',
+              color: 'hsl(var(--muted-foreground))',
+              cursor: 'pointer',
+              borderRadius: 'var(--radius)',
+              fontSize: '14px',
+              fontWeight: 500,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            title="Manage Tags"
+          >
+            <Tag style={{ width: 18, height: 18 }} />
+            <span>Tags</span>
+          </button>
+          <button
+            onClick={() => {
+              const url = chrome.runtime.getURL("viewer.html") + "?project=" + encodeURIComponent(project.id);
+              chrome.tabs.create({ url });
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              background: 'transparent',
+              border: 'none',
+              color: 'hsl(var(--muted-foreground))',
+              cursor: 'pointer',
+              borderRadius: 'var(--radius)',
+              fontSize: '14px',
+              fontWeight: 500,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            title="Open Library"
+          >
+            <LayoutGrid style={{ width: 18, height: 18 }} />
+            <span>Library</span>
+          </button>
+        </div>
       </div>
 
       {/* Scrollable Content */}
@@ -212,6 +241,15 @@ export function ProjectView({
             <span>{captureEnabled ? 'Stop Capture' : 'Start Capture'}</span>
           </button>
         </div>
+      )}
+
+      {/* Tag Management Overlay */}
+      {showTagManagement && (
+        <TagManagement
+          projectId={project.id}
+          onClose={() => setShowTagManagement(false)}
+          onTagsChanged={onRefresh}
+        />
       )}
     </div>
   );

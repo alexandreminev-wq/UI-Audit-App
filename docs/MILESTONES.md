@@ -567,7 +567,135 @@ Full round-trip workflow: Capture → Review → Export → Import to Figma for 
 
 ---
 
-## Milestone 10 — Capture Depth & Intelligence (Future)
+## Milestone 10 — Project-Wide Tagging System ✅
+**Branch:** `m9-polish-v1`
+**Status:** ✅ Complete (2026-01-05)
+
+**Goal:** Implement a project-scoped tagging system with tag reuse via dropdown autocomplete and simple tag management interface.
+
+### 10.1 — Database Layer ✅
+**Status:** ✅ Complete
+
+**Schema Changes:**
+- [x] Added `ProjectTagRecord` interface with fields:
+  - `id`: `"${projectId}:${tagName}"`
+  - `projectId`: Project scope
+  - `tagName`: The tag text
+  - `usageCount`: How many components use this tag
+  - `createdAt`: First use timestamp
+  - `lastUsedAt`: Most recent use timestamp
+- [x] Upgraded IndexedDB from version 5 → 6
+- [x] Created `projectTags` store with indexes:
+  - Primary key: `id`
+  - Index: `byProjectId` (for fetching all tags in a project)
+  - Index: `byLastUsedAt` (for sorting by recency)
+
+**CRUD Functions:**
+- [x] `getAllProjectTags(projectId)` - Get all tags for a project, sorted by most recent
+- [x] `incrementTagUsage(projectId, tagName)` - Increment usage count (or create tag)
+- [x] `decrementTagUsage(projectId, tagName)` - Decrement usage count (delete if 0)
+- [x] `deleteProjectTag(projectId, tagName)` - Force delete a tag
+- [x] `getComponentsWithTag(projectId, tagName)` - Find all components using a tag
+- [x] `deleteAllProjectTags(projectId)` - Cascade delete for project cleanup
+
+### 10.2 — Service Worker Integration ✅
+**Status:** ✅ Complete
+
+**Message Handlers:**
+- [x] `TAGS/GET_ALL` - Returns all project tags sorted by `lastUsedAt` descending
+- [x] `TAGS/DELETE` - Deletes tag from `projectTags` store and removes from all annotations
+- [x] Updated `ANNOTATIONS/UPSERT` to automatically sync tag usage counts:
+  - Compares old tags vs new tags
+  - Increments usage for added tags
+  - Decrements usage for removed tags
+
+### 10.3 — Tag Autocomplete Component ✅
+**Status:** ✅ Complete
+
+**Created:** `apps/extension/src/ui/sidepanel/shell/components/TagAutocomplete.tsx`
+
+**Features:**
+- [x] Input field with dropdown that appears on focus/typing
+- [x] Fetches all project tags via `TAGS/GET_ALL` message
+- [x] Filters tags as user types (case-insensitive)
+- [x] Excludes already-added tags from suggestions
+- [x] Shows usage count next to each tag in dropdown
+- [x] Click to select or press Enter on highlighted item
+- [x] Arrow keys to navigate dropdown (↑↓)
+- [x] ESC to close dropdown
+- [x] Shows "Create new tag: [input]" option if no exact match
+- [x] Click-outside to close
+- [x] Matches existing design system colors
+
+### 10.4 — ComponentDetails Integration ✅
+**Status:** ✅ Complete
+
+**Updated:** `apps/extension/src/ui/sidepanel/shell/components/ComponentDetails.tsx`
+
+**Changes:**
+- [x] Replaced manual tag input with `TagAutocomplete` component
+- [x] Updated `handleAddTag` to accept tag parameter (instead of reading from state)
+- [x] Removed obsolete `newTagInput` state variable
+- [x] Removed `setNewTagInput("")` calls from `useEffect` and `handleCancel`
+- [x] Maintains existing tag display pills with remove buttons
+- [x] Maintains duplicate checking logic
+
+### 10.5 — Tag Management UI ✅
+**Status:** ✅ Complete
+
+**Created:** `apps/extension/src/ui/sidepanel/shell/components/TagManagement.tsx`
+
+**Features:**
+- [x] Full-screen overlay component (similar to ComponentDetails)
+- [x] Fixed header with "Manage Tags" title and close button
+- [x] Scrollable list of all project tags
+- [x] Each tag row shows:
+  - Tag name
+  - Usage count (e.g., "Used in 5 components")
+  - Delete button (trash icon)
+- [x] Confirmation dialog before deleting:
+  - "Delete '[tagName]'? This will remove it from X components."
+  - Shows affected component count
+  - Cannot be undone warning
+- [x] Empty state: "No tags created yet" with illustration
+- [x] Tags sorted by most recently used
+- [x] Delete button shows on hover
+- [x] Toast notifications for success/error
+- [x] `onTagsChanged` callback to refresh component list after deletion
+
+### 10.6 — ProjectView Integration ✅
+**Status:** ✅ Complete
+
+**Updated:** `apps/extension/src/ui/sidepanel/shell/components/ProjectView.tsx`
+
+**Changes:**
+- [x] Added "Tags" button in header next to "Library" button
+- [x] Icon: Tag icon from lucide-react
+- [x] Opens `TagManagement` component as overlay
+- [x] State: `showTagManagement` boolean
+- [x] Passes `onRefresh` callback to refresh components after tag deletion
+
+### 10.7 — Bug Fixes ✅
+**Status:** ✅ Complete
+
+**Issues Fixed:**
+- [x] Fixed `setNewTagInput is not defined` error when opening capture details
+  - Root cause: Removed state variable but left two references in useEffect and handleCancel
+  - Solution: Removed both `setNewTagInput("")` calls
+- [x] Fixed duplicate `onFocus` attribute in TagAutocomplete
+  - Root cause: Two onFocus handlers on same input element
+  - Solution: Combined into single handler with both border color change and dropdown show
+
+**Outcome:**
+✅ Full project-wide tagging system with autocomplete, reuse, and management
+✅ Tag usage counts automatically maintained
+✅ Simple delete workflow with confirmation
+✅ Consistent styling with existing design system
+✅ Zero breaking changes to existing functionality
+
+---
+
+## Milestone 11 — Capture Depth & Intelligence (Future)
 Out of scope for current stabilization:
 - Smarter component signatures
 - Token normalization
@@ -576,14 +704,14 @@ Out of scope for current stabilization:
 
 ---
 
-## Milestone 11 — Manual Refinement Workflows (Future)
+## Milestone 12 — Manual Refinement Workflows (Future)
 
 * Bulk select
 * Bulk status/tag updates
 * Variant grouping (canonical selection)
 * Pattern marking (styles → tokens/patterns)
 
-## Milestone 11 — Automated Suggestions (Future)
+## Milestone 13 — Automated Suggestions (Future)
 
 * Status/category/type suggestions
 * Pattern detection that learns from manual edits

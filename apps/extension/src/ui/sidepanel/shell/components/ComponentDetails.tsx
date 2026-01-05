@@ -6,6 +6,7 @@ import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
 import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
 import { StylePropertiesTable, type StylePropertiesSection } from '../../../shared/components';
 import { useToast } from './Toast';
+import { TagAutocomplete } from './TagAutocomplete';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -69,7 +70,6 @@ export function ComponentDetails({
   // 7.8: Draft state for notes/tags (no implicit save)
   const [draftNotes, setDraftNotes] = useState(component.comments);
   const [draftTags, setDraftTags] = useState<string[]>(component.tags || []);
-  const [newTagInput, setNewTagInput] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -93,7 +93,6 @@ export function ComponentDetails({
   useEffect(() => {
     setDraftNotes(component.comments);
     setDraftTags(component.tags || []);
-    setNewTagInput("");
     setDraftDisplayName(component.name || "");
     setDraftDescription(component.description || "");
     setDraftCategory(component.category || "Unknown");
@@ -118,12 +117,11 @@ export function ComponentDetails({
     );
   }, [draftNotes, draftTags, draftDisplayName, draftDescription, draftCategory, draftType, draftStatus, component.comments, component.tags, component.name, component.description, component.category, component.type, component.status]);
 
-  const handleAddTag = () => {
-    const trimmed = newTagInput.trim();
+  const handleAddTag = (tag: string) => {
+    const trimmed = tag.trim();
     if (trimmed !== "" && !draftTags.includes(trimmed)) {
       setDraftTags([...draftTags, trimmed]);
     }
-    setNewTagInput("");
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -236,7 +234,6 @@ export function ComponentDetails({
   const handleCancel = () => {
     setDraftNotes(component.comments);
     setDraftTags(component.tags || []);
-    setNewTagInput("");
     setDraftDisplayName(component.name || "");
     setDraftDescription(component.description || "");
     setDraftCategory(component.category || "Unknown");
@@ -874,53 +871,12 @@ export function ComponentDetails({
           <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No tags yet.</div>
         )}
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text"
-            value={newTagInput}
-            onChange={(e) => setNewTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAddTag();
-              }
-            }}
-            placeholder="Add a tag..."
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              fontSize: 13,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 'var(--radius)',
-              background: 'hsl(var(--background))',
-              color: 'hsl(var(--foreground))',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
-            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
-          />
-          <button
-            onClick={handleAddTag}
-            disabled={newTagInput.trim() === ""}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 'var(--radius)',
-              fontSize: 13,
-              fontWeight: 500,
-              transition: 'all 0.15s ease',
-              border: 'none',
-              cursor: newTagInput.trim() === "" ? 'not-allowed' : 'pointer',
-              background: newTagInput.trim() === "" ? 'hsl(var(--muted))' : 'hsl(var(--primary))',
-              color: newTagInput.trim() === "" ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary-foreground))',
-            }}
-            onMouseEnter={(e) => newTagInput.trim() !== "" && (e.currentTarget.style.filter = 'brightness(0.9)')}
-            onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
-            type="button"
-          >
-            Add
-          </button>
-        </div>
+        <TagAutocomplete
+          projectId={projectId}
+          currentTags={draftTags}
+          onAddTag={handleAddTag}
+          placeholder="Add a tag..."
+        />
       </div>
       </div>
 

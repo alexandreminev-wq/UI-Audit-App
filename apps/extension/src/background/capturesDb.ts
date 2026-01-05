@@ -2,7 +2,7 @@
  * IndexedDB helper for persisting captures, sessions, blobs, projects, and project-session links
  *
  * DB: ui-inventory
- * Version: 4 (v2.2 schema + projects + annotations)
+ * Version: 6 (v2.2 schema + projects + annotations + tags)
  * Stores:
  *   - captures (keyPath: id, indexes: byCreatedAt, byUrl)
  *   - sessions (keyPath: id, indexes: byCreatedAt, byStartUrl)
@@ -10,6 +10,8 @@
  *   - projects (keyPath: id, indexes: byUpdatedAt, byCreatedAt)
  *   - projectSessions (keyPath: id, indexes: byProjectId, bySessionId)
  *   - annotations (keyPath: id, indexes: byProject) — 7.7.1: Notes + Tags
+ *   - component_overrides (keyPath: id, indexes: byProject) — M8: Component overrides
+ *   - projectTags (keyPath: id, indexes: byProjectId, byLastUsedAt) — M9: Project-wide tags
  */
 
 import type { CaptureRecord, CaptureRecordV2, SessionRecord, BlobRecord } from "../types/capture";
@@ -43,8 +45,21 @@ export interface ComponentOverrideRecord {
     updatedAt: number;          // Last modification timestamp (epoch ms)
 }
 
+// ─────────────────────────────────────────────────────────────
+// Project Tags (M9: Project-wide tagging system)
+// ─────────────────────────────────────────────────────────────
+
+export interface ProjectTagRecord {
+    id: string;              // "${projectId}:${tagName}"
+    projectId: string;       // Project scope
+    tagName: string;         // The tag text
+    usageCount: number;      // How many components use this tag
+    createdAt: number;       // First use timestamp
+    lastUsedAt: number;      // Most recent use timestamp
+}
+
 const DB_NAME = "ui-inventory";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const STORE_CAPTURES = "captures";
 const STORE_SESSIONS = "sessions";
 const STORE_BLOBS = "blobs";
@@ -52,6 +67,7 @@ const STORE_PROJECTS = "projects";
 const STORE_PROJECT_SESSIONS = "projectSessions";
 const STORE_ANNOTATIONS = "annotations";
 const STORE_COMPONENT_OVERRIDES = "component_overrides";
+const STORE_PROJECT_TAGS = "projectTags";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -131,6 +147,14 @@ function openDb(): Promise<IDBDatabase> {
                 const overridesStore = db.createObjectStore(STORE_COMPONENT_OVERRIDES, { keyPath: "id" });
                 overridesStore.createIndex("byProject", "projectId", { unique: false });
                 console.log("[capturesDb] Created component_overrides store with indexes");
+            }
+
+            // Version 6: Add project tags store (M9: project-wide tagging system)
+            if (!db.objectStoreNames.contains(STORE_PROJECT_TAGS)) {
+                const tagsStore = db.createObjectStore(STORE_PROJECT_TAGS, { keyPath: "id" });
+                tagsStore.createIndex("byProjectId", "projectId", { unique: false });
+                tagsStore.createIndex("byLastUsedAt", "lastUsedAt", { unique: false });
+                console.log("[capturesDb] Created projectTags store with indexes");
             }
         };
     });
@@ -1328,4 +1352,250 @@ export async function deleteProjectCascade(projectId: string): Promise<void> {
 
     // 6) Delete the project record
     await deleteProjectRecord(projectId);
+
+    // 7) Delete all project tags
+    await deleteAllProjectTags(projectId);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Project Tags (M9: Project-wide tagging system)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Get all tags for a project, sorted by most recently used
+ */
+export async function getAllProjectTags(projectId: string): Promise<ProjectTagRecord[]> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_PROJECT_TAGS, "readonly");
+        const store = tx.objectStore(STORE_PROJECT_TAGS);
+        const index = store.index("byProjectId");
+
+        return new Promise((resolve, reject) => {
+            const request = index.getAll(projectId);
+            request.onsuccess = () => {
+                const tags = request.result as ProjectTagRecord[];
+                // Sort by lastUsedAt descending (most recent first)
+                tags.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+                resolve(tags);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to get project tags:", err);
+        throw err;
+    }
+}
+
+/**
+ * Increment usage count for a tag (or create if doesn't exist)
+ */
+export async function incrementTagUsage(projectId: string, tagName: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+    if (!tagName || typeof tagName !== "string") {
+        throw new Error("tagName is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_PROJECT_TAGS, "readwrite");
+        const store = tx.objectStore(STORE_PROJECT_TAGS);
+        const id = `${projectId}:${tagName}`;
+
+        return new Promise((resolve, reject) => {
+            const getRequest = store.get(id);
+            
+            getRequest.onsuccess = () => {
+                const existing = getRequest.result as ProjectTagRecord | undefined;
+                const now = Date.now();
+
+                if (existing) {
+                    // Update existing tag
+                    const updated: ProjectTagRecord = {
+                        ...existing,
+                        usageCount: existing.usageCount + 1,
+                        lastUsedAt: now,
+                    };
+                    const putRequest = store.put(updated);
+                    putRequest.onsuccess = () => resolve();
+                    putRequest.onerror = () => reject(putRequest.error);
+                } else {
+                    // Create new tag
+                    const newTag: ProjectTagRecord = {
+                        id,
+                        projectId,
+                        tagName,
+                        usageCount: 1,
+                        createdAt: now,
+                        lastUsedAt: now,
+                    };
+                    const putRequest = store.put(newTag);
+                    putRequest.onsuccess = () => resolve();
+                    putRequest.onerror = () => reject(putRequest.error);
+                }
+            };
+            
+            getRequest.onerror = () => reject(getRequest.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to increment tag usage:", err);
+        throw err;
+    }
+}
+
+/**
+ * Decrement usage count for a tag (delete if count reaches 0)
+ */
+export async function decrementTagUsage(projectId: string, tagName: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+    if (!tagName || typeof tagName !== "string") {
+        throw new Error("tagName is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_PROJECT_TAGS, "readwrite");
+        const store = tx.objectStore(STORE_PROJECT_TAGS);
+        const id = `${projectId}:${tagName}`;
+
+        return new Promise((resolve, reject) => {
+            const getRequest = store.get(id);
+            
+            getRequest.onsuccess = () => {
+                const existing = getRequest.result as ProjectTagRecord | undefined;
+
+                if (!existing) {
+                    // Tag doesn't exist, nothing to do
+                    resolve();
+                    return;
+                }
+
+                if (existing.usageCount <= 1) {
+                    // Delete tag if usage count would reach 0
+                    const deleteRequest = store.delete(id);
+                    deleteRequest.onsuccess = () => resolve();
+                    deleteRequest.onerror = () => reject(deleteRequest.error);
+                } else {
+                    // Decrement usage count
+                    const updated: ProjectTagRecord = {
+                        ...existing,
+                        usageCount: existing.usageCount - 1,
+                        lastUsedAt: Date.now(),
+                    };
+                    const putRequest = store.put(updated);
+                    putRequest.onsuccess = () => resolve();
+                    putRequest.onerror = () => reject(putRequest.error);
+                }
+            };
+            
+            getRequest.onerror = () => reject(getRequest.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to decrement tag usage:", err);
+        throw err;
+    }
+}
+
+/**
+ * Force delete a tag from the project tags store
+ */
+export async function deleteProjectTag(projectId: string, tagName: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+    if (!tagName || typeof tagName !== "string") {
+        throw new Error("tagName is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_PROJECT_TAGS, "readwrite");
+        const store = tx.objectStore(STORE_PROJECT_TAGS);
+        const id = `${projectId}:${tagName}`;
+
+        return new Promise((resolve, reject) => {
+            const request = store.delete(id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to delete project tag:", err);
+        throw err;
+    }
+}
+
+/**
+ * Get all annotation records that use a specific tag
+ */
+export async function getComponentsWithTag(projectId: string, tagName: string): Promise<AnnotationRecord[]> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+    if (!tagName || typeof tagName !== "string") {
+        throw new Error("tagName is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_ANNOTATIONS, "readonly");
+        const store = tx.objectStore(STORE_ANNOTATIONS);
+        const index = store.index("byProject");
+
+        return new Promise((resolve, reject) => {
+            const request = index.getAll(projectId);
+            request.onsuccess = () => {
+                const annotations = request.result as AnnotationRecord[];
+                // Filter to only annotations that include this tag
+                const filtered = annotations.filter(ann => ann.tags.includes(tagName));
+                resolve(filtered);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to get components with tag:", err);
+        throw err;
+    }
+}
+
+/**
+ * Delete all tags for a project (used during project cascade delete)
+ */
+async function deleteAllProjectTags(projectId: string): Promise<void> {
+    if (!projectId || typeof projectId !== "string") {
+        throw new Error("projectId is required");
+    }
+
+    try {
+        const db = await openDb();
+        const tx = db.transaction(STORE_PROJECT_TAGS, "readwrite");
+        const store = tx.objectStore(STORE_PROJECT_TAGS);
+        const index = store.index("byProjectId");
+
+        return new Promise((resolve, reject) => {
+            const request = index.openCursor(projectId);
+            
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+                if (cursor) {
+                    cursor.delete();
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error("[capturesDb] Failed to delete all project tags:", err);
+        throw err;
+    }
 }

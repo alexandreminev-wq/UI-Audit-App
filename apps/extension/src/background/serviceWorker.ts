@@ -30,6 +30,11 @@ import {
     listSavedCapturesForProject,
     commitDraftCapture,
     deleteProjectCascade,
+    getAllProjectTags,
+    incrementTagUsage,
+    decrementTagUsage,
+    deleteProjectTag,
+    getComponentsWithTag,
 } from "./capturesDb";
 import type {
     SessionRecord,
@@ -2634,7 +2639,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
 
             try {
+                // Get existing annotation to compare tags
+                const existing = await getAnnotation(projectId, componentKey);
+                const oldTags = existing?.tags || [];
+                const newTags = tags || [];
+
+                // Update annotation
                 await upsertAnnotation({ projectId, componentKey, notes, tags });
+
+                // Sync tag usage counts
+                // Find tags that were added (in newTags but not in oldTags)
+                const addedTags = newTags.filter(tag => !oldTags.includes(tag));
+                // Find tags that were removed (in oldTags but not in newTags)
+                const removedTags = oldTags.filter(tag => !newTags.includes(tag));
+
+                // Increment usage for added tags
+                for (const tag of addedTags) {
+                    await incrementTagUsage(projectId, tag);
+                }
+
+                // Decrement usage for removed tags
+                for (const tag of removedTags) {
+                    await decrementTagUsage(projectId, tag);
+                }
+
                 sendResponse({ ok: true });
             } catch (err) {
                 console.error("[UI Inventory] Failed to upsert annotation:", err);
@@ -2664,6 +2692,73 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 sendResponse({ ok: true });
             } catch (err) {
                 console.error("[UI Inventory] Failed to delete annotation:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Project Tags (M9: Project-wide tagging system)
+    // ─────────────────────────────────────────────────────────────
+
+    if (msg?.type === "TAGS/GET_ALL") {
+        (async () => {
+            const { projectId } = msg;
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            try {
+                const tags = await getAllProjectTags(projectId);
+                sendResponse({ ok: true, tags });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to get project tags:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
+        })();
+
+        return true; // async response
+    }
+
+    if (msg?.type === "TAGS/DELETE") {
+        (async () => {
+            const { projectId, tagName } = msg;
+
+            if (!projectId || typeof projectId !== "string") {
+                sendResponse({ ok: false, error: "Invalid projectId" });
+                return;
+            }
+
+            if (!tagName || typeof tagName !== "string") {
+                sendResponse({ ok: false, error: "Invalid tagName" });
+                return;
+            }
+
+            try {
+                // Get all components that use this tag
+                const componentsWithTag = await getComponentsWithTag(projectId, tagName);
+                const affectedComponents = componentsWithTag.length;
+
+                // Remove tag from all annotations
+                for (const annotation of componentsWithTag) {
+                    const updatedTags = annotation.tags.filter(t => t !== tagName);
+                    await upsertAnnotation({
+                        ...annotation,
+                        tags: updatedTags,
+                        updatedAt: Date.now(),
+                    });
+                }
+
+                // Delete the tag from the project tags store
+                await deleteProjectTag(projectId, tagName);
+
+                sendResponse({ ok: true, affectedComponents });
+            } catch (err) {
+                console.error("[UI Inventory] Failed to delete tag:", err);
                 sendResponse({ ok: false, error: String(err) });
             }
         })();
