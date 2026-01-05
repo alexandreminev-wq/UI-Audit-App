@@ -157,6 +157,10 @@ export default function App() {
         refreshCurrentPageTab();
         refreshRoutingState();
       }
+      // Reload project counts when a capture is saved
+      if (msg?.type === 'UI/CAPTURE_SAVED') {
+        loadProjects();
+      }
     };
 
     chrome.runtime.onMessage.addListener(listener);
@@ -254,7 +258,19 @@ export default function App() {
     setCurrentProject(updatedProject);
   };
 
-  const handleBackToStart = () => {
+  const handleBackToStart = async () => {
+    // Disable capture mode when navigating back to StartScreen
+    const tabId = await getActivePageTabId();
+    if (tabId !== null) {
+      chrome.runtime.sendMessage(
+        { type: 'AUDIT/TOGGLE', enabled: false, tabId },
+        (resp) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[App] Failed to disable capture on back:', chrome.runtime.lastError.message);
+          }
+        }
+      );
+    }
     setCurrentProject(null);
   };
 
