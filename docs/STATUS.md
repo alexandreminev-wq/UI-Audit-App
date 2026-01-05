@@ -3,11 +3,14 @@
   # UI Inventory MVP — Project Status
 
   ## Overall Status
-  🟡 **Production-ready capture + Figma export; UI polish Phase 1 complete**
+  🟡 **Production-ready capture + Figma export; UI polish Phase 1 complete; Data model enhanced**
+
+  *Last updated: 2026-01-05*
 
   The app now supports:
   - Cross-surface annotations (Notes + Tags)
   - Cross-surface identity overrides (Display Name / Category / Type / Status)
+  - **Separate displayName and description fields** for better UX and flexibility
   - Draft-until-save capture flow in Sidepanel
   - Viewer component cards with screenshot thumbnails
   - **Multi-state component capture** (Default, Hover, Active, Focus, Disabled, Open)
@@ -86,9 +89,28 @@
   - Slide-in drawer for project creation
   - Empty state with illustration and onboarding message
   - Background: #fafafa
-- **Phase 2: Button Parity** 🟡 Partial
-  - Sidepanel buttons converted to shared Button component
-  - Viewer button conversion pending
+- **Phase 2: Button Parity** ✅ Complete
+  - Fixed Button component runtime error by replacing with regular button elements
+  - ComponentDetails buttons (Save/Cancel/Delete) using inline styles
+  - StartScreen buttons (Create/Cancel) using inline styles
+  - Consistent button styling across sidepanel and viewer
+
+**Milestone 9 — Data Model Enhancement** ✅ Complete
+- **DisplayName/Description Split** ✅ Complete (2026-01-05)
+  - Separated component naming into two fields:
+    - `displayName`: Defaults to capitalized element type (e.g., "Button", "Input")
+    - `description`: Descriptive text extracted from element content
+  - Smart text extraction with comprehensive fallback chain (accessibleName → textPreview → textContent → innerText → text → ariaLabel)
+  - Both fields editable in Identity sections (sidepanel + viewer)
+  - Description shown as subtitle in component headers
+  - Backward compatible (old captures work without description)
+  - Applied across entire stack:
+    - CaptureRecordV2 schema
+    - Service worker capture logic
+    - Sidepanel ComponentDetails UI
+    - Viewer DetailsDrawer UI
+    - Viewer ComponentsGrid cards
+    - Component override persistence
 - **Completed:**
   - Visual Essentials delta analysis
   - Layout container delta analysis
@@ -99,16 +121,15 @@
 
 ## Current Focus
 
-**Data Model Refinements & Classification Improvements**
+**Milestone 9 — Data Model Enhancement** ✅ Complete
 
-Recent updates:
-- **Status values cleaned up**: Removed redundant "Unknown" status (use Category: Unknown instead)
-- **State field restriction**: Only shows for interactive categories (Actions, Forms, Navigation)
-- **Classification improvements**: Fixed categorization for paragraphs, nav elements, and navigation roles
+Recent completion:
+- **DisplayName/Description Split** (2026-01-05): Component naming now uses two separate fields for better UX
+- **Button Parity Fix** (2026-01-05): Resolved runtime errors by replacing Button component with inline-styled buttons
 
-**Milestone 8 — UI Polish & Standardization**
+**Milestone 8 — UI Polish & Standardization** ✅ Phase 2 Complete
 
-Phase 1 (CSS Variables Foundation) and Phase 1.1 (StartScreen Redesign) are complete. Moving to Phase 2 (Button Parity).
+All phases of Milestone 8 Button Parity are complete. Ready for next polish phase or new features.
 
 ### Phase 1 Complete ✅
 - Sidepanel ComponentDetails fully converted to CSS variables
@@ -159,12 +180,19 @@ Phase 1 (CSS Variables Foundation) and Phase 1.1 (StartScreen Redesign) are comp
   - Figma plugin for import (drag-drop + file input)
   - Visual layout with frames, images, and metadata text nodes
   - Full documentation in docs/FIGMA_EXPORT.md
-- **Milestone 8 Phase 1 & 1.1:**
+- **Milestone 8 Phase 1 & 1.1 & 2:**
   - ComponentDetails converted to CSS variables
   - StartScreen redesigned with fixed footer and empty state
   - Elastic sidepanel width
   - Slide-in drawer for project creation
   - Modern project cards with date display
+  - Button parity achieved (replaced Button component with inline styles)
+- **Milestone 9 (Data Model Enhancement):**
+  - DisplayName/Description split implemented across entire stack
+  - Smart text extraction with comprehensive fallback chain
+  - Separate editable fields in Identity sections
+  - Description shown as subtitle in component headers
+  - Backward compatible with old captures
 
 ### Key Architectural Decisions
 - Annotations are keyed by `projectId + componentKey`

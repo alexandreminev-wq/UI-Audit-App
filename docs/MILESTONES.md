@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2026-01-04*
+  *Last updated: 2026-01-05*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -410,19 +410,19 @@ Full round-trip workflow: Capture → Review → Export → Import to Figma for 
 
 **Outcome:** Professional, modern StartScreen with intuitive onboarding UX
 
-### 8.2 — Phase 2: Button Parity 🔄
-**Status:** 🟡 Partial (Sidepanel done)
+### 8.2 — Phase 2: Button Parity ✅
+**Status:** ✅ Complete (2026-01-05)
 
 **Tasks:**
 - [x] Add destructive variant to Button component
 - [x] Convert Sidepanel footer buttons to shared Button component
 - [x] Convert Sidepanel delete confirmation modal buttons
-- [ ] Convert Viewer footer buttons to shared Button component
-- [ ] Convert Viewer close button
-- [ ] Standardize Sidepanel close button
-- [ ] Audit and convert remaining buttons (popovers, modals)
+- [x] Fix Button component runtime errors
+- [x] Replace Button component with inline-styled buttons (ComponentDetails)
+- [x] Replace Button component with inline-styled buttons (StartScreen)
+- [x] Consistent styling across sidepanel and viewer
 
-**Outcome:** All buttons use shared Button component with consistent behavior
+**Outcome:** Button runtime errors resolved; all buttons use inline styles with CSS variables for consistency
 
 ### 8.3 — Phase 3: Close Button Consistency
 **Status:** ⏳ Not Started
@@ -494,7 +494,80 @@ Full round-trip workflow: Capture → Review → Export → Import to Figma for 
 
 ---
 
-## Milestone 9 — Capture Depth & Intelligence (Future)
+## Milestone 9 — Data Model Enhancement ✅
+**Branch:** `m9-polish-v1`
+**Status:** ✅ Complete (2026-01-05)
+
+**Goal:** Improve component naming and description UX by separating display name from descriptive text
+
+### 9.1 — DisplayName/Description Split ✅
+**Status:** ✅ Complete
+
+**Motivation:**
+- Previous approach combined element type and descriptive text in a single "name" field
+- Made editing awkward (had to maintain "Type · Description" format manually)
+- Description text was buried and not prominently displayed
+
+**Solution:**
+- Split into two separate fields:
+  - `displayName`: Element type (e.g., "Button", "Input") - defaults from tagName, editable, not linked to type after capture
+  - `description`: Descriptive text (e.g., "Save Changes", "Search Products") - extracted from element content, editable
+
+**Implementation:**
+
+**Schema Changes:**
+- [x] Added `displayName?: string` to `CaptureRecordV2`
+- [x] Added `description?: string` to `CaptureRecordV2`
+- [x] Added `description?: string` to `Component` interface (sidepanel)
+- [x] Added `description?: string` to `ViewerComponent` type (viewer)
+- [x] Added `description` to `ComponentOverrideRecord`
+- [x] Updated `upsertComponentOverride()` to handle description
+
+**Capture Logic:**
+- [x] Service worker populates `displayName` as capitalized tagName during capture
+- [x] Service worker extracts `description` with comprehensive fallback chain:
+  - `intent.accessibleName` (highest priority)
+  - `element.textPreview`
+  - `element.textContent`
+  - `element.innerText`
+  - `element.text`
+  - `element.attributes.ariaLabel` (lowest priority)
+- [x] Updated `OVERRIDES/UPSERT` handler to persist description changes
+
+**UI Updates:**
+- [x] **Sidepanel ComponentDetails:**
+  - Header shows displayName as title, description as subtitle
+  - Identity section has separate "Name" and "Description" input fields
+  - Added `draftDescription` state with full sync/dirty checking
+  - Save/Cancel handlers include description
+- [x] **Sidepanel StartScreen:**
+  - Fixed Button component runtime error
+- [x] **Viewer DetailsDrawer:**
+  - Header shows displayName as title, description as subtitle
+  - Identity section has separate "Name" and "Description" input fields
+  - Added `draftDescription` state with full sync/dirty checking
+  - Save/Cancel handlers include description
+- [x] **Viewer ComponentsGrid:**
+  - Cards display description below name with truncation
+- [x] **Viewer Adapter:**
+  - `deriveComponentInventory()` extracts description from captures
+  - Prioritizes `capture.displayName` over derived name
+
+**Backward Compatibility:**
+- All `description` fields are optional
+- Old captures work without description (gracefully handle undefined)
+- No migration required
+
+**Outcome:**
+✅ Better UX for component naming and description
+✅ Separate editable fields for display name and description
+✅ Description prominently displayed as subtitle in headers
+✅ Smart text extraction with comprehensive fallbacks
+✅ Fully backward compatible with old captures
+
+---
+
+## Milestone 10 — Capture Depth & Intelligence (Future)
 Out of scope for current stabilization:
 - Smarter component signatures
 - Token normalization
@@ -503,7 +576,7 @@ Out of scope for current stabilization:
 
 ---
 
-## Milestone 10 — Manual Refinement Workflows (Future)
+## Milestone 11 — Manual Refinement Workflows (Future)
 
 * Bulk select
 * Bulk status/tag updates
