@@ -246,10 +246,19 @@ export default function App() {
 
       if (!setResp?.ok) {
         setError(setResp?.error || 'Failed to set active project for this tab');
+        return;
       }
     } else {
       // Only reset to StartScreen if we weren't in a project
       setCurrentProject(null);
+    }
+
+    // Refresh the page to ensure content script is properly loaded and coupled
+    try {
+      await chrome.tabs.reload(tabId);
+    } catch (err) {
+      console.warn('[App] Failed to reload tab after activation:', err);
+      // Non-fatal - continue even if reload fails
     }
   };
 
