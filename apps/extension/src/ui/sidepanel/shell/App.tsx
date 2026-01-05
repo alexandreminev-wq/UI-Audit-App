@@ -221,6 +221,16 @@ export default function App() {
       return;
     }
 
+    // First, disable capture mode to avoid confusion during reload
+    chrome.runtime.sendMessage(
+      { type: 'AUDIT/TOGGLE', enabled: false, tabId },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.warn('[App] Failed to disable capture before activation:', chrome.runtime.lastError.message);
+        }
+      }
+    );
+
     const resp = await sendMessageAsync<{ type: string; tabId: number }, any>({
       type: 'AUDIT/CLAIM_TAB',
       tabId,
@@ -254,6 +264,7 @@ export default function App() {
     }
 
     // Refresh the page to ensure content script is properly loaded and coupled
+    // Capture will be disabled after reload (user needs to manually start it)
     try {
       await chrome.tabs.reload(tabId);
     } catch (err) {
