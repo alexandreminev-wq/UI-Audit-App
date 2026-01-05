@@ -49,14 +49,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {/* Toast Container */}
       <div style={{
         position: 'fixed',
-        bottom: 16,
+        bottom: 88,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9999,
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'column-reverse',
         gap: 8,
         pointerEvents: 'none',
+        width: 352,
       }}>
         {toasts.map((toast) => (
           <ToastItem
@@ -94,8 +95,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       fontSize: 14,
       fontWeight: 500,
       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-      minWidth: 280,
-      maxWidth: 400,
+      width: 352,
       pointerEvents: 'auto' as const,
       animation: 'slideUp 0.2s ease-out',
     };
