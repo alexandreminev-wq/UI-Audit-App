@@ -18,10 +18,6 @@ export function ComponentDirectory({
     new Set()
   );
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDirectory.tsx:18',message:'ComponentDirectory rendered',data:{componentCount:components.length,components:components.map(c=>({id:c.id,name:c.name,availableStatesCount:c.availableStates?.length||0,states:c.availableStates?.map(s=>s.state)||[]}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A2,D1'})}).catch(()=>{});
-  // #endregion
-
   // Group components by category
   const componentsByCategory = components.reduce((acc, component) => {
     if (!acc[component.category]) {

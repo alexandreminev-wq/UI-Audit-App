@@ -70,26 +70,15 @@ export function ProjectScreen({
       if (resp?.ok && Array.isArray(resp.captures)) {
         const captures: CaptureRecordV2[] = resp.captures;
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:69',message:'Captures loaded',data:{captureCount:captures.length,captureIds:captures.map(c=>c.id),captureStates:captures.map(c=>c.styles?.evidence?.state||'none')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A2'})}).catch(()=>{});
-        // #endregion
-
         // 1) Group captures by componentKey
         const capturesByKey = new Map<string, CaptureRecordV2[]>();
         for (const capture of captures) {
           const key = deriveComponentKey(capture);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:77',message:'Derived componentKey',data:{captureId:capture.id,componentKey:key,state:capture.styles?.evidence?.state||'none',tagName:capture.element?.tagName,role:capture.element?.role},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A1'})}).catch(()=>{});
-          // #endregion
           if (!capturesByKey.has(key)) {
             capturesByKey.set(key, []);
           }
           capturesByKey.get(key)!.push(capture);
         }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:82',message:'Grouping complete',data:{mapSize:capturesByKey.size,keys:Array.from(capturesByKey.keys()),capturesByKeyDetails:Array.from(capturesByKey.entries()).map(([k,v])=>({key:k,captureCount:v.length,captureIds:v.map(c=>c.id)}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A3'})}).catch(()=>{});
-        // #endregion
 
         // 2) Build one component per componentKey
         const baseComponents: Component[] = Array.from(capturesByKey.entries()).map(([componentKey, stateCaptures]) => {
@@ -160,10 +149,6 @@ export function ProjectScreen({
             confidence: classification.confidence,
             isDraft: primaryCapture.isDraft,
           };
-
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectScreen.tsx:138',message:'Component created',data:{componentKey,name:component.name,availableStatesCount:availableStates.length,availableStates:availableStates.map(s=>s.state),screenshotBlobId:component.screenshotBlobId,selectedState:component.selectedState},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B1,D1'})}).catch(()=>{});
-          // #endregion
 
           return component;
         });

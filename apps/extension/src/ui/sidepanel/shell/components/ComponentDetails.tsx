@@ -87,10 +87,6 @@ export function ComponentDetails({
   // Load screenshot blob URL
   const { url: screenshotUrl } = useBlobUrl(component.screenshotBlobId);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:82',message:'ComponentDetails rendered',data:{componentId:component.id,availableStatesCount:component.availableStates?.length||0,availableStates:component.availableStates?.map(s=>s.state)||[],selectedState,isLoadingState,screenshotBlobId:component.screenshotBlobId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D1,D2,B1'})}).catch(()=>{});
-  // #endregion
-
   // Update draft when component changes (e.g., user selects different component)
   useEffect(() => {
     setDraftNotes(component.comments);
@@ -289,9 +285,6 @@ export function ComponentDetails({
 
   const handleStateChange = async (newState: string) => {
     const stateEntry = component.availableStates.find(s => s.state === newState);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:1',message:'State change requested',data:{newState,stateEntry,componentId:component.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
-    // #endregion
     if (!stateEntry) return;
 
     setIsLoadingState(true);
@@ -300,10 +293,6 @@ export function ComponentDetails({
         type: "UI/GET_CAPTURE",
         captureId: stateEntry.captureId,
       });
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:2',message:'UI/GET_CAPTURE response',data:{ok:captureResp?.ok,hasCaptureResp:!!captureResp,captureId:captureResp?.capture?.id,screenshotBlobId:captureResp?.capture?.screenshot?.screenshotBlobId,error:captureResp?.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
-      // #endregion
 
       if (captureResp?.ok && captureResp.capture) {
         const capture = captureResp.capture;
@@ -320,18 +309,12 @@ export function ComponentDetails({
             evidence: capture.styles?.evidence,
           },
         };
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:3',message:'Calling onUpdateComponent',data:{componentId:updatedComponent.id,updatedScreenshotBlobId:updatedComponent.screenshotBlobId,newState:updatedComponent.selectedState},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
-        // #endregion
         // Update component with new state's data
         onUpdateComponent(updatedComponent);
         setSelectedState(newState as any);
       }
     } catch (err) {
       console.error("[ComponentDetails] Failed to load state:", err);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/72f3f074-a83c-49b0-9a1e-6ec7f7304c62',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ComponentDetails.tsx:handleStateChange:error',message:'State change error',data:{error:String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STATE'})}).catch(()=>{});
-      // #endregion
     } finally {
       setIsLoadingState(false);
     }
