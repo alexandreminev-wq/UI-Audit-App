@@ -732,26 +732,59 @@ export function DetailsDrawer({
                     {/* Header (fixed at top) */}
                     <div style={{
                         flex: "0 0 auto",
-                        padding: "16px 24px 8px 24px",
+                        padding: "12px 16px",
                         background: "hsl(var(--background))",
                         display: "flex",
-                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                         borderBottom: "1px solid hsl(var(--border))",
+                        gap: "12px",
                     }}>
+                        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                            <h2 style={{
+                                margin: 0,
+                                fontSize: 16,
+                                fontWeight: 600,
+                                color: "hsl(var(--foreground))",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}>
+                                {selectedComponent ? selectedComponent.name : selectedStyle ? selectedStyle.token : "Details"}
+                            </h2>
+                            {selectedComponent && (
+                                <>
+                                    <span style={{
+                                        fontSize: 11,
+                                        padding: "2px 6px",
+                                        background: "hsl(var(--muted))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        borderRadius: "calc(var(--radius) - 2px)",
+                                        flexShrink: 0,
+                                    }}>
+                                        {selectedComponent.status}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                         <Dialog.Close asChild>
                             <button
                                 type="button"
                                 onClick={onClose}
                                 aria-label="Close details"
                                 style={{
-                                    padding: "4px 8px",
+                                    padding: "8px",
                                     fontSize: 14,
-                                    background: "hsl(var(--background))",
-                                    color: "hsl(var(--foreground))",
-                                    border: "1px solid hsl(var(--border))",
+                                    background: "transparent",
+                                    color: "hsl(var(--muted-foreground))",
+                                    border: "none",
                                     borderRadius: "var(--radius)",
                                     cursor: "pointer",
+                                    flexShrink: 0,
+                                    transition: "background 0.15s ease",
                                 }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "hsl(var(--muted))"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
                                 ✕
                             </button>
@@ -769,16 +802,6 @@ export function DetailsDrawer({
                     }}>
                     {selectedComponent && (
                         <div>
-                            {/* Component header */}
-                            <h2 style={{
-                                fontSize: 20,
-                                fontWeight: 600,
-                                margin: 0,
-                                marginBottom: 4,
-                                color: "hsl(var(--foreground))",
-                            }}>
-                                {selectedComponent.name}
-                            </h2>
                             {selectedComponent.description && (
                                 <div style={{
                                     fontSize: 13,

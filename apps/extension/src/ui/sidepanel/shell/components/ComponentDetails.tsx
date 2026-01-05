@@ -326,64 +326,53 @@ export function ComponentDetails({
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-      {/* Component header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Fixed Header */}
+      <div style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 16px',
+        borderBottom: '1px solid hsl(var(--border))',
+        gap: '12px',
+        background: 'hsl(var(--background))',
+      }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <h2 style={{
             margin: 0,
-            marginBottom: 4,
-            fontSize: 20,
+            fontSize: 16,
             fontWeight: 600,
             color: 'hsl(var(--foreground))',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}>
             {component.name}
           </h2>
-          {/* Caption with component description */}
-          {component.description && (
-            <div style={{
-              fontSize: 13,
-              color: 'hsl(var(--muted-foreground))',
-              marginBottom: 12,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {component.description}
-            </div>
-          )}
-          {/* Tags/chips */}
-          <div style={{
-            display: 'flex',
-            gap: 6,
-            marginBottom: 16,
-            flexWrap: 'wrap',
+          {/* Status and Draft badges in header */}
+          <span style={{
+            fontSize: 11,
+            padding: '2px 6px',
+            background: 'hsl(var(--muted))',
+            color: 'hsl(var(--muted-foreground))',
+            borderRadius: 'calc(var(--radius) - 2px)',
+            flexShrink: 0,
           }}>
-            {/* Status chip */}
+            {component.status}
+          </span>
+          {component.isDraft && (
             <span style={{
               fontSize: 11,
-              padding: '3px 8px',
-              background: 'hsl(var(--muted))',
-              color: 'hsl(var(--muted-foreground))',
+              fontWeight: 600,
+              color: '#ea580c',
+              background: '#ffedd5',
+              padding: '2px 6px',
               borderRadius: 'calc(var(--radius) - 2px)',
+              flexShrink: 0,
             }}>
-              {component.status}
+              Draft
             </span>
-            {/* Draft badge */}
-            {component.isDraft && (
-              <span style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#ea580c',
-                background: '#ffedd5',
-                padding: '3px 8px',
-                borderRadius: 'calc(var(--radius) - 2px)',
-              }}>
-                Draft
-              </span>
-            )}
-          </div>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -404,6 +393,9 @@ export function ComponentDetails({
           <X style={{ width: 16, height: 16 }} />
         </button>
       </div>
+
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
       {/* Identity section */}
       <div style={{ marginBottom: 24 }}>
