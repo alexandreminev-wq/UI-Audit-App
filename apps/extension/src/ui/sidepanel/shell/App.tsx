@@ -192,6 +192,7 @@ export default function App() {
     const listener = (msg: any) => {
       if (msg?.type === 'UI/ACTIVE_TAB_CHANGED') {
         refreshCurrentPageTab();
+        refreshRoutingState(); // Also refresh routing state to update activeAuditTabId
       }
       if (msg?.type === 'UI/AUDIT_OWNER_CHANGED') {
         setActiveAuditTabId(msg.activeAuditTabId ?? null);
