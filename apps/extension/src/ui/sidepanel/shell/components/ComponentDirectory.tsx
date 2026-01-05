@@ -51,7 +51,7 @@ export function ComponentDirectory({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search */}
-      <div className="p-3 border-b border-gray-200" style={{ flexShrink: 0 }}>
+      <div className="p-3 border-b border-gray-200" style={{ flexShrink: 0, background: '#ffffff' }}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -73,15 +73,25 @@ export function ComponentDirectory({
             <div key={category} className="border-b border-gray-100 last:border-b-0">
               <button
                 onClick={() => toggleCategory(category)}
-                className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: '#111827',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                {expandedCategories.has(category) ? (
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
-                )}
-                <span className="text-gray-900">{category}</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ flex: 1, textAlign: 'left' }}>{category}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   {draftCount > 0 && (
                     <span style={{
                       fontSize: '11px',
@@ -97,16 +107,21 @@ export function ComponentDirectory({
                   <span style={{ fontSize: '12px', color: '#6b7280' }}>
                     {items.length}
                   </span>
+                  {expandedCategories.has(category) ? (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                  )}
                 </div>
               </button>
 
               {expandedCategories.has(category) && (
-                <div className="bg-gray-50">
+                <div style={{ background: '#ffffff' }}>
                   {items.map((component) => (
                     <button
                       key={component.id}
                       onClick={() => onSelectComponent(component)}
-                      className={`w-full text-left px-4 py-2 pl-10 text-sm hover:bg-gray-100 transition-colors ${
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${
                         selectedComponent?.id === component.id
                           ? 'bg-blue-100 text-blue-900 hover:bg-blue-100'
                           : 'text-gray-700'
