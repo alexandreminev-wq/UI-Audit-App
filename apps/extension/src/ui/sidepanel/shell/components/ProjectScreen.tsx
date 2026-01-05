@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Project, Component } from '../App';
 import type { CaptureRecordV2 } from '../../../../../types/capture';
-import { ProjectTabs } from './ProjectTabs';
+import { ProjectView } from './ProjectView';
 import { classifyCapture } from '../utils/classifyCapture';
 import { deriveComponentKey } from '../../../shared/componentKey';
 
@@ -460,7 +460,7 @@ export function ProjectScreen({
   };
 
   return (
-    <ProjectTabs
+    <ProjectView
       project={project}
       components={capturedComponents}
       onUpdateComponent={handleUpdateComponent}

@@ -53,9 +53,9 @@ export function ComponentDirectory({
   };
 
   return (
-    <div className="max-h-80 flex flex-col">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search */}
-      <div className="p-3 border-b border-gray-200">
+      <div className="p-3 border-b border-gray-200" style={{ flexShrink: 0 }}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -69,7 +69,7 @@ export function ComponentDirectory({
       </div>
 
       {/* Tree Structure */}
-      <div className="overflow-y-auto flex-1">
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {Object.entries(filteredCategories).map(([category, items]) => (
           <div key={category} className="border-b border-gray-100 last:border-b-0">
             <button
