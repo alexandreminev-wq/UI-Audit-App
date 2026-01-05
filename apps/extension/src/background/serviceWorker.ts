@@ -1444,6 +1444,55 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     console.log("[UI Inventory] Cleared active project for closed tab:", tabId);
 });
 
+// ─────────────────────────────────────────────────────────────
+// Keyboard Commands (Cmd/Ctrl + Shift + U to toggle capture)
+// ─────────────────────────────────────────────────────────────
+
+chrome.commands.onCommand.addListener((command) => {
+    console.log("[UI Inventory] Command received:", command);
+    
+    if (command === "toggle-capture") {
+        (async () => {
+            try {
+                // Get the active tab
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (!tab?.id) {
+                    console.warn("[UI Inventory] No active tab found for command");
+                    return;
+                }
+
+                const tabId = tab.id;
+
+                // Get current state
+                const currentState = auditEnabledByTab.get(tabId) ?? currentAuditEnabled;
+                const newState = !currentState;
+
+                console.log("[UI Inventory] Toggling capture via command:", { tabId, currentState, newState });
+
+                // Update state
+                auditEnabledByTab.set(tabId, newState);
+                currentAuditEnabled = newState;
+                await setAuditEnabledPersisted(newState);
+
+                // Send message to content script
+                chrome.tabs.sendMessage(
+                    tabId,
+                    { type: "AUDIT/TOGGLE", enabled: newState },
+                    (response) => {
+                        if (chrome.runtime.lastError) {
+                            console.warn("[UI Inventory] Failed to send toggle to content script:", chrome.runtime.lastError);
+                        } else {
+                            console.log("[UI Inventory] Toggle command sent successfully:", response);
+                        }
+                    }
+                );
+            } catch (err) {
+                console.error("[UI Inventory] Error handling toggle-capture command:", err);
+            }
+        })();
+    }
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     console.log("[UI Inventory] SW got message:", msg, "from", sender);
 

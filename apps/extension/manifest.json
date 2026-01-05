@@ -40,5 +40,14 @@
     },
     "side_panel": {
         "default_path": "sidepanel.html"
+    },
+    "commands": {
+        "toggle-capture": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+U",
+                "mac": "Command+Shift+U"
+            },
+            "description": "Toggle UI capture mode"
+        }
     }
 }
