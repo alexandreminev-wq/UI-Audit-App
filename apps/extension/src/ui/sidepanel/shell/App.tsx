@@ -125,9 +125,33 @@ export default function App() {
     loadProjects();
   }, []);
 
-  // Cleanup: Disable capture mode when sidepanel is closed/unmounted
+  // Cleanup: Disable capture mode when sidepanel is closed/hidden
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Sidepanel is being hidden/closed
+        getActivePageTabId().then((tabId) => {
+          if (tabId !== null) {
+            chrome.runtime.sendMessage(
+              { type: 'AUDIT/TOGGLE', enabled: false, tabId },
+              () => {
+                // Ignore errors
+                if (chrome.runtime.lastError) {
+                  console.log('[App] Cleanup: Failed to disable capture on hide');
+                }
+              }
+            );
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also cleanup on unmount (for cases where sidepanel is actually removed)
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
       // On unmount, disable capture for the active audit tab if any
       getActivePageTabId().then((tabId) => {
         if (tabId !== null) {
