@@ -42,8 +42,8 @@ export function ProjectView({
     ? components.find(c => c.id === reviewingComponentId)
     : null;
 
-  // Only show capture button when NOT reviewing a component
-  const showCaptureButton = !reviewingComponentId;
+  // Only show capture button when NOT reviewing a component AND tab is not inactive
+  const showCaptureButton = !reviewingComponentId && !isTabInactive;
 
   return (
     <div style={{
