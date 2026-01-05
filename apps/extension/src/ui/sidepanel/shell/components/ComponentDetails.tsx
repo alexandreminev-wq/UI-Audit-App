@@ -628,8 +628,14 @@ export function ComponentDetails({
       </div>
 
       {/* Styles (formerly Visual Essentials) - moved under Identity */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Styles</label>
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Styles</h3>
         {component.stylePrimitives ? (
           <StylePropertiesTable
             sections={formatVisualEssentials(component.stylePrimitives).map((section) => ({
@@ -779,10 +785,14 @@ export function ComponentDetails({
 
 
       {/* Notes (no onBlur - explicit Save only) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label htmlFor="notes" style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>
-          Notes
-        </label>
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Notes</h3>
         <textarea
           id="notes"
           value={draftNotes}
@@ -808,8 +818,14 @@ export function ComponentDetails({
       </div>
 
       {/* Tags (explicit Save only) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Tags</label>
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Tags</h3>
 
         {draftTags.length > 0 ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
