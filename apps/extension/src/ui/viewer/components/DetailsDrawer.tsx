@@ -802,37 +802,6 @@ export function DetailsDrawer({
                     }}>
                     {selectedComponent && (
                         <div>
-                            {selectedComponent.description && (
-                                <div style={{
-                                    fontSize: 13,
-                                    color: "hsl(var(--muted-foreground))",
-                                    marginBottom: 12,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                }}>
-                                    {selectedComponent.description}
-                                </div>
-                            )}
-
-                            {/* Optional chips */}
-                            <div style={{
-                                display: "flex",
-                                gap: 6,
-                                marginBottom: 16,
-                                flexWrap: "wrap",
-                            }}>
-                                <span style={{
-                                    fontSize: 11,
-                                    padding: "3px 8px",
-                                    background: "hsl(var(--muted))",
-                                    color: "hsl(var(--muted-foreground))",
-                                    borderRadius: "calc(var(--radius) - 2px)",
-                                }}>
-                                    {selectedComponent.status}
-                                </span>
-                            </div>
-
                             {/* Identity section (editable: prototype parity) - MOVED ABOVE PREVIEW */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>Identity</h3>
