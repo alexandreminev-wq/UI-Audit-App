@@ -2297,10 +2297,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
                 // 7.8.1: Set activeAuditTabId if none exists and audit is enabled
                 // (first tab with audit enabled wins)
-                if (activeAuditTabId === null && currentAuditEnabled) {
+                // Also restore as active if this tab was previously the active audit tab (handles refresh case)
+                if ((activeAuditTabId === null && currentAuditEnabled) || activeAuditTabId === tabId) {
                     activeAuditTabId = tabId;
                     await setActiveAuditTabIdPersisted(tabId);
-                    console.log("[UI Inventory] Set activeAuditTabId to first registered tab:", tabId);
+                    console.log("[UI Inventory] Set/restored activeAuditTabId:", tabId);
                 }
 
                 // Apply current project to newly registered tab

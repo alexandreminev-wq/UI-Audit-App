@@ -381,6 +381,17 @@ export function ProjectScreen({
         // Update current page tab state
         if (typeof tabId === "number") {
           setCurrentPageTabId(tabId);
+          
+          // Immediately set project mapping for the new tab to prevent empty state
+          chrome.runtime.sendMessage({
+            type: "UI/SET_ACTIVE_PROJECT_FOR_TAB",
+            projectId: project.id,
+            tabId,
+          }, (resp) => {
+            if (chrome.runtime.lastError) {
+              console.warn("[ProjectScreen] Failed to set project for tab:", chrome.runtime.lastError);
+            }
+          });
         }
 
         // Get audit state for the new tab
@@ -400,7 +411,7 @@ export function ProjectScreen({
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, []);
+  }, [project.id]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
