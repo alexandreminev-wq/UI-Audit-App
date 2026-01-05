@@ -961,6 +961,88 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
+                            {/* Styles (formerly Visual Essentials) - moved under Identity */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Styles
+                                </h3>
+                                {currentStateData.visualEssentials && currentStateData.visualEssentials.rows.length === 0 ? (
+                                    <div style={{
+                                        padding: 12,
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        background: "hsl(var(--muted))",
+                                        fontSize: 13,
+                                        color: "hsl(var(--muted-foreground))",
+                                        lineHeight: 1.5,
+                                    }}>
+                                        No visual details available.
+                                    </div>
+                                ) : (
+                                    <StylePropertiesTable
+                                        sections={["Text", "Surface", "Spacing", "State"].map((section) => {
+                                            const sectionRows = currentStateData.visualEssentials?.rows.filter((r) => r.section === section) || [];
+                                            return {
+                                                title: section,
+                                                rows: sectionRows.map((row) => {
+                                                    const isColorRow =
+                                                        row.label === "Text color" ||
+                                                        row.label === "Background" ||
+                                                        row.label === "Border color";
+
+                                                    if (!isColorRow || !currentStateData.visualEssentialsTrace?.tokens) {
+                                                        return {
+                                                            label: row.label,
+                                                            value: row.value,
+                                                        };
+                                                    }
+
+                                                    const prop =
+                                                        row.label === "Text color"
+                                                            ? "color"
+                                                            : row.label === "Background"
+                                                                ? "backgroundColor"
+                                                                : "borderColor";
+
+                                                    // Use hex8 from row if available, otherwise look it up
+                                                    const hex8 = row.hex8 || (() => {
+                                                        const primitives: any = currentStateData.visualEssentialsTrace.primitives;
+                                                        if (prop === "color") return primitives?.color?.hex8;
+                                                        if (prop === "backgroundColor") return primitives?.backgroundColor?.hex8;
+                                                        if (prop === "borderColor") {
+                                                            // Handle new BorderColorPrimitive format
+                                                            if (primitives?.borderColor?.top?.hex8) {
+                                                                return primitives.borderColor.top.hex8;
+                                                            }
+                                                            return primitives?.borderColor?.hex8;
+                                                        }
+                                                        return null;
+                                                    })();
+
+                                                    const authoredValue =
+                                                        (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
+
+                                                    return {
+                                                        label: row.label,
+                                                        value: row.value,
+                                                        customContent: (
+                                                            <TokenTraceValue
+                                                                property={prop as any}
+                                                                label={row.label}
+                                                                resolvedValue={row.value}
+                                                                hex8={hex8 ?? null}
+                                                                authoredValue={authoredValue}
+                                                                tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
+                                                                showCopyActions={row.label !== "Background" && row.label !== "Border color"}
+                                                            />
+                                                        ),
+                                                    };
+                                                }),
+                                            };
+                                        }).filter(section => section.rows.length > 0)}
+                                    />
+                                )}
+                            </div>
 
                             {/* HTML Structure section (7.6.2: collapsible, read-only) */}
                             {(() => {
@@ -1218,110 +1300,6 @@ export function DetailsDrawer({
                                 )}
                             </div>
 
-                            {/* Visual Essentials section (7.4.4: real data) */}
-                            <div style={{ marginBottom: 24 }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Visual Essentials
-                                </h3>
-                                {visualEssentialsEvidence && visualEssentialsEvidence.method && (
-                                    <div style={{
-                                        marginTop: 6,
-                                        marginBottom: 10,
-                                        fontSize: 12,
-                                        color: "hsl(var(--muted-foreground))",
-                                        lineHeight: 1.4,
-                                    }}>
-                                        <div>
-                                            {visualEssentialsEvidence.method === "cdp"
-                                                ? "Authored styles: available (CDP)"
-                                                : "Authored styles: fallback (computed only)"}
-                                        </div>
-                                        {visualEssentialsEvidence.method !== "cdp" &&
-                                            typeof visualEssentialsEvidence.cdpError === "string" &&
-                                            visualEssentialsEvidence.cdpError.trim() !== "" && (
-                                                <div style={{ marginTop: 4, fontFamily: "monospace", opacity: 0.9 }}>
-                                                    {visualEssentialsEvidence.cdpError}
-                                                </div>
-                                            )}
-                                    </div>
-                                )}
-                                {currentStateData.visualEssentials && currentStateData.visualEssentials.rows.length === 0 ? (
-                                    <div style={{
-                                        padding: 12,
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: "var(--radius)",
-                                        background: "hsl(var(--muted))",
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                        lineHeight: 1.5,
-                                    }}>
-                                        No visual details available.
-                                    </div>
-                                ) : (
-                                    <StylePropertiesTable
-                                        sections={["Text", "Surface", "Spacing", "State"].map((section) => {
-                                            const sectionRows = currentStateData.visualEssentials?.rows.filter((r) => r.section === section) || [];
-                                            return {
-                                                title: section,
-                                                rows: sectionRows.map((row) => {
-                                                    const isColorRow =
-                                                        row.label === "Text color" ||
-                                                        row.label === "Background" ||
-                                                        row.label === "Border color";
-
-                                                    if (!isColorRow || !currentStateData.visualEssentialsTrace?.tokens) {
-                                                        return {
-                                                            label: row.label,
-                                                            value: row.value,
-                                                        };
-                                                    }
-
-                                                    const prop =
-                                                        row.label === "Text color"
-                                                            ? "color"
-                                                            : row.label === "Background"
-                                                                ? "backgroundColor"
-                                                                : "borderColor";
-
-                                                    // Use hex8 from row if available, otherwise look it up
-                                                    const hex8 = row.hex8 || (() => {
-                                                        const primitives: any = currentStateData.visualEssentialsTrace.primitives;
-                                                        if (prop === "color") return primitives?.color?.hex8;
-                                                        if (prop === "backgroundColor") return primitives?.backgroundColor?.hex8;
-                                                        if (prop === "borderColor") {
-                                                            // Handle new BorderColorPrimitive format
-                                                            if (primitives?.borderColor?.top?.hex8) {
-                                                                return primitives.borderColor.top.hex8;
-                                                            }
-                                                            return primitives?.borderColor?.hex8;
-                                                        }
-                                                        return null;
-                                                    })();
-
-                                                    const authoredValue =
-                                                        (currentStateData.visualEssentialsTrace.author?.properties as any)?.[prop]?.authoredValue ?? null;
-
-                                                    return {
-                                                        label: row.label,
-                                                        value: row.value,
-                                                        customContent: (
-                                                            <TokenTraceValue
-                                                                property={prop as any}
-                                                                label={row.label}
-                                                                resolvedValue={row.value}
-                                                                hex8={hex8 ?? null}
-                                                                authoredValue={authoredValue}
-                                                                tokens={currentStateData.visualEssentialsTrace.tokens ?? null}
-                                                                showCopyActions={row.label !== "Background" && row.label !== "Border color"}
-                                                            />
-                                                        ),
-                                                    };
-                                                }),
-                                            };
-                                        }).filter(section => section.rows.length > 0)}
-                                    />
-                                )}
-                            </div>
                         </div>
                     )}
 

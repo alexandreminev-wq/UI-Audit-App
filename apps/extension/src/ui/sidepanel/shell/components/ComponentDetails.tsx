@@ -627,6 +627,87 @@ export function ComponentDetails({
         </div>
       </div>
 
+      {/* Styles (formerly Visual Essentials) - moved under Identity */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Styles</label>
+        {component.stylePrimitives ? (
+          <StylePropertiesTable
+            sections={formatVisualEssentials(component.stylePrimitives).map((section) => ({
+              title: section.title,
+              rows: section.rows.map((row) => {
+                const isColorRow =
+                  row.label === "Text color" ||
+                  row.label === "Background" ||
+                  row.label === "Border color";
+
+                if (!isColorRow) {
+                  return {
+                    label: row.label,
+                    value: row.value,
+                  };
+                }
+
+                const prop =
+                  row.label === "Text color"
+                    ? "color"
+                    : row.label === "Background"
+                      ? "backgroundColor"
+                      : "borderColor";
+
+                const primitives: any = component.stylePrimitives;
+                const hex8 =
+                  prop === "color"
+                    ? primitives?.color?.hex8
+                    : prop === "backgroundColor"
+                      ? primitives?.backgroundColor?.hex8
+                      : primitives?.borderColor?.hex8;
+
+                const authoredValue =
+                  (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
+
+                return {
+                  label: row.label,
+                  value: row.value,
+                  customContent: (
+                    <TokenTraceValue
+                      property={prop as any}
+                      label={row.label}
+                      resolvedValue={row.value}
+                      hex8={hex8 ?? null}
+                      authoredValue={authoredValue}
+                      tokens={component.styleEvidence?.tokens ?? null}
+                      showCopyActions={false}
+                    />
+                  ),
+                };
+              }),
+            }))}
+          />
+        ) : (
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No style primitives available</div>
+        )}
+
+        {/* Debug: Style primitives */}
+        <details style={{ fontSize: 11 }}>
+          <summary style={{
+            cursor: 'pointer',
+            color: 'hsl(var(--muted-foreground))',
+          }}>
+            Debug: Style primitives
+          </summary>
+          <pre style={{
+            marginTop: 8,
+            background: '#111827',
+            color: '#f3f4f6',
+            padding: 12,
+            borderRadius: 'var(--radius)',
+            overflowX: 'auto',
+            fontSize: 11,
+          }}>
+            {JSON.stringify(component.stylePrimitives ?? component.styles, null, 2)}
+          </pre>
+        </details>
+      </div>
 
       {/* Source section */}
       <div style={{ marginBottom: 24 }}>
@@ -731,93 +812,6 @@ export function ComponentDetails({
         `}</style>
       </div>
 
-      {/* Visual Essentials */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Visual Essentials</label>
-          <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
-            Authored styles:{" "}
-            {component.styleEvidence?.evidence?.method === "cdp" ? "available (CDP)" : "computed"}
-          </span>
-        </div>
-        {component.stylePrimitives ? (
-          <StylePropertiesTable
-            sections={formatVisualEssentials(component.stylePrimitives).map((section) => ({
-              title: section.title,
-              rows: section.rows.map((row) => {
-                const isColorRow =
-                  row.label === "Text color" ||
-                  row.label === "Background" ||
-                  row.label === "Border color";
-
-                if (!isColorRow) {
-                  return {
-                    label: row.label,
-                    value: row.value,
-                  };
-                }
-
-                const prop =
-                  row.label === "Text color"
-                    ? "color"
-                    : row.label === "Background"
-                      ? "backgroundColor"
-                      : "borderColor";
-
-                const primitives: any = component.stylePrimitives;
-                const hex8 =
-                  prop === "color"
-                    ? primitives?.color?.hex8
-                    : prop === "backgroundColor"
-                      ? primitives?.backgroundColor?.hex8
-                      : primitives?.borderColor?.hex8;
-
-                const authoredValue =
-                  (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
-
-                return {
-                  label: row.label,
-                  value: row.value,
-                  customContent: (
-                    <TokenTraceValue
-                      property={prop as any}
-                      label={row.label}
-                      resolvedValue={row.value}
-                      hex8={hex8 ?? null}
-                      authoredValue={authoredValue}
-                      tokens={component.styleEvidence?.tokens ?? null}
-                      showCopyActions={false}
-                    />
-                  ),
-                };
-              }),
-            }))}
-          />
-        ) : (
-          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No style primitives available</div>
-        )}
-
-        {/* Debug: Style primitives */}
-        <details style={{ fontSize: 11 }}>
-          <summary style={{
-            cursor: 'pointer',
-            color: 'hsl(var(--muted-foreground))',
-          }}>
-            Debug: Style primitives
-          </summary>
-          <pre style={{
-            marginTop: 8,
-            background: '#111827',
-            color: '#f3f4f6',
-            padding: 12,
-            borderRadius: 'var(--radius)',
-            overflowX: 'auto',
-            fontSize: 11,
-          }}>
-            {JSON.stringify(component.stylePrimitives ?? component.styles, null, 2)}
-          </pre>
-        </details>
-      </div>
 
       {/* Notes (no onBlur - explicit Save only) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

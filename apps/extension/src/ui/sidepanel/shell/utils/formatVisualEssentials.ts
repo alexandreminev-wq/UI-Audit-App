@@ -283,6 +283,45 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
     value: formatPadding(styles.spacing),
     evidence: paddingEvidence
   });
+
+  // Add margin if available
+  if (styles.margin) {
+    const marginValue = format4SidedValue(
+      styles.margin.marginTop || '0px',
+      styles.margin.marginRight || '0px',
+      styles.margin.marginBottom || '0px',
+      styles.margin.marginLeft || '0px'
+    );
+    
+    let marginEvidence: string | undefined;
+    if (styles.sources) {
+      const sides = [
+        styles.sources.marginTop && `top: ${styles.sources.marginTop}`,
+        styles.sources.marginRight && `right: ${styles.sources.marginRight}`,
+        styles.sources.marginBottom && `bottom: ${styles.sources.marginBottom}`,
+        styles.sources.marginLeft && `left: ${styles.sources.marginLeft}`,
+      ].filter(Boolean);
+      if (sides.length > 0) {
+        marginEvidence = `margin: { ${sides.join(', ')} }`;
+      }
+    }
+    
+    spacingRows.push({
+      label: 'Margin',
+      value: marginValue,
+      evidence: marginEvidence
+    });
+  }
+
+  // Add gap if available
+  if (styles.gap) {
+    spacingRows.push({
+      label: 'Gap',
+      value: `${styles.gap.rowGap} / ${styles.gap.columnGap}`,
+      evidence: styles.sources?.gap
+    });
+  }
+
   sections.push({ title: 'Spacing', rows: spacingRows });
 
   return sections;
