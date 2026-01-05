@@ -194,6 +194,15 @@ let stateMenuHost: HTMLDivElement | null = null;
 let stateMenuShadow: ShadowRoot | null = null;
 let stateMenuIsOpen = false;
 let stateMenuTargetEl: Element | null = null;
+// Capture options menu (right-click / '.' hotkey)
+let captureMenuHost: HTMLDivElement | null = null;
+let captureMenuShadow: ShadowRoot | null = null;
+let captureMenuIsOpen = false;
+let captureMenuTargetEl: Element | null = null;
+let captureMenuView: "main" | "children" = "main";
+let captureMenuChildCandidates: Element[] = [];
+let captureMenuPos: { x: number; y: number } | null = null;
+let captureMenuPinnedPrev: { isFrozen: boolean; frozenEl: Element | null } | null = null;
 let lastHoverElForPill: Element | null = null;
 let currentHoverEl: Element | null = null;
 let isFrozen = false;
@@ -433,6 +442,120 @@ function createMetadataPill(): HTMLDivElement {
 
 type StateCaptureMode = "default" | "force_hover" | "force_active" | "as_is";
 
+type CaptureMenuActionState = {
+    label: string;
+    mode: StateCaptureMode;
+    requestedState: "default" | "hover" | "active";
+    kbd?: string;
+};
+
+function isInteractiveTarget(el: Element | null | undefined): el is Element {
+    if (!el) return false;
+    if (el === document.documentElement || el === document.body) return false;
+    return true;
+}
+
+function isOurUiElement(el: Element): boolean {
+    if (overlayDiv && (el === overlayDiv || overlayDiv.contains(el))) return true;
+    if (pillDiv && (el === pillDiv || pillDiv.contains(el))) return true;
+    if (stateMenuHost && (el === stateMenuHost || stateMenuHost.contains(el))) return true;
+    if (captureMenuHost && (el === captureMenuHost || captureMenuHost.contains(el))) return true;
+    if (sidebarHost && (el === sidebarHost || sidebarHost.contains(el))) return true;
+    if (confirmationPopoverHost && (el === confirmationPopoverHost || confirmationPopoverHost.contains(el))) return true;
+    return false;
+}
+
+function resolveTargetFromPoint(x: number, y: number): Element | null {
+    const elements = document.elementsFromPoint(x, y);
+    const candidate = elements.find((elem) => !isOurUiElement(elem));
+    return isInteractiveTarget(candidate) ? candidate : null;
+}
+
+function getSemanticTarget(start: Element): Element | null {
+    const semanticTags = new Set(["button", "a", "input", "select", "textarea", "label"]);
+    const semanticRoles = new Set(["button", "link", "textbox", "checkbox", "radio", "switch", "combobox"]);
+
+    let current: Element | null = start;
+    for (let depth = 0; current && depth < 15; depth++) {
+        const tag = current.tagName.toLowerCase();
+        const role = (current.getAttribute("role") || "").trim().toLowerCase();
+        const href = (current as HTMLAnchorElement).href;
+
+        if (semanticTags.has(tag)) {
+            // For <a>, require href (otherwise often used as wrapper)
+            if (tag !== "a" || !!href) return current;
+        }
+        if (role && semanticRoles.has(role)) return current;
+
+        current = current.parentElement;
+    }
+    return null;
+}
+
+function formatElLabel(el: Element): string {
+    const tag = el.tagName.toLowerCase();
+    const id = (el as HTMLElement).id ? `#${(el as HTMLElement).id}` : "";
+    const classes = Array.from(el.classList || []).slice(0, 2);
+    const cls = classes.length ? `.${classes.join(".")}` : "";
+    return `${tag}${id}${cls}`;
+}
+
+function buildBreadcrumb(el: Element): string {
+    const segments: string[] = [];
+    let current: Element | null = el;
+    let depth = 0;
+    while (current && current !== document.documentElement && depth < 5) {
+        segments.unshift(formatElLabel(current));
+        if ((current as HTMLElement).id) break;
+        current = current.parentElement;
+        depth++;
+    }
+    const s = segments.join(" > ");
+    return s.length > 80 ? `${s.slice(0, 77)}…` : s;
+}
+
+function getChildCandidates(parent: Element, limit = 5): Element[] {
+    const rectParent = parent.getBoundingClientRect();
+    const candidates: Array<{ el: Element; area: number }> = [];
+    for (const child of Array.from(parent.children)) {
+        if (!isInteractiveTarget(child)) continue;
+        const r = child.getBoundingClientRect();
+        const w = Math.round(r.width);
+        const h = Math.round(r.height);
+        if (w <= 0 || h <= 0) continue;
+        // Must meaningfully intersect the parent box (avoid positioned strays)
+        const intersects =
+            r.left < rectParent.right &&
+            r.right > rectParent.left &&
+            r.top < rectParent.bottom &&
+            r.bottom > rectParent.top;
+        if (!intersects) continue;
+        candidates.push({ el: child, area: w * h });
+    }
+    candidates.sort((a, b) => b.area - a.area);
+    return candidates.slice(0, limit).map((c) => c.el);
+}
+
+function pinTargetForMenu(target: Element) {
+    // If we've already pinned for an open menu, just retarget the pin.
+    // Keep the original pre-menu freeze state so closeCaptureMenu can restore it.
+    if (!captureMenuPinnedPrev) {
+        captureMenuPinnedPrev = { isFrozen, frozenEl };
+    }
+    isFrozen = true;
+    frozenEl = target;
+    renderForElement(target);
+}
+
+function unpinTargetForMenu() {
+    if (!captureMenuPinnedPrev) return;
+    isFrozen = captureMenuPinnedPrev.isFrozen;
+    frozenEl = captureMenuPinnedPrev.frozenEl;
+    captureMenuPinnedPrev = null;
+    const el = frozenEl ?? currentHoverEl ?? lastHoverElForPill;
+    if (el) renderForElement(el);
+}
+
 function ensureStateMenu() {
     if (stateMenuHost && stateMenuShadow) return;
 
@@ -612,6 +735,402 @@ function closeStateMenu() {
     stateMenuTargetEl = null;
     const menu = stateMenuShadow?.querySelector(".menu");
     if (menu) menu.classList.remove("open");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Capture Options Menu (right-click / '.' hotkey)
+// ─────────────────────────────────────────────────────────────
+
+function ensureCaptureMenu() {
+    if (captureMenuHost && captureMenuShadow) return;
+
+    captureMenuIsOpen = false;
+    captureMenuTargetEl = null;
+    captureMenuView = "main";
+    captureMenuChildCandidates = [];
+    captureMenuPos = null;
+
+    captureMenuHost = document.createElement("div");
+    captureMenuHost.id = "ui-inventory-capture-menu-host";
+    captureMenuHost.style.cssText = `
+        all: initial;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 2147483647;
+        pointer-events: none;
+    `;
+
+    captureMenuShadow = captureMenuHost.attachShadow({ mode: "open" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+        * { box-sizing: border-box; }
+        .menu {
+            position: fixed;
+            min-width: 260px;
+            max-width: 360px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.10);
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            padding: 10px;
+            display: none;
+            pointer-events: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .menu.open { display: block; }
+        .titleRow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 0 0 6px 0;
+        }
+        .title {
+            font-size: 12px;
+            font-weight: 800;
+            color: #111827;
+            margin: 0;
+        }
+        .crumb {
+            font-size: 11px;
+            color: #6b7280;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+        .section {
+            margin-top: 10px;
+            border-top: 1px solid rgba(0,0,0,0.06);
+            padding-top: 10px;
+        }
+        .section:first-of-type {
+            margin-top: 0;
+            border-top: none;
+            padding-top: 0;
+        }
+        .sectionTitle {
+            font-size: 10px;
+            font-weight: 800;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 0 0 8px 0;
+        }
+        .btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.08);
+            background: #f9fafb;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 650;
+            color: #111827;
+        }
+        .btn:hover { background: #eef2ff; border-color: rgba(59,130,246,0.35); }
+        .btn + .btn { margin-top: 8px; }
+        .btn[disabled] {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+        .kbd {
+            font-size: 10px;
+            font-weight: 800;
+            color: #6b7280;
+            padding: 2px 6px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 6px;
+            background: white;
+        }
+        .hint {
+            font-size: 10px;
+            font-weight: 650;
+            color: #6b7280;
+            margin-top: 10px;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btnSecondary {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.10);
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+            color: #374151;
+        }
+        .btnSecondary:hover { background: #f3f4f6; }
+    `;
+
+    const menu = document.createElement("div");
+    menu.className = "menu";
+
+    // Header
+    const titleRow = document.createElement("div");
+    titleRow.className = "titleRow";
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = "Capture options";
+    const titleKbd = document.createElement("span");
+    titleKbd.className = "kbd";
+    titleKbd.textContent = ".";
+    titleRow.appendChild(title);
+    titleRow.appendChild(titleKbd);
+
+    const crumb = document.createElement("div");
+    crumb.className = "crumb";
+    crumb.textContent = "";
+
+    const content = document.createElement("div");
+    content.className = "content";
+
+    menu.appendChild(titleRow);
+    menu.appendChild(crumb);
+    menu.appendChild(content);
+
+    captureMenuShadow.appendChild(style);
+    captureMenuShadow.appendChild(menu);
+    document.documentElement.appendChild(captureMenuHost);
+}
+
+function renderCaptureMenu() {
+    if (!captureMenuShadow) return;
+    const menu = captureMenuShadow.querySelector(".menu") as HTMLDivElement | null;
+    const crumb = captureMenuShadow.querySelector(".crumb") as HTMLDivElement | null;
+    const content = captureMenuShadow.querySelector(".content") as HTMLDivElement | null;
+    if (!menu || !content) return;
+
+    const target = captureMenuTargetEl;
+    if (crumb) crumb.textContent = target ? buildBreadcrumb(target) : "";
+
+    // Clear
+    content.innerHTML = "";
+
+    const mkSection = (label: string) => {
+        const s = document.createElement("div");
+        s.className = "section";
+        const t = document.createElement("div");
+        t.className = "sectionTitle";
+        t.textContent = label;
+        s.appendChild(t);
+        return s;
+    };
+
+    const mkBtn = (label: string, right: string | null, onClick: (() => void | Promise<void>) | null, disabled?: boolean) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn";
+        b.disabled = !!disabled;
+        const left = document.createElement("span");
+        left.textContent = label;
+        b.appendChild(left);
+        if (right) {
+            const r = document.createElement("span");
+            r.className = "kbd";
+            r.textContent = right;
+            b.appendChild(r);
+        }
+        b.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (!onClick || b.disabled) return;
+            await onClick();
+        });
+        return b;
+    };
+
+    const closeAndCapture = async (el: Element, action: CaptureMenuActionState) => {
+        closeCaptureMenu();
+        await checkDuplicateAndCapture(el, action.requestedState, action.mode);
+    };
+
+    if (captureMenuView === "children") {
+        const sec = mkSection("Pick a child");
+        if (captureMenuChildCandidates.length === 0) {
+            sec.appendChild(mkBtn("No suitable children found", null, null, true));
+        } else {
+            captureMenuChildCandidates.forEach((child, idx) => {
+                sec.appendChild(
+                    mkBtn(`Capture ${formatElLabel(child)}`, String(idx + 1), async () => {
+                        await closeAndCapture(child, { label: "Default", mode: "default", requestedState: "default" });
+                    })
+                );
+            });
+        }
+
+        const row = document.createElement("div");
+        row.className = "row";
+        const back = document.createElement("button");
+        back.type = "button";
+        back.className = "btnSecondary";
+        back.textContent = "Back";
+        back.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            captureMenuView = "main";
+            renderCaptureMenu();
+        });
+        row.appendChild(back);
+        content.appendChild(sec);
+        content.appendChild(row);
+        return;
+    }
+
+    // Main view
+    const selectionSec = mkSection("Selection");
+    const exactTarget = target;
+    const parentTarget = exactTarget?.parentElement ?? null;
+    const semanticTarget = exactTarget ? getSemanticTarget(exactTarget) : null;
+    const children = exactTarget ? getChildCandidates(exactTarget, 5) : [];
+
+    selectionSec.appendChild(
+        mkBtn(
+            exactTarget ? `Capture element (${formatElLabel(exactTarget)})` : "Capture element",
+            "↩",
+            exactTarget ? async () => await closeAndCapture(exactTarget, { label: "Default", mode: "default", requestedState: "default" }) : null,
+            !exactTarget
+        )
+    );
+    selectionSec.appendChild(
+        mkBtn(
+            parentTarget ? `Capture parent (${formatElLabel(parentTarget)})` : "Capture parent",
+            "P",
+            parentTarget ? async () => await closeAndCapture(parentTarget, { label: "Default", mode: "default", requestedState: "default" }) : null,
+            !parentTarget || parentTarget === document.body || parentTarget === document.documentElement
+        )
+    );
+    selectionSec.appendChild(
+        mkBtn(
+            semanticTarget ? `Capture semantic (${formatElLabel(semanticTarget)})` : "Capture semantic",
+            "M",
+            semanticTarget ? async () => await closeAndCapture(semanticTarget, { label: "Default", mode: "default", requestedState: "default" }) : null,
+            !semanticTarget
+        )
+    );
+    selectionSec.appendChild(
+        mkBtn(
+            children.length ? `Capture child… (${children.length} candidates)` : "Capture child…",
+            "C",
+            children.length
+                ? async () => {
+                      captureMenuChildCandidates = children;
+                      captureMenuView = "children";
+                      renderCaptureMenu();
+                  }
+                : null,
+            !children.length
+        )
+    );
+
+    const stateSec = mkSection("State");
+    const states: CaptureMenuActionState[] = [
+        { label: "Default state (non-hover)", mode: "default", requestedState: "default", kbd: "D" },
+        { label: "Force hover", mode: "force_hover", requestedState: "hover", kbd: "H" },
+        { label: "Force active", mode: "force_active", requestedState: "active", kbd: "A" },
+        { label: "Capture As-Is", mode: "as_is", requestedState: "default", kbd: "S" },
+    ];
+    for (const s of states) {
+        stateSec.appendChild(
+            mkBtn(
+                s.label,
+                s.kbd ?? null,
+                exactTarget ? async () => await closeAndCapture(exactTarget, s) : null,
+                !exactTarget
+            )
+        );
+    }
+
+    const envSec = mkSection("Environment");
+    const canFreeze = !!exactTarget;
+    envSec.appendChild(
+        mkBtn(
+            isFrozen ? "Unfreeze (restore hover)" : "Freeze (lock selection)",
+            "Shift",
+            canFreeze
+                ? async () => {
+                      // This is explicit user freeze/unfreeze (not just menu pinning)
+                      if (isFrozen) {
+                          isFrozen = false;
+                          frozenEl = null;
+                          closeCaptureMenu();
+                          return;
+                      }
+                      isFrozen = true;
+                      frozenEl = exactTarget!;
+                      renderForElement(frozenEl);
+                      closeCaptureMenu();
+                  }
+                : null,
+            !canFreeze
+        )
+    );
+
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Tip: Right-click to open here. Press Esc to close.";
+
+    content.appendChild(selectionSec);
+    content.appendChild(stateSec);
+    content.appendChild(envSec);
+    content.appendChild(hint);
+}
+
+function openCaptureMenu(target: Element, pos: { x: number; y: number }) {
+    ensureCaptureMenu();
+    const menu = captureMenuShadow?.querySelector(".menu") as HTMLDivElement | null;
+    if (!menu) return;
+
+    captureMenuTargetEl = target;
+    captureMenuIsOpen = true;
+    captureMenuView = "main";
+    captureMenuChildCandidates = [];
+    captureMenuPos = pos;
+
+    pinTargetForMenu(target);
+    renderCaptureMenu();
+
+    const margin = 8;
+    // Measure menu size offscreen
+    menu.style.left = `-9999px`;
+    menu.style.top = `-9999px`;
+    menu.classList.add("open");
+    const w = menu.offsetWidth || 300;
+    const h = menu.offsetHeight || 220;
+
+    let left = pos.x;
+    let top = pos.y;
+    if (left + w > window.innerWidth - margin) left = window.innerWidth - margin - w;
+    if (top + h > window.innerHeight - margin) top = window.innerHeight - margin - h;
+    if (left < margin) left = margin;
+    if (top < margin) top = margin;
+
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+}
+
+function closeCaptureMenu() {
+    captureMenuIsOpen = false;
+    captureMenuTargetEl = null;
+    captureMenuView = "main";
+    captureMenuChildCandidates = [];
+    captureMenuPos = null;
+    const menu = captureMenuShadow?.querySelector(".menu");
+    if (menu) menu.classList.remove("open");
+    unpinTargetForMenu();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1059,6 +1578,18 @@ async function onClickSelect(e: MouseEvent) {
         return;
     }
 
+    // If capture menu is open, either let it handle the click or close it.
+    if (captureMenuIsOpen) {
+        if (captureMenuHost && e.composedPath().includes(captureMenuHost)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        closeCaptureMenu();
+        return;
+    }
+
     // If menu is open, either let it handle the click or close it.
     if (stateMenuIsOpen) {
         if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
@@ -1284,6 +1815,7 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
     const wasOverlayVisible = overlayDiv && overlayDiv.style.display !== "none";
     const wasPillVisible = pillDiv && pillDiv.style.display !== "none";
     const wasMenuVisible = stateMenuIsOpen;
+    const wasCaptureMenuVisible = captureMenuIsOpen;
 
     try {
         // Set flag to prevent overlay updates during CDP capture
@@ -1297,6 +1829,9 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
         }
         if (wasMenuVisible) {
             closeStateMenu();
+        }
+        if (wasCaptureMenuVisible) {
+            closeCaptureMenu();
         }
 
         // Wait for browser to render the hidden overlay (one frame)
@@ -1373,6 +1908,28 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
 function onKeyDown(e: KeyboardEvent) {
     if (!isHoverModeActive) return;
 
+    // '.' : open capture options menu for current target (keyboard fallback)
+    if (e.key === "." && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // Avoid triggering while focus is on an editable element
+        const ae = document.activeElement as Element | null;
+        const isEditable =
+            ae instanceof HTMLInputElement ||
+            ae instanceof HTMLTextAreaElement ||
+            (ae && (ae as HTMLElement).isContentEditable);
+        if (isEditable) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const target = frozenEl ?? currentHoverEl ?? lastHoverElForPill;
+        if (target && isInteractiveTarget(target)) {
+            const pos = captureMenuPos ?? (lastMouseX !== null && lastMouseY !== null ? { x: lastMouseX, y: lastMouseY } : { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+            openCaptureMenu(target, pos);
+        }
+        return;
+    }
+
     // Shift: freeze on current hovered element
     if (e.key === "Shift") {
         // Ignore key repeat to prevent flip-flop
@@ -1397,6 +1954,10 @@ function onKeyDown(e: KeyboardEvent) {
             closeConfirmationPopover();
             return;
         }
+        if (captureMenuIsOpen) {
+            closeCaptureMenu();
+            return;
+        }
         if (stateMenuIsOpen) {
             closeStateMenu();
             return;
@@ -1407,11 +1968,51 @@ function onKeyDown(e: KeyboardEvent) {
     }
 }
 
+function onContextMenu(e: MouseEvent) {
+    if (!isHoverModeActive) return;
+
+    // If user right-clicks inside our UI, let it behave normally (but keep native menu suppressed)
+    if (captureMenuHost && e.composedPath().includes(captureMenuHost)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return;
+    }
+    if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
+        // Don't open capture menu over state menu; just suppress native menu
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return;
+    }
+    if (confirmationPopoverHost && e.composedPath().includes(confirmationPopoverHost)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return;
+    }
+
+    // Safe interception: capture phase, prevent native menu and site handlers while in capture mode.
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    const target = resolveTargetFromPoint(e.clientX, e.clientY);
+    if (!target) return;
+
+    openCaptureMenu(target, { x: e.clientX, y: e.clientY });
+}
+
 function onKeyUp(e: KeyboardEvent) {
     if (!isHoverModeActive) return;
 
     // Shift released: unfreeze
     if (e.key === "Shift") {
+        // If the capture menu is open, it owns the frozen state as a pin.
+        // Don't unfreeze underneath it.
+        if (captureMenuIsOpen && captureMenuPinnedPrev) {
+            return;
+        }
         isFrozen = false;
         frozenEl = null;
         // Force refresh pill visuals immediately
@@ -1444,6 +2045,7 @@ function startHoverMode() {
     document.addEventListener("mousemove", onMouseMove, { passive: true });
     document.addEventListener("pointerdown", onPointerCapture, true);
     document.addEventListener("click", onClickSelect, true);
+    document.addEventListener("contextmenu", onContextMenu, true);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("keyup", onKeyUp, true);
 }
@@ -1464,6 +2066,7 @@ function stopHoverMode() {
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("pointerdown", onPointerCapture, true);
     document.removeEventListener("click", onClickSelect, true);
+    document.removeEventListener("contextmenu", onContextMenu, true);
     document.removeEventListener("keydown", onKeyDown, true);
     document.removeEventListener("keyup", onKeyUp, true);
 
@@ -1485,6 +2088,18 @@ function stopHoverMode() {
     }
     stateMenuIsOpen = false;
     stateMenuTargetEl = null;
+
+    if (captureMenuHost) {
+        captureMenuHost.remove();
+        captureMenuHost = null;
+        captureMenuShadow = null;
+    }
+    captureMenuIsOpen = false;
+    captureMenuTargetEl = null;
+    captureMenuView = "main";
+    captureMenuChildCandidates = [];
+    captureMenuPos = null;
+    captureMenuPinnedPrev = null;
     
     // Clean up confirmation popover
     if (confirmationPopoverHost) {
