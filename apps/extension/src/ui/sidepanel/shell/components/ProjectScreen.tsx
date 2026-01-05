@@ -474,6 +474,7 @@ export function ProjectScreen({
       isTabInactive={isTabInactive}
       onActivateTab={onActivateTab}
       tabActivationError={tabActivationError}
+      isLoadingComponents={isLoadingComponents}
     />
   );
 }

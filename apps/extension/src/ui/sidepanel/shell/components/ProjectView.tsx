@@ -19,6 +19,7 @@ interface ProjectViewProps {
   isTabInactive: boolean;
   onActivateTab: () => void;
   tabActivationError: string;
+  isLoadingComponents: boolean;
 }
 
 export function ProjectView({
@@ -35,6 +36,7 @@ export function ProjectView({
   isTabInactive,
   onActivateTab,
   tabActivationError,
+  isLoadingComponents,
 }: ProjectViewProps) {
   const reviewingComponent = reviewingComponentId
     ? components.find(c => c.id === reviewingComponentId)
@@ -138,10 +140,22 @@ export function ProjectView({
         {/* State 1: Inactive tab (highest priority) */}
         {isTabInactive ? (
           <InactiveTabScreen error={tabActivationError} onActivate={onActivateTab} />
-        ) : /* State 2: Empty (no captures) */
+        ) : /* State 2: Loading */
+        isLoadingComponents && components.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            fontSize: '14px',
+            color: 'hsl(var(--muted-foreground))',
+          }}>
+            Loading captures...
+          </div>
+        ) : /* State 3: Empty (no captures) */
         components.length === 0 ? (
           <EmptyState />
-        ) : /* State 3: Reviewing a component (full height) */
+        ) : /* State 4: Reviewing a component (full height) */
         reviewingComponent ? (
           <ComponentDetails
             component={reviewingComponent}
@@ -151,7 +165,7 @@ export function ProjectView({
             onClose={() => onSetReviewingComponentId(null)}
             onRefresh={onRefresh}
           />
-        ) : /* State 4: Component Directory (default) */
+        ) : /* State 5: Component Directory (default) */
         (
           <ComponentDirectory
             components={components}
