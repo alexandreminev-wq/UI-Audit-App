@@ -19,12 +19,12 @@ chrome.runtime.sendMessage({ type: "UI/REGISTER_ACTIVE_TAB" }, () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Global Hotkey: Cmd/Ctrl + Shift + C to toggle capture mode
+// Global Hotkey: Cmd/Ctrl + Shift + U to toggle capture mode
 // ─────────────────────────────────────────────────────────────
 
 document.addEventListener("keydown", (e: KeyboardEvent) => {
-    // Cmd/Ctrl + Shift + C
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "C") {
+    // Cmd/Ctrl + Shift + U (U for UI Inventory)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "U") {
         e.preventDefault();
         e.stopPropagation();
         
@@ -42,7 +42,7 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
                 
                 if (response?.ok) {
                     if (newState) {
-                        showToast("Capture mode enabled (⌘⇧C to toggle)", 2000);
+                        showToast("Capture mode enabled (⌘⇧U to toggle)", 2000);
                     } else {
                         showToast("Capture mode disabled", 2000);
                     }
