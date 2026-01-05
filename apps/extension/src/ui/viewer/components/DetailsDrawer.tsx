@@ -1044,14 +1044,14 @@ export function DetailsDrawer({
                                 )}
                             </div>
 
-                            {/* HTML Structure section */}
+                            {/* HTML section */}
                             {(() => {
                                 // Use current state's capture
                                 const htmlStructure = currentStateData.capture?.htmlStructure;
 
                                 return (
                                     <div style={{ marginBottom: 24 }}>
-                                        <h3 style={drawerSectionTitleStyle}>HTML Structure</h3>
+                                        <h3 style={drawerSectionTitleStyle}>HTML</h3>
                                         <div style={{
                                             padding: 12,
                                             background: "hsl(var(--muted))",
@@ -1063,7 +1063,7 @@ export function DetailsDrawer({
                                             overflowWrap: "anywhere",
                                             lineHeight: 1.5,
                                             color: htmlStructure ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                            maxHeight: 300,
+                                            maxHeight: 160,
                                             overflowY: "auto",
                                         }}>
                                             {htmlStructure || "No HTML available"}

@@ -760,7 +760,7 @@ export function ComponentDetails({
         )}
       </div>
 
-      {/* HTML Structure */}
+      {/* HTML */}
       <div style={{ marginBottom: 24 }}>
         <h3 style={{
           fontSize: 14,
@@ -768,7 +768,7 @@ export function ComponentDetails({
           marginTop: 0,
           marginBottom: 8,
           color: 'hsl(var(--foreground))',
-        }}>HTML Structure</h3>
+        }}>HTML</h3>
         <div style={{
           padding: 12,
           background: 'hsl(var(--muted))',
@@ -780,7 +780,7 @@ export function ComponentDetails({
           overflowWrap: 'anywhere',
           lineHeight: 1.5,
           color: component.html ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
-          maxHeight: 300,
+          maxHeight: 160,
           overflowY: 'auto',
         }}>
           {component.html || 'No HTML available'}
