@@ -406,6 +406,16 @@ export function ProjectScreen({
           });
         }
       }
+
+      // M9: Listen for audit state changes (e.g., from hotkey)
+      if (msg?.type === "UI/AUDIT_STATE_CHANGED") {
+        const { tabId, enabled } = msg;
+        // Only update if it's for the current page tab
+        if (tabId === currentPageTabId && typeof enabled === "boolean") {
+          console.log("[ProjectScreen] Audit state changed via hotkey:", { tabId, enabled });
+          setAuditEnabled(enabled);
+        }
+      }
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
@@ -413,7 +423,7 @@ export function ProjectScreen({
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [project.id]);
+  }, [project.id, currentPageTabId]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {

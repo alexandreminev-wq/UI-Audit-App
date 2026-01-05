@@ -47,6 +47,7 @@ import type {
     TokenEvidence,
 } from "../types/capture";
 import { generateSessionId, generateBlobId } from "../types/capture";
+import { deriveComponentKey } from "../ui/shared/componentKey";
 
 const auditEnabledByTab = new Map<number, boolean>();
 const lastSelectedByTab = new Map<number, any>();
@@ -1486,6 +1487,12 @@ chrome.commands.onCommand.addListener((command) => {
                         }
                     }
                 );
+
+                // Broadcast state change to all extension pages (sidepanel, viewer)
+                chrome.runtime.sendMessage(
+                    { type: "UI/AUDIT_STATE_CHANGED", tabId, enabled: newState },
+                    () => void chrome.runtime.lastError
+                );
             } catch (err) {
                 console.error("[UI Inventory] Error handling toggle-capture command:", err);
             }
@@ -1666,6 +1673,91 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             chrome.runtime.sendMessage({ type: "UI/AUDIT_OWNER_CHANGED", activeAuditTabId: tabId }, () => void chrome.runtime.lastError);
 
             sendResponse({ ok: true, activeAuditTabId: tabId, previousActiveAuditTabId: previous });
+        })();
+        return true; // async response
+    }
+
+    // M9: Check if element has already been captured (duplicate detection)
+    if (msg?.type === "AUDIT/CHECK_DUPLICATE") {
+        (async () => {
+            const { tagName, role, accessibleName, requestedState, elementId, elementName, placeholder } = msg;
+            
+            if (!tagName) {
+                sendResponse({ ok: false, error: "tagName is required" });
+                return;
+            }
+
+            try {
+                // Derive componentKey using shared utility
+                const mockCapture = {
+                    element: {
+                        tagName: tagName.toLowerCase(),
+                        role: role || null,
+                        intent: accessibleName ? { accessibleName } : undefined,
+                        textPreview: accessibleName || "",
+                        id: elementId || null,
+                        attributes: {
+                            name: elementName || undefined,
+                            placeholder: placeholder || undefined,
+                        }
+                    }
+                } as CaptureRecordV2;
+                
+                const componentKey = deriveComponentKey(mockCapture);
+                
+                // Get current project's captures
+                const tabId = resolveTabId(msg, sender);
+                if (!tabId) {
+                    sendResponse({ ok: false, error: "No tab ID" });
+                    return;
+                }
+                
+                const projectId = activeProjectByTabId.get(tabId);
+                if (!projectId) {
+                    // No project mapped, treat as not duplicate
+                    sendResponse({ ok: true, isDuplicate: false, componentKey });
+                    return;
+                }
+                
+                // Get all session IDs for this project
+                const sessionIds = await listSessionIdsForProject(projectId);
+                
+                // Get all captures for these sessions
+                const allCaptures = await listCapturesBySessionIds(sessionIds);
+                
+                // Filter to captures with matching componentKey
+                const matchingCaptures = allCaptures.filter(capture => {
+                    const captureKey = deriveComponentKey(capture);
+                    return captureKey === componentKey;
+                });
+                
+                // Check if requested state already exists
+                const requestedStateNormalized = (requestedState || "default").toLowerCase();
+                const existingStates = matchingCaptures.map(c => 
+                    (c.styles?.evidence?.state || "default").toLowerCase()
+                );
+                
+                const isDuplicate = existingStates.includes(requestedStateNormalized);
+                
+                console.log("[UI Inventory] Duplicate check:", {
+                    componentKey,
+                    requestedState: requestedStateNormalized,
+                    existingStates,
+                    matchingCaptureCount: matchingCaptures.length,
+                    isDuplicate
+                });
+                
+                sendResponse({ 
+                    ok: true, 
+                    isDuplicate,
+                    componentKey,
+                    existingStates,
+                    matchingCaptureCount: matchingCaptures.length
+                });
+            } catch (err) {
+                console.error("[UI Inventory] AUDIT/CHECK_DUPLICATE error:", err);
+                sendResponse({ ok: false, error: String(err) });
+            }
         })();
         return true; // async response
     }

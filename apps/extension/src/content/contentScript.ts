@@ -203,6 +203,8 @@ let isHoverModeActive = false;
 let rafId: number | null = null;
 let pendingUpdate = false;
 let isCaptureInProgress = false; // Prevent overlay updates during CDP capture
+let lastMouseX: number | null = null; // Track last mouse position for post-capture overlay refresh
+let lastMouseY: number | null = null;
 
 // ─────────────────────────────────────────────────────────────
 // Sidebar (Milestone 6.1)
@@ -544,7 +546,15 @@ function ensureStateMenu() {
             const target = stateMenuTargetEl;
             closeStateMenu();
             if (!target) return;
-            await performCapture(target, { mode });
+            
+            // Show confirmation before capturing state
+            // Map capture mode to evidence state (what's actually stored)
+            const stateLabel = mode === "default" ? "default" :
+                              mode === "force_hover" ? "hover" :
+                              mode === "force_active" ? "active" :
+                              "default"; // as_is defaults to default
+            
+            await checkDuplicateAndCapture(target, stateLabel, mode);
         });
         return b;
     };
@@ -602,6 +612,182 @@ function closeStateMenu() {
     stateMenuTargetEl = null;
     const menu = stateMenuShadow?.querySelector(".menu");
     if (menu) menu.classList.remove("open");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Confirmation Popover (M9: Duplicate detection & state confirmation)
+// ─────────────────────────────────────────────────────────────
+
+let confirmationPopoverHost: HTMLDivElement | null = null;
+let confirmationPopoverShadow: ShadowRoot | null = null;
+let confirmationPopoverIsOpen = false;
+let confirmationPopoverCallbacks: { onConfirm: () => void; onCancel: () => void } | null = null;
+
+function ensureConfirmationPopover() {
+    if (confirmationPopoverHost && confirmationPopoverShadow) return;
+
+    confirmationPopoverIsOpen = false;
+
+    confirmationPopoverHost = document.createElement("div");
+    confirmationPopoverHost.id = "ui-inventory-confirmation-popover-host";
+    confirmationPopoverHost.style.cssText = `
+        all: initial;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 2147483647;
+        pointer-events: none;
+    `;
+
+    confirmationPopoverShadow = confirmationPopoverHost.attachShadow({ mode: "open" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+        * { box-sizing: border-box; }
+        .popover {
+            position: fixed;
+            min-width: 260px;
+            max-width: 360px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.10);
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            padding: 16px;
+            display: none;
+            pointer-events: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .popover.open { display: block; }
+        .message {
+            font-size: 14px;
+            font-weight: 500;
+            color: #111827;
+            margin: 0 0 16px 0;
+            line-height: 1.4;
+        }
+        .buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+    `;
+
+    const popover = document.createElement("div");
+    popover.className = "popover";
+    popover.innerHTML = `
+        <div class="message"></div>
+        <div class="buttons">
+            <button class="btn btn-secondary cancel-btn">Cancel</button>
+            <button class="btn btn-primary confirm-btn">Capture</button>
+        </div>
+    `;
+
+    confirmationPopoverShadow.appendChild(style);
+    confirmationPopoverShadow.appendChild(popover);
+
+    // Event listeners
+    const confirmBtn = popover.querySelector(".confirm-btn") as HTMLButtonElement;
+    const cancelBtn = popover.querySelector(".cancel-btn") as HTMLButtonElement;
+
+    confirmBtn.addEventListener("click", () => {
+        if (confirmationPopoverCallbacks?.onConfirm) {
+            confirmationPopoverCallbacks.onConfirm();
+        }
+        closeConfirmationPopover();
+    });
+
+    cancelBtn.addEventListener("click", () => {
+        if (confirmationPopoverCallbacks?.onCancel) {
+            confirmationPopoverCallbacks.onCancel();
+        }
+        closeConfirmationPopover();
+    });
+
+    document.documentElement.appendChild(confirmationPopoverHost);
+}
+
+interface ConfirmationPopoverConfig {
+    targetElement: Element;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}
+
+function showConfirmationPopover(config: ConfirmationPopoverConfig) {
+    ensureConfirmationPopover();
+    const popover = confirmationPopoverShadow?.querySelector(".popover") as HTMLDivElement | null;
+    if (!popover) return;
+
+    // Update content
+    const messageEl = popover.querySelector(".message");
+    const confirmBtn = popover.querySelector(".confirm-btn") as HTMLButtonElement;
+    
+    if (messageEl) messageEl.textContent = config.message;
+    if (confirmBtn) confirmBtn.textContent = config.confirmLabel || "Capture";
+
+    // Store callbacks
+    confirmationPopoverCallbacks = {
+        onConfirm: config.onConfirm,
+        onCancel: config.onCancel
+    };
+
+    confirmationPopoverIsOpen = true;
+
+    // Position popover near target element
+    const rect = config.targetElement.getBoundingClientRect();
+    const margin = 8;
+    const preferredLeft = rect.left;
+    const preferredTop = rect.bottom + 10;
+
+    // Measure popover size by temporarily showing it offscreen
+    popover.style.left = `-9999px`;
+    popover.style.top = `-9999px`;
+    popover.classList.add("open");
+    const w = popover.offsetWidth || 280;
+    const h = popover.offsetHeight || 100;
+
+    let left = preferredLeft;
+    let top = preferredTop;
+    if (left + w > window.innerWidth - margin) left = window.innerWidth - margin - w;
+    if (left < margin) left = margin;
+    if (top + h > window.innerHeight - margin) top = rect.top - 10 - h;
+    if (top < margin) top = margin;
+
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+}
+
+function closeConfirmationPopover() {
+    confirmationPopoverIsOpen = false;
+    confirmationPopoverCallbacks = null;
+    const popover = confirmationPopoverShadow?.querySelector(".popover");
+    if (popover) popover.classList.remove("open");
 }
 
 /**
@@ -762,9 +948,9 @@ function updateOverlay(x: number, y: number) {
     // Filter out our own overlay elements and find the first meaningful element
     const el = elements.find(elem => 
         elem !== overlayDiv && 
-        elem !== metadataPill &&
+        elem !== pillDiv &&
         !overlayDiv?.contains(elem) &&
-        !metadataPill?.contains(elem)
+        !pillDiv?.contains(elem)
     );
     
     if (!el) {
@@ -799,6 +985,10 @@ function updateOverlay(x: number, y: number) {
 
 function onMouseMove(e: MouseEvent) {
     if (!isHoverModeActive || pendingUpdate) return;
+
+    // M9: Track mouse position for post-capture overlay refresh
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
 
     // Prevent overlay updates during CDP capture (CDP mouse movement triggers this)
     if (isCaptureInProgress) {
@@ -853,6 +1043,22 @@ async function onPointerCapture(e: PointerEvent) {
 async function onClickSelect(e: MouseEvent) {
     if (!isHoverModeActive) return;
 
+    // If confirmation popover is open, either let it handle the click or close it
+    if (confirmationPopoverIsOpen) {
+        if (confirmationPopoverHost && e.composedPath().includes(confirmationPopoverHost)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        // Cancel on click outside
+        if (confirmationPopoverCallbacks?.onCancel) {
+            confirmationPopoverCallbacks.onCancel();
+        }
+        closeConfirmationPopover();
+        return;
+    }
+
     // If menu is open, either let it handle the click or close it.
     if (stateMenuIsOpen) {
         if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
@@ -896,7 +1102,77 @@ async function onClickSelect(e: MouseEvent) {
         return;
     }
 
-    await performCapture(target);
+    // Check for duplicate before capturing
+    await checkDuplicateAndCapture(target);
+}
+
+/**
+ * Check if element is a duplicate and show confirmation popover if needed
+ */
+async function checkDuplicateAndCapture(target: Element, requestedState?: string, captureMode?: StateCaptureMode) {
+    // Extract element identity for duplicate check
+    const tagName = target.tagName;
+    const role = (target as HTMLElement).getAttribute("role");
+    const ariaLabel = (target as HTMLElement).getAttribute("aria-label");
+    const textPreview = ((target.textContent || "").trim()).slice(0, 120);
+    const accessibleName = ariaLabel || textPreview;
+    
+    // For form elements, include additional context to differentiate similar inputs
+    const elementId = (target as HTMLElement).id || "";
+    const elementName = (target as HTMLInputElement).name || "";
+    const placeholder = (target as HTMLInputElement).placeholder || "";
+
+    console.log("[UI Inventory] Checking duplicate for:", { tagName, role, accessibleName, requestedState, elementId, elementName, placeholder });
+
+    try {
+        // Query service worker for duplicate check
+        const response = await chrome.runtime.sendMessage({
+            type: "AUDIT/CHECK_DUPLICATE",
+            tagName,
+            role,
+            accessibleName,
+            requestedState: requestedState || "default",
+            // Form element context for differentiation
+            elementId,
+            elementName,
+            placeholder
+        });
+
+        console.log("[UI Inventory] Duplicate check response:", response);
+
+        if (!response?.ok) {
+            // If check fails, proceed with capture anyway
+            console.warn("[UI Inventory] Duplicate check failed, proceeding with capture");
+            await performCapture(target, captureMode ? { mode: captureMode } : undefined);
+            return;
+        }
+
+        if (response.isDuplicate) {
+            // Show confirmation popover
+            const elementType = tagName.toLowerCase();
+            const stateSuffix = requestedState && requestedState !== "default" ? ` (${requestedState} state)` : "";
+            
+            showConfirmationPopover({
+                targetElement: target,
+                message: `This ${elementType}${stateSuffix} has already been captured. Capture again?`,
+                confirmLabel: "Capture Again",
+                onConfirm: async () => {
+                    await performCapture(target, captureMode ? { mode: captureMode } : undefined);
+                },
+                onCancel: () => {
+                    // Just return to hover mode
+                    console.log("[UI Inventory] Duplicate capture cancelled");
+                }
+            });
+        } else {
+            // Not a duplicate, proceed with capture
+            await performCapture(target, captureMode ? { mode: captureMode } : undefined);
+        }
+    } catch (err) {
+        console.error("[UI Inventory] Duplicate check error:", err);
+        // On error, proceed with capture anyway
+        await performCapture(target, captureMode ? { mode: captureMode } : undefined);
+    }
 }
 
 async function performCapture(target: Element, captureOptions?: { mode: StateCaptureMode }) {
@@ -966,6 +1242,9 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
                 ariaSelected: target.getAttribute("aria-selected") || undefined,
                 ariaDisabled: target.getAttribute("aria-disabled") || undefined,
                 ariaCurrent: target.getAttribute("aria-current") || undefined,
+                // M9: Add form element context for duplicate detection
+                name: (target as HTMLInputElement).name || undefined,
+                placeholder: (target as HTMLInputElement).placeholder || undefined,
             },
 
             // v2.2: intent anchors
@@ -1066,6 +1345,20 @@ async function performCapture(target: Element, captureOptions?: { mode: StateCap
             if (pillDiv && wasPillVisible && isHoverModeActive) {
                 pillDiv.style.display = "block";
             }
+
+            // M9: Force overlay update to refresh currentHoverEl after capture
+            // This ensures Shift+freeze works immediately after a capture
+            if (isHoverModeActive) {
+                const rect = document.documentElement.getBoundingClientRect();
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                
+                // Get current mouse position if available, otherwise use center
+                const x = lastMouseX ?? centerX;
+                const y = lastMouseY ?? centerY;
+                
+                updateOverlay(x, y);
+            }
         }, 600); // Increased from 100ms to 600ms to ensure CDP screenshot completes
 
         // Restore pill content using final frozen state (after isFrozen cleared)
@@ -1096,6 +1389,14 @@ function onKeyDown(e: KeyboardEvent) {
 
     // Escape: exit selection mode
     if (e.key === "Escape") {
+        if (confirmationPopoverIsOpen) {
+            // Cancel on escape
+            if (confirmationPopoverCallbacks?.onCancel) {
+                confirmationPopoverCallbacks.onCancel();
+            }
+            closeConfirmationPopover();
+            return;
+        }
         if (stateMenuIsOpen) {
             closeStateMenu();
             return;
@@ -1184,6 +1485,16 @@ function stopHoverMode() {
     }
     stateMenuIsOpen = false;
     stateMenuTargetEl = null;
+    
+    // Clean up confirmation popover
+    if (confirmationPopoverHost) {
+        confirmationPopoverHost.remove();
+        confirmationPopoverHost = null;
+        confirmationPopoverShadow = null;
+    }
+    confirmationPopoverIsOpen = false;
+    confirmationPopoverCallbacks = null;
+    
     lastHoverElForPill = null;
     currentHoverEl = null;
     isFrozen = false;

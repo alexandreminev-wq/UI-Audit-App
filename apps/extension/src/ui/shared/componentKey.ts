@@ -31,9 +31,27 @@ export function buildComponentSignature(capture: CaptureRecordV2): string {
     const role = element.role || inferRoleFromTag(tagName);
     const accessibleName = element.intent?.accessibleName || element.textPreview || "";
 
+    // For form elements (inputs, textareas, selects), include additional context
+    // to differentiate between multiple similar inputs
+    let formContext = "";
+    if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+        // Use element ID if available (most specific)
+        const elementId = element.id || "";
+        // Use name attribute if available (common for form inputs)
+        const elementName = element.attributes?.name || "";
+        // Use placeholder as fallback context
+        const placeholder = element.attributes?.placeholder || "";
+        
+        // Combine available context (prioritize id > name > placeholder)
+        formContext = elementId || elementName || placeholder || "";
+    }
+
     // Use structural identity only for grouping states of the same component
     // Visual variants (e.g., primary vs secondary button) are distinguished by accessibleName or role
-    return `${tagName}|${role}|${accessibleName}`;
+    // Form elements also include formContext to differentiate similar inputs
+    return formContext 
+        ? `${tagName}|${role}|${accessibleName}|${formContext}`
+        : `${tagName}|${role}|${accessibleName}`;
 }
 
 /**
