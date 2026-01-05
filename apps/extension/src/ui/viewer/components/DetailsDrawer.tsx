@@ -1052,47 +1052,22 @@ export function DetailsDrawer({
                                 return (
                                     <div style={{ marginBottom: 24 }}>
                                         <h3 style={drawerSectionTitleStyle}>HTML Structure</h3>
-                                        <details style={{ cursor: "pointer" }}>
-                                            <summary style={{
-                                                fontSize: 13,
-                                                fontWeight: 500,
-                                                color: "hsl(var(--muted-foreground))",
-                                                listStyle: "none",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 6,
-                                                userSelect: "none",
-                                                transition: "color 0.15s ease",
-                                            }}
-                                            onMouseEnter={(e) => e.currentTarget.style.color = "hsl(var(--foreground))"}
-                                            onMouseLeave={(e) => e.currentTarget.style.color = "hsl(var(--muted-foreground))"}>
-                                                <span style={{
-                                                    display: "inline-block",
-                                                    transition: "transform 0.2s",
-                                                }}>▸</span>
-                                                Click to expand
-                                            </summary>
-                                            <div style={{
-                                                marginTop: 8,
-                                                padding: 12,
-                                                background: "hsl(var(--muted))",
-                                                borderRadius: "var(--radius)",
-                                                border: "1px solid hsl(var(--border))",
-                                                fontSize: 13,
-                                                fontFamily: "monospace",
-                                                whiteSpace: "pre-wrap",
-                                                overflowWrap: "anywhere",
-                                                lineHeight: 1.5,
-                                                color: htmlStructure ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                            }}>
-                                                {htmlStructure || "No HTML available"}
-                                            </div>
-                                        </details>
-                                        <style>{`
-                                            details[open] > summary > span {
-                                                transform: rotate(90deg);
-                                            }
-                                        `}</style>
+                                        <div style={{
+                                            padding: 12,
+                                            background: "hsl(var(--muted))",
+                                            borderRadius: "var(--radius)",
+                                            border: "1px solid hsl(var(--border))",
+                                            fontSize: 13,
+                                            fontFamily: "monospace",
+                                            whiteSpace: "pre-wrap",
+                                            overflowWrap: "anywhere",
+                                            lineHeight: 1.5,
+                                            color: htmlStructure ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                            maxHeight: 300,
+                                            overflowY: "auto",
+                                        }}>
+                                            {htmlStructure || "No HTML available"}
+                                        </div>
                                     </div>
                                 );
                             })()}
