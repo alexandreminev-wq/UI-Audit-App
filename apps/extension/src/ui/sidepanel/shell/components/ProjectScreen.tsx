@@ -154,6 +154,26 @@ export function ProjectScreen({
         });
 
         setCapturedComponents(baseComponents);
+        
+        // Loading is complete - base components are ready to display
+        setIsLoadingComponents(false);
+
+        // Preserve currently reviewing component after refresh
+        // (important when saving a draft - the component ID might change)
+        if (reviewingComponentId) {
+          const currentlyReviewing = capturedComponents.find(c => c.id === reviewingComponentId);
+          if (currentlyReviewing) {
+            // Find the same component by componentKey in the new list
+            const stillExists = baseComponents.find(c => c.componentKey === currentlyReviewing.componentKey);
+            if (stillExists && stillExists.id !== reviewingComponentId) {
+              // Component exists but with a new ID - update reviewingComponentId
+              setReviewingComponentId(stillExists.id);
+            } else if (!stillExists) {
+              // Component was deleted - close detail view
+              setReviewingComponentId(null);
+            }
+          }
+        }
 
         // Auto-review pending component if set (when a new capture is saved)
         if (pendingReviewIdRef.current) {
@@ -167,7 +187,6 @@ export function ProjectScreen({
         // 2) Load annotations and merge opportunistically (should never block base render)
         chrome.runtime.sendMessage({ type: "ANNOTATIONS/GET_PROJECT", projectId: project.id }, (annResp) => {
           if (chrome.runtime.lastError) {
-            setIsLoadingComponents(false);
             return;
           }
 
@@ -190,8 +209,6 @@ export function ProjectScreen({
               };
             })
           );
-
-          setIsLoadingComponents(false);
         });
 
         // 3) Load identity overrides and merge opportunistically
