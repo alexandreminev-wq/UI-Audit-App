@@ -380,7 +380,7 @@ export function ComponentDetails({
                 padding: '3px 8px',
                 borderRadius: 'calc(var(--radius) - 2px)',
               }}>
-                Unsaved
+                Draft
               </span>
             )}
           </div>
