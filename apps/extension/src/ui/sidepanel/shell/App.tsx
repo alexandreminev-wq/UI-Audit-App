@@ -241,15 +241,20 @@ export default function App() {
     }
 
     // First, disable capture mode to avoid confusion during reload
-    // Wait for this to complete before proceeding
-    const toggleResp = await sendMessageAsync<{ type: string; enabled: boolean; tabId: number }, any>({
-      type: 'AUDIT/TOGGLE',
-      enabled: false,
-      tabId,
-    });
+    // This is non-critical - if it fails (e.g., service worker unavailable), continue anyway
+    try {
+      const toggleResp = await sendMessageAsync<{ type: string; enabled: boolean; tabId: number }, any>({
+        type: 'AUDIT/TOGGLE',
+        enabled: false,
+        tabId,
+      });
 
-    if (!toggleResp?.ok) {
-      console.warn('[App] Failed to disable capture before activation:', toggleResp?.error);
+      if (!toggleResp?.ok) {
+        console.warn('[App] Failed to disable capture before activation:', toggleResp?.error);
+      }
+    } catch (err) {
+      // Service worker might be unavailable - this is non-fatal
+      console.warn('[App] Could not disable capture before activation (service worker unavailable):', err);
     }
 
     const resp = await sendMessageAsync<{ type: string; tabId: number }, any>({
