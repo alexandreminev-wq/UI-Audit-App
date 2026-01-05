@@ -187,7 +187,25 @@ export default function App() {
     }
 
     setActiveAuditTabId(tabId);
-    setCurrentProject(null); // force project re-selection (re-open flow)
+    
+    // If we're already in a project, keep it and set the project mapping for the new tab
+    if (currentProject) {
+      const setResp = await sendMessageAsync<
+        { type: string; projectId: string; tabId?: number | null },
+        any
+      >({
+        type: 'UI/SET_ACTIVE_PROJECT_FOR_TAB',
+        projectId: currentProject.id,
+        tabId,
+      });
+
+      if (!setResp?.ok) {
+        setError(setResp?.error || 'Failed to set active project for this tab');
+      }
+    } else {
+      // Only reset to StartScreen if we weren't in a project
+      setCurrentProject(null);
+    }
   };
 
   const handleCreateProject = async (title: string) => {
