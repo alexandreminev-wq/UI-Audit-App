@@ -687,26 +687,6 @@ export function ComponentDetails({
           <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No style primitives available</div>
         )}
 
-        {/* Debug: Style primitives */}
-        <details style={{ fontSize: 11 }}>
-          <summary style={{
-            cursor: 'pointer',
-            color: 'hsl(var(--muted-foreground))',
-          }}>
-            Debug: Style primitives
-          </summary>
-          <pre style={{
-            marginTop: 8,
-            background: '#111827',
-            color: '#f3f4f6',
-            padding: 12,
-            borderRadius: 'var(--radius)',
-            overflowX: 'auto',
-            fontSize: 11,
-          }}>
-            {JSON.stringify(component.stylePrimitives ?? component.styles, null, 2)}
-          </pre>
-        </details>
       </div>
 
       {/* Source section */}
@@ -771,23 +751,33 @@ export function ComponentDetails({
       </div>
 
       {/* HTML Structure */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>HTML Structure</h3>
         <details style={{ cursor: 'pointer' }}>
           <summary style={{
             fontSize: 13,
             fontWeight: 500,
-            color: 'hsl(var(--foreground))',
+            color: 'hsl(var(--muted-foreground))',
             listStyle: 'none',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             userSelect: 'none',
-          }}>
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--foreground))'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--muted-foreground))'}>
             <span style={{
               display: 'inline-block',
               transition: 'transform 0.2s',
             }}>▸</span>
-            HTML Structure
+            Click to expand
           </summary>
           <div style={{
             marginTop: 8,

@@ -1044,30 +1044,33 @@ export function DetailsDrawer({
                                 )}
                             </div>
 
-                            {/* HTML Structure section (7.6.2: collapsible, read-only) */}
+                            {/* HTML Structure section */}
                             {(() => {
                                 // Use current state's capture
                                 const htmlStructure = currentStateData.capture?.htmlStructure;
 
                                 return (
                                     <div style={{ marginBottom: 24 }}>
+                                        <h3 style={drawerSectionTitleStyle}>HTML Structure</h3>
                                         <details style={{ cursor: "pointer" }}>
                                             <summary style={{
-                                                fontSize: 14,
-                                                fontWeight: 600,
-                                                marginTop: 0,
-                                                marginBottom: 8,
-                                                color: "hsl(var(--foreground))",
+                                                fontSize: 13,
+                                                fontWeight: 500,
+                                                color: "hsl(var(--muted-foreground))",
                                                 listStyle: "none",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 gap: 6,
-                                            }}>
+                                                userSelect: "none",
+                                                transition: "color 0.15s ease",
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.color = "hsl(var(--foreground))"}
+                                            onMouseLeave={(e) => e.currentTarget.style.color = "hsl(var(--muted-foreground))"}>
                                                 <span style={{
                                                     display: "inline-block",
                                                     transition: "transform 0.2s",
                                                 }}>▸</span>
-                                                HTML Structure
+                                                Click to expand
                                             </summary>
                                             <div style={{
                                                 marginTop: 8,
