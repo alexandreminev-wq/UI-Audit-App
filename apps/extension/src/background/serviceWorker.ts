@@ -1472,7 +1472,7 @@ chrome.commands.onCommand.addListener((command) => {
                 // Update state
                 auditEnabledByTab.set(tabId, newState);
                 currentAuditEnabled = newState;
-                await setAuditEnabledPersisted(newState);
+                await setEnabledPersisted(tabId, newState);
 
                 // Send message to content script
                 chrome.tabs.sendMessage(
