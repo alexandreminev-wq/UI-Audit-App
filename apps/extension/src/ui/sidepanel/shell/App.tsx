@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { ProjectScreen } from './components/ProjectScreen';
 import { InactiveTabScreen } from './components/InactiveTabScreen';
+import { ToastProvider } from './components/Toast';
 
 function sendMessageAsync<T, R>(msg: T): Promise<R> {
   return new Promise((resolve, reject) => {
@@ -401,25 +402,27 @@ export default function App() {
     activeAuditTabId !== null && currentPageTabId !== null && currentPageTabId !== activeAuditTabId;
 
   return (
-    <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: '#fafafa' }}>
-      {!currentProject ? (
-        <StartScreen
-          onCreateProject={handleCreateProject}
-          onOpenProject={handleOpenProject}
-          projects={shellProjects}
-          loading={loadingProjects}
-          error={error}
-        />
-      ) : (
-        <ProjectScreen
-          project={currentProject}
-          onUpdateProject={handleUpdateProject}
-          onBack={handleBackToStart}
-          isTabInactive={shouldShowInactiveScreen}
-          onActivateTab={handleActivateInThisTab}
-          tabActivationError={error}
-        />
-      )}
-    </div>
+    <ToastProvider>
+      <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: '#fafafa' }}>
+        {!currentProject ? (
+          <StartScreen
+            onCreateProject={handleCreateProject}
+            onOpenProject={handleOpenProject}
+            projects={shellProjects}
+            loading={loadingProjects}
+            error={error}
+          />
+        ) : (
+          <ProjectScreen
+            project={currentProject}
+            onUpdateProject={handleUpdateProject}
+            onBack={handleBackToStart}
+            isTabInactive={shouldShowInactiveScreen}
+            onActivateTab={handleActivateInThisTab}
+            tabActivationError={error}
+          />
+        )}
+      </div>
+    </ToastProvider>
   );
 }

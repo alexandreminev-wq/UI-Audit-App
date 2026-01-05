@@ -5,6 +5,7 @@ import { formatVisualEssentials } from '../utils/formatVisualEssentials';
 import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
 import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
 import { StylePropertiesTable, type StylePropertiesSection } from '../../../shared/components';
+import { useToast } from './Toast';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -23,6 +24,7 @@ export function ComponentDetails({
   onClose,
   onRefresh,
 }: ComponentDetailsProps) {
+  const { showToast } = useToast();
   const CATEGORY_OPTIONS = [
     "Actions",
     "Forms",
@@ -140,7 +142,7 @@ export function ComponentDetails({
 
         if (!commitResp || !commitResp.ok) {
           console.error("[ComponentDetails] Failed to commit draft:", commitResp?.error);
-          alert(`Failed to save: ${commitResp?.error || "Unknown error"}`);
+          showToast(`Failed to save: ${commitResp?.error || "Unknown error"}`, 'error');
           setIsSaving(false);
           return;
         }
@@ -162,7 +164,7 @@ export function ComponentDetails({
 
       if (!overrideResp || !overrideResp.ok) {
         console.error("[ComponentDetails] Failed to save overrides:", overrideResp?.error);
-        alert(`Failed to save identity: ${overrideResp?.error || "Unknown error"}`);
+        showToast(`Failed to save identity: ${overrideResp?.error || "Unknown error"}`, 'error');
         setIsSaving(false);
         return;
       }
@@ -190,7 +192,7 @@ export function ComponentDetails({
 
         if (!annotationResp || !annotationResp.ok) {
           console.error("[ComponentDetails] Failed to save annotations:", annotationResp?.error);
-          alert(`Failed to save: ${annotationResp?.error || "Unknown error"}`);
+          showToast(`Failed to save: ${annotationResp?.error || "Unknown error"}`, 'error');
           setIsSaving(false);
           return;
         }
@@ -222,9 +224,10 @@ export function ComponentDetails({
       onRefresh();
 
       console.log("[ComponentDetails] Save complete");
+      showToast('Changes saved successfully', 'success');
     } catch (err) {
       console.error("[ComponentDetails] Save error:", err);
-      alert(`Save failed: ${String(err)}`);
+      showToast(`Save failed: ${String(err)}`, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -269,15 +272,16 @@ export function ComponentDetails({
 
       if (response && response.ok) {
         console.log("[ComponentDetails] Deleted capture successfully:", component.id);
+        showToast('Component deleted successfully', 'success');
         onDeleteComponent(component.id);
         onClose();
       } else {
         console.error("[ComponentDetails] Failed to delete capture:", response?.error);
-        alert(`Delete failed: ${response?.error || "Unknown error"}`);
+        showToast(`Delete failed: ${response?.error || "Unknown error"}`, 'error');
       }
     } catch (err) {
       console.error("[ComponentDetails] Error deleting capture:", err);
-      alert(`Delete failed: ${String(err)}`);
+      showToast(`Delete failed: ${String(err)}`, 'error');
     } finally {
       setIsDeleting(false);
     }
