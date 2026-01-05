@@ -110,21 +110,6 @@ export function ComponentDirectory({
                           {component.description}
                         </div>
                       )}
-                      {/* Show state pills for interactive categories */}
-                      {['Actions', 'Forms', 'Navigation', 'Feedback'].includes(component.category) && 
-                       component.availableStates && 
-                       component.availableStates.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {component.availableStates.map(({state}) => (
-                            <span
-                              key={state}
-                              className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-700"
-                            >
-                              {state}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </button>
                 ))}
