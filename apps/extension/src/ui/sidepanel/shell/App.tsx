@@ -125,6 +125,26 @@ export default function App() {
     loadProjects();
   }, []);
 
+  // Cleanup: Disable capture mode when sidepanel is closed/unmounted
+  useEffect(() => {
+    return () => {
+      // On unmount, disable capture for the active audit tab if any
+      getActivePageTabId().then((tabId) => {
+        if (tabId !== null) {
+          chrome.runtime.sendMessage(
+            { type: 'AUDIT/TOGGLE', enabled: false, tabId },
+            () => {
+              // Ignore errors on unmount
+              if (chrome.runtime.lastError) {
+                console.log('[App] Cleanup: Failed to disable capture on unmount');
+              }
+            }
+          );
+        }
+      });
+    };
+  }, []);
+
   const refreshCurrentPageTab = async () => {
     const tabId = await getActivePageTabId();
     setCurrentPageTabId(tabId);
