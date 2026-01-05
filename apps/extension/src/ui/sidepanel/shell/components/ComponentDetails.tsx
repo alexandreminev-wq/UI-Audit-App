@@ -395,7 +395,7 @@ export function ComponentDetails({
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, minWidth: 0 }}>
 
       {/* Preview section (moved to top, title removed) */}
       <div style={{ marginBottom: 24, maxWidth: '100%' }}>
