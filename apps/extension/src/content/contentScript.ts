@@ -813,13 +813,13 @@ async function onPointerCapture(e: PointerEvent) {
     // Only primary button (left-click)
     if (e.button !== 0) return;
 
-    // Only capture when frozen
-    if (!isFrozen || !frozenEl) return;
-
-    // Block interaction
+    // Always block pointer interaction during capture mode to prevent focusing inputs
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
+
+    // Only capture when frozen
+    if (!isFrozen || !frozenEl) return;
 
     const target = frozenEl;
 
