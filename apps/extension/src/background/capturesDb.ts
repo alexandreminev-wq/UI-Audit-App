@@ -36,6 +36,7 @@ export interface ComponentOverrideRecord {
     projectId: string;          // Project scope
     componentKey: string;       // Deterministic grouping hash (same as ViewerComponent.id)
     displayName: string | null; // Optional user override
+    description: string | null; // Optional description text
     categoryOverride: string | null;
     typeOverride: string | null;
     statusOverride: string | null;
@@ -998,6 +999,7 @@ export async function upsertComponentOverride(input: {
     projectId: string;
     componentKey: string;
     displayName?: string | null;
+    description?: string | null;
     categoryOverride?: string | null;
     typeOverride?: string | null;
     statusOverride?: string | null;
@@ -1015,6 +1017,7 @@ export async function upsertComponentOverride(input: {
         projectId: input.projectId,
         componentKey: input.componentKey,
         displayName: input.displayName ?? null,
+        description: input.description ?? null,
         categoryOverride: input.categoryOverride ?? null,
         typeOverride: input.typeOverride ?? null,
         statusOverride: input.statusOverride ?? null,

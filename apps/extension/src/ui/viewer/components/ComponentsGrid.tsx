@@ -7,6 +7,7 @@ import { useBlobUrl } from "../hooks/useBlobUrl";
 type ComponentItem = {
     id: string;
     name: string;
+    description?: string;
     category: string;
     type: string;
     status: string;
@@ -154,18 +155,30 @@ export function ComponentsGrid({
 
                                 {/* Body */}
                                 <div style={{ padding: 12 }}>
-                                    {/* Name + Category */}
+                                    {/* Name + Description + Category */}
                                     {visibleProps.name && (
                                         <div style={{
                                             fontSize: 15,
                                             fontWeight: 650,
                                             color: "hsl(var(--foreground))",
-                                            marginBottom: visibleProps.category ? 2 : (hasChips || hasMeta ? 8 : 0),
+                                            marginBottom: comp.description ? 2 : (visibleProps.category ? 2 : (hasChips || hasMeta ? 8 : 0)),
                                             overflow: "hidden",
                                             textOverflow: "ellipsis",
                                             whiteSpace: "nowrap",
                                         }}>
                                             {comp.name}
+                                        </div>
+                                    )}
+                                    {comp.description && (
+                                        <div style={{
+                                            fontSize: 13,
+                                            color: "hsl(var(--muted-foreground))",
+                                            marginBottom: visibleProps.category ? 6 : (hasChips || hasMeta ? 10 : 0),
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                        }}>
+                                            {comp.description}
                                         </div>
                                     )}
                                     {visibleProps.category && (

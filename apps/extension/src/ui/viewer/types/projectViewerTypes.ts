@@ -27,6 +27,7 @@ export interface ViewerProject {
 export interface ViewerComponent {
     id: string;                    // Grouping key (to be defined in adapter)
     name: string;                  // Inferred from element.intent.accessibleName or textPreview (NO state suffix)
+    description?: string;          // Optional description text (from textPreview or accessibleName)
     category: string;              // Inferred from element role/tagName
     type: string;                  // From element.tagName (lowercase)
     status: "Unreviewed" | "Canonical" | "Variant" | "Deviation" | "Legacy" | "Experimental";

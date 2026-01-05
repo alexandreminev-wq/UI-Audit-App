@@ -71,6 +71,7 @@ function CaptureThumbnail({ blobId }: { blobId?: string }) {
 export interface ComponentDetails {
     id: string;
     name: string;
+    description?: string;
     category: string;
     type: string;
     status: string;
@@ -223,6 +224,7 @@ export function DetailsDrawer({
 
     // Identity overrides (prototype parity)
     const [draftDisplayName, setDraftDisplayName] = useState<string>("");
+    const [draftDescription, setDraftDescription] = useState<string>("");
     const [draftCategory, setDraftCategory] = useState<string>("");
     const [draftType, setDraftType] = useState<string>("");
     const [draftStatus, setDraftStatus] = useState<string>("");
@@ -238,6 +240,7 @@ export function DetailsDrawer({
             setDraftTags(selectedComponent.tags || []);
             setNewTagInput("");
             setDraftDisplayName(selectedComponent.name || "");
+            setDraftDescription(selectedComponent.description || "");
             setDraftCategory(selectedComponent.category || "Unknown");
             setDraftType(selectedComponent.type || "Unclassified");
             setDraftStatus(selectedComponent.status || "Unreviewed");
@@ -246,6 +249,7 @@ export function DetailsDrawer({
             setDraftTags([]);
             setNewTagInput("");
             setDraftDisplayName("");
+            setDraftDescription("");
             setDraftCategory("");
             setDraftType("");
             setDraftStatus("");
@@ -264,6 +268,7 @@ export function DetailsDrawer({
             draftNotes.trim() !== (selectedComponent.notes || "").trim() ||
             JSON.stringify(draftTags.sort()) !== JSON.stringify((selectedComponent.tags || []).sort()) ||
             draftDisplayName.trim() !== (selectedComponent.name || "").trim() ||
+            draftDescription.trim() !== (selectedComponent.description || "").trim() ||
             draftCategory !== (selectedComponent.category || "") ||
             draftType !== (selectedComponent.type || "") ||
             draftStatus !== (selectedComponent.status || "")
@@ -282,6 +287,7 @@ export function DetailsDrawer({
                 projectId,
                 componentKey: selectedComponent.id,
                 displayName: draftDisplayName.trim() === "" ? null : draftDisplayName.trim(),
+                description: draftDescription.trim() === "" ? null : draftDescription.trim(),
                 categoryOverride: draftCategory.trim() === "" ? null : draftCategory.trim(),
                 typeOverride: draftType.trim() === "" ? null : draftType.trim(),
                 statusOverride: draftStatus.trim() === "" ? null : draftStatus.trim(),
@@ -323,6 +329,7 @@ export function DetailsDrawer({
         setDraftTags(selectedComponent.tags || []);
         setNewTagInput("");
         setDraftDisplayName(selectedComponent.name || "");
+        setDraftDescription(selectedComponent.description || "");
         setDraftCategory(selectedComponent.category || "Unknown");
         setDraftType(selectedComponent.type || "Unclassified");
         setDraftStatus(selectedComponent.status || "Unreviewed");
@@ -772,30 +779,26 @@ export function DetailsDrawer({
                             }}>
                                 {selectedComponent.name}
                             </h2>
-                            <div style={{
-                                fontSize: 13,
-                                color: "hsl(var(--muted-foreground))",
-                                marginBottom: 16,
-                            }}>
-                                {selectedComponent.category} • {selectedComponent.type} • {selectedComponent.status}
-                            </div>
+                            {selectedComponent.description && (
+                                <div style={{
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 12,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                }}>
+                                    {selectedComponent.description}
+                                </div>
+                            )}
 
                             {/* Optional chips */}
                             <div style={{
                                 display: "flex",
                                 gap: 6,
-                                marginBottom: 24,
+                                marginBottom: 16,
                                 flexWrap: "wrap",
                             }}>
-                                <span style={{
-                                    fontSize: 11,
-                                    padding: "3px 8px",
-                                    background: "hsl(var(--muted))",
-                                    color: "hsl(var(--muted-foreground))",
-                                    borderRadius: "calc(var(--radius) - 2px)",
-                                }}>
-                                    {selectedComponent.source}
-                                </span>
                                 <span style={{
                                     fontSize: 11,
                                     padding: "3px 8px",
@@ -809,26 +812,7 @@ export function DetailsDrawer({
 
                             {/* Identity section (editable: prototype parity) - MOVED ABOVE PREVIEW */}
                             <div style={{ marginBottom: 24 }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                    <h3 style={drawerSectionTitleStyle}>Identity</h3>
-                                    <button
-                                        type="button"
-                                        onClick={handleResetOverrides}
-                                        disabled={!selectedComponent.overrides}
-                                        style={{
-                                            fontSize: 12,
-                                            padding: "6px 10px",
-                                            background: "hsl(var(--background))",
-                                            color: !selectedComponent.overrides ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))",
-                                            border: "1px solid hsl(var(--border))",
-                                            borderRadius: "var(--radius)",
-                                            cursor: !selectedComponent.overrides ? "not-allowed" : "pointer",
-                                        }}
-                                        title="Reset identity overrides (revert to derived values)"
-                                    >
-                                        Reset
-                                    </button>
-                                </div>
+                                <h3 style={drawerSectionTitleStyle}>Identity</h3>
 
                                 <div style={{
                                     padding: 12,
@@ -838,11 +822,21 @@ export function DetailsDrawer({
                                     fontSize: 13,
                                 }}>
                                     <div style={{ marginBottom: 12 }}>
-                                        <label style={labelStyle}>Display name</label>
+                                        <label style={labelStyle}>Name</label>
                                         <input
                                             value={draftDisplayName}
                                             onChange={(e) => setDraftDisplayName(e.target.value)}
-                                            placeholder="Display name"
+                                            placeholder="Name"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+
+                                    <div style={{ marginBottom: 12 }}>
+                                        <label style={labelStyle}>Description</label>
+                                        <input
+                                            value={draftDescription}
+                                            onChange={(e) => setDraftDescription(e.target.value)}
+                                            placeholder="Description"
                                             style={inputStyle}
                                         />
                                     </div>
@@ -895,44 +889,44 @@ export function DetailsDrawer({
                                             <option value="Unknown">Unknown</option>
                                         </select>
                                     </div>
+
+                                    {/* State field - only show for interactive categories */}
+                                    {selectedComponent.availableStates && selectedComponent.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) ? (
+                                        <div style={{ marginTop: 12 }}>
+                                            <label style={labelStyle}>State</label>
+                                            <select
+                                                value={selectedState}
+                                                onChange={(e) => handleStateChange(e.target.value)}
+                                                disabled={isLoadingState}
+                                                style={{
+                                                    ...inputStyle,
+                                                    cursor: isLoadingState ? "not-allowed" : "pointer",
+                                                    opacity: isLoadingState ? 0.6 : 1,
+                                                }}
+                                            >
+                                                {selectedComponent.availableStates.map(({state}) => (
+                                                    <option key={state} value={state}>
+                                                        {capitalizeState(state)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        selectedComponent.availableStates && selectedComponent.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) && (
+                                            <div style={{ marginTop: 12 }}>
+                                                <label style={labelStyle}>State</label>
+                                                <div style={{
+                                                    ...inputStyle,
+                                                    background: "hsl(var(--muted))",
+                                                    color: "hsl(var(--muted-foreground))",
+                                                }}>
+                                                    {capitalizeState(selectedState)}
+                                                </div>
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                             </div>
-
-                            {/* State Selector - only show for interactive categories */}
-                            {selectedComponent.availableStates && selectedComponent.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) ? (
-                                <div style={{ marginBottom: 24 }}>
-                                    <h3 style={drawerSectionTitleStyle}>State</h3>
-                                    <select
-                                        value={selectedState}
-                                        onChange={(e) => handleStateChange(e.target.value)}
-                                        disabled={isLoadingState}
-                                        style={{
-                                            ...inputStyle,
-                                            cursor: isLoadingState ? "not-allowed" : "pointer",
-                                            opacity: isLoadingState ? 0.6 : 1,
-                                        }}
-                                    >
-                                        {selectedComponent.availableStates.map(({state}) => (
-                                            <option key={state} value={state}>
-                                                {capitalizeState(state)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            ) : (
-                                selectedComponent.availableStates && selectedComponent.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(selectedComponent.category) && (
-                                    <div style={{ marginBottom: 24 }}>
-                                        <h3 style={drawerSectionTitleStyle}>State</h3>
-                                        <div style={{
-                                            ...inputStyle,
-                                            background: "hsl(var(--muted))",
-                                            color: "hsl(var(--muted-foreground))",
-                                        }}>
-                                            {capitalizeState(selectedState)}
-                                        </div>
-                                    </div>
-                                )
-                            )}
 
                             {/* Preview section (7.5.2: hero screenshot) - MOVED AFTER IDENTITY + STATE */}
                             <div style={{ marginBottom: 24, maxWidth: "100%" }}>

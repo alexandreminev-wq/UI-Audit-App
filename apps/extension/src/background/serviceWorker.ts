@@ -1849,6 +1849,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 url: recordV1.url,
                 createdAt: recordV1.createdAt,
 
+                // Display name defaults to capitalized tagName, description from best available text
+                displayName: recordV1.element.tagName.charAt(0).toUpperCase() + recordV1.element.tagName.slice(1).toLowerCase(),
+                description: (
+                    intent.accessibleName ||
+                    recordV1.element.textPreview ||
+                    (recordV1.element as any).textContent ||
+                    (recordV1.element as any).innerText ||
+                    (recordV1.element as any).text ||
+                    recordV1.element.attributes?.ariaLabel ||
+                    undefined
+                ),
+
                 // Use conditions from content script if available, otherwise construct minimal
                 conditions: recordV1.conditions || {
                     viewport: {
@@ -2797,7 +2809,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (msg?.type === "OVERRIDES/UPSERT") {
         (async () => {
-            const { projectId, componentKey, displayName, categoryOverride, typeOverride, statusOverride } = msg;
+            const { projectId, componentKey, displayName, description, categoryOverride, typeOverride, statusOverride } = msg;
             if (!projectId || typeof projectId !== "string") {
                 sendResponse({ ok: false, error: "Invalid projectId" });
                 return;
@@ -2812,6 +2824,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     projectId,
                     componentKey,
                     displayName: typeof displayName === "string" ? displayName : (displayName ?? null),
+                    description: typeof description === "string" ? description : (description ?? null),
                     categoryOverride: typeof categoryOverride === "string" ? categoryOverride : (categoryOverride ?? null),
                     typeOverride: typeof typeOverride === "string" ? typeOverride : (typeOverride ?? null),
                     statusOverride: typeof statusOverride === "string" ? statusOverride : (statusOverride ?? null),

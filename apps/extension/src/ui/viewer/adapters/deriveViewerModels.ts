@@ -170,10 +170,14 @@ export function deriveComponentInventory(
 
         // Derive name (CONTRACT §4.3) - NO state suffix
         const baseName =
+            first.displayName ||
             element.intent?.accessibleName ||
             element.textPreview ||
             `${element.tagName.toLowerCase()}${element.role ? ` (${element.role})` : ""}` ||
             "Unnamed Component";
+
+        // Derive description from capture
+        const description = first.description || undefined;
 
         // Derive category (CONTRACT §7)
         const category = inferCategory(element);
@@ -195,6 +199,7 @@ export function deriveComponentInventory(
         components.push({
             id: componentId,
             name: baseName,
+            description,
             category,
             type,
             status: "Unreviewed", // CONTRACT §6 - default status for new captures

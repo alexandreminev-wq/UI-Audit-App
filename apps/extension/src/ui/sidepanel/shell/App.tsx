@@ -29,7 +29,8 @@ async function getActivePageTabId(): Promise<number | null> {
 export interface Component {
   id: string; // Primary capture ID (typically the default state)
   componentKey: string; // Deterministic grouping key (shared with Viewer)
-  name: string;
+  name: string; // Display name (defaults to type at capture time, but not linked after)
+  description?: string; // Optional description text
   category: string;
   type: string;
   status: string;
@@ -87,6 +88,7 @@ interface ProjectRecord {
 export default function App() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [error, setError] = useState('');
   const [currentPageTabId, setCurrentPageTabId] = useState<number | null>(null);
@@ -101,6 +103,14 @@ export default function App() {
       });
       if (resp?.ok && Array.isArray(resp.projects)) {
         setProjects(resp.projects);
+
+        // Load component counts for all projects
+        const countsResp = await sendMessageAsync<{ type: string }, any>({
+          type: 'UI/GET_PROJECT_COMPONENT_COUNTS',
+        });
+        if (countsResp?.ok && countsResp.counts) {
+          setProjectCounts(countsResp.counts);
+        }
       } else {
         setError('Failed to load projects');
       }
@@ -249,22 +259,25 @@ export default function App() {
   };
 
   // Map ProjectRecords to Projects for StartScreen
-  const shellProjects: Project[] = projects.map((p) => ({
-    id: p.id,
-    title: p.name,
-    createdAt: p.createdAt,
-    updatedAt: p.updatedAt,
-    components: [],
-  }));
+  const shellProjects: Project[] = projects.map((p) => {
+    const componentCount = projectCounts[p.id] || 0;
+    // Create dummy components array with the right length for display
+    const components = Array(componentCount).fill(null) as any[];
+    return {
+      id: p.id,
+      title: p.name,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      components,
+    };
+  });
 
   const shouldShowInactiveScreen =
     activeAuditTabId !== null && currentPageTabId !== null && currentPageTabId !== activeAuditTabId;
 
   return (
     <div style={{ minWidth: '360px', width: '100%', height: '100vh', background: '#fafafa' }}>
-      {shouldShowInactiveScreen ? (
-        <InactiveTabScreen error={error} onActivate={handleActivateInThisTab} />
-      ) : !currentProject ? (
+      {!currentProject ? (
         <StartScreen
           onCreateProject={handleCreateProject}
           onOpenProject={handleOpenProject}
@@ -277,6 +290,9 @@ export default function App() {
           project={currentProject}
           onUpdateProject={handleUpdateProject}
           onBack={handleBackToStart}
+          isTabInactive={shouldShowInactiveScreen}
+          onActivateTab={handleActivateInThisTab}
+          tabActivationError={error}
         />
       )}
     </div>

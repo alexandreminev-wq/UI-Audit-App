@@ -1,35 +1,36 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Camera, ChevronDown, ChevronRight, RefreshCw, ExternalLink } from 'lucide-react';
 import type { Project, Component } from '../App';
 import type { CaptureRecordV2 } from '../../../../../types/capture';
-import { ComponentDirectory } from './ComponentDirectory';
-import { ComponentDetails } from './ComponentDetails';
+import { ProjectTabs } from './ProjectTabs';
 import { classifyCapture } from '../utils/classifyCapture';
 import { deriveComponentKey } from '../../../shared/componentKey';
-import { Button } from '../../../shared/components';
 
 interface ProjectScreenProps {
   project: Project;
   onUpdateProject: (project: Project) => void;
   onBack: () => void;
+  isTabInactive: boolean;
+  onActivateTab: () => void;
+  tabActivationError: string;
 }
 
-export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBack }: ProjectScreenProps) {
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
-  const [showDirectory, setShowDirectory] = useState(false);
-  const [auditEnabled, setAuditEnabled] = useState<boolean | null>(null);
+export function ProjectScreen({
+  project,
+  onUpdateProject: _onUpdateProject,
+  onBack,
+  isTabInactive,
+  onActivateTab,
+  tabActivationError
+}: ProjectScreenProps) {
   const [capturedComponents, setCapturedComponents] = useState<Component[]>([]);
   const [isLoadingComponents, setIsLoadingComponents] = useState<boolean>(false);
   const objectUrlsRef = useRef<Set<string>>(new Set());
-  const pendingSelectIdRef = useRef<string | null>(null);
+  const pendingReviewIdRef = useRef<string | null>(null);
 
   // 7.8.1: Current page tab state (not extension tabs)
   const [currentPageTabId, setCurrentPageTabId] = useState<number | null>(null);
-
-  const selectedComponent = capturedComponents.find(c => c.id === selectedComponentId) ?? null;
-
-  // App-level gating (in App.tsx) ensures ProjectScreen is only shown for the owner tab.
-  const isCaptureEnabledHere = auditEnabled === true;
+  const [auditEnabled, setAuditEnabled] = useState<boolean>(false);
+  const [reviewingComponentId, setReviewingComponentId] = useState<string | null>(null);
 
   // 7.8.1: Helper to get active page tab and URL (not extension pages)
   const refreshCurrentPageTab = async (): Promise<void> => {
@@ -135,7 +136,8 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
           const component = {
             id: primaryCapture.id, // primary captureId (default state)
             componentKey,
-            name: classification.displayName, // NO state suffix
+            name: primaryCapture.displayName || classification.displayName, // Use capture displayName if available
+            description: primaryCapture.description,
             category: classification.functionalCategory,
             type: titleType || classification.typeKey || primaryCapture.element?.tagName?.toLowerCase?.() || "Element",
             status: "Unreviewed",
@@ -168,13 +170,13 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
 
         setCapturedComponents(baseComponents);
 
-        // Auto-select pending component if set
-        if (pendingSelectIdRef.current) {
-          const found = baseComponents.find(c => c.id === pendingSelectIdRef.current);
+        // Auto-review pending component if set (when a new capture is saved)
+        if (pendingReviewIdRef.current) {
+          const found = baseComponents.find(c => c.id === pendingReviewIdRef.current);
           if (found) {
-            setSelectedComponentId(found.id);
+            setReviewingComponentId(found.id);
           }
-          pendingSelectIdRef.current = null;
+          pendingReviewIdRef.current = null;
         }
 
         // 2) Load annotations and merge opportunistically (should never block base render)
@@ -213,6 +215,7 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
           const overrides: Array<{
             componentKey: string;
             displayName: string | null;
+            description: string | null;
             categoryOverride: string | null;
             typeOverride: string | null;
             statusOverride: string | null;
@@ -229,6 +232,7 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
               return {
                 ...comp,
                 name: (o.displayName && o.displayName.trim() !== "") ? o.displayName : comp.name,
+                description: (o.description && o.description.trim() !== "") ? o.description : comp.description,
                 category: (o.categoryOverride && o.categoryOverride.trim() !== "") ? o.categoryOverride : comp.category,
                 type: (o.typeOverride && o.typeOverride.trim() !== "") ? o.typeOverride : comp.type,
                 status: (o.statusOverride && o.statusOverride.trim() !== "") ? o.statusOverride : comp.status,
@@ -317,7 +321,7 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
       if (msg?.type === "UI/CAPTURE_SAVED") {
         if (typeof msg.projectId === "string" && typeof msg.captureId === "string") {
           if (msg.projectId === project.id) {
-            pendingSelectIdRef.current = msg.captureId;
+            pendingReviewIdRef.current = msg.captureId;
             if (currentPageTabId !== null) {
               loadCapturesForTab(currentPageTabId);
             } else {
@@ -406,25 +410,6 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
     };
   }, []);
 
-  const handleCaptureElement = () => {
-    if (currentPageTabId === null) return;
-
-    // 7.8.1: Toggle capture for current page tab
-    const nextEnabled = !isCaptureEnabledHere;
-    chrome.runtime.sendMessage(
-      { type: "AUDIT/TOGGLE", enabled: nextEnabled, tabId: currentPageTabId },
-      (resp) => {
-        if (chrome.runtime.lastError) {
-          console.warn("[UI Inventory] AUDIT/TOGGLE failed:", chrome.runtime.lastError.message);
-          return;
-        }
-        if (resp?.ok) {
-          setAuditEnabled(nextEnabled);
-        }
-      }
-    );
-  };
-
   const handleUpdateComponent = (updatedComponent: Component) => {
     const updatedComponents = capturedComponents.map(c =>
       c.id === updatedComponent.id ? updatedComponent : c
@@ -440,9 +425,6 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
       }
 
       if (resp?.ok) {
-        if (selectedComponentId === componentId) {
-          setSelectedComponentId(null);
-        }
         if (currentPageTabId !== null) {
           loadCapturesForTab(currentPageTabId);
         }
@@ -452,114 +434,46 @@ export function ProjectScreen({ project, onUpdateProject: _onUpdateProject, onBa
     });
   };
 
-  const handleOpenViewer = () => {
-    const url = chrome.runtime.getURL("viewer.html") + "?projectId=" + encodeURIComponent(project.id);
-    chrome.tabs.create({ url });
+  const handleRefresh = () => {
+    if (currentPageTabId !== null) {
+      loadCapturesForTab(currentPageTabId);
+    }
+  };
+
+  const handleStartCapture = () => {
+    if (currentPageTabId === null) return;
+
+    // Toggle capture for current page tab
+    const nextEnabled = !auditEnabled;
+    chrome.runtime.sendMessage(
+      { type: "AUDIT/TOGGLE", enabled: nextEnabled, tabId: currentPageTabId },
+      (resp) => {
+        if (chrome.runtime.lastError) {
+          console.warn("[ProjectScreen] AUDIT/TOGGLE failed:", chrome.runtime.lastError.message);
+          return;
+        }
+        if (resp?.ok) {
+          setAuditEnabled(nextEnabled);
+        }
+      }
+    );
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            style={{ padding: '4px' }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <h2 className="flex-1 truncate">{project.title}</h2>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleCaptureElement}
-            style={{ flex: 1 }}
-          >
-            <Camera className="w-4 h-4" />
-            <span>{isCaptureEnabledHere ? 'Stop Capture' : 'Capture Element'}</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={() => {
-              if (currentPageTabId !== null) {
-                loadCapturesForTab(currentPageTabId);
-              }
-            }}
-            title="Refresh list"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={handleOpenViewer}
-            title="Open Viewer"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Component Directory */}
-        <div className="bg-white border-b border-gray-200">
-          <button
-            onClick={() => setShowDirectory(!showDirectory)}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-          >
-            <span className="text-gray-900">Component Directory</span>
-            {showDirectory ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
-            )}
-          </button>
-          
-          {showDirectory && (
-            <div className="border-t border-gray-200">
-              <ComponentDirectory
-                components={capturedComponents}
-                selectedComponent={selectedComponent}
-                onSelectComponent={(component) => setSelectedComponentId(component.id)}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Component Details */}
-        {selectedComponent ? (
-          <ComponentDetails
-            component={selectedComponent}
-            projectId={project.id}
-            onUpdateComponent={handleUpdateComponent}
-            onDeleteComponent={handleDeleteComponent}
-            onClose={() => setSelectedComponentId(null)}
-            onRefresh={() => {
-              if (currentPageTabId !== null) {
-                loadCapturesForTab(currentPageTabId);
-              }
-            }}
-          />
-        ) : (
-          <div className="p-8 text-center text-gray-500">
-            {isLoadingComponents ? (
-              <p>Loading components...</p>
-            ) : (
-              <>
-                <p>Select a component from the directory to view details</p>
-                <p className="text-sm mt-2">or capture a new element</p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    <ProjectTabs
+      project={project}
+      components={capturedComponents}
+      onUpdateComponent={handleUpdateComponent}
+      onDeleteComponent={handleDeleteComponent}
+      onRefresh={handleRefresh}
+      onBack={onBack}
+      onStartCapture={handleStartCapture}
+      captureEnabled={auditEnabled}
+      reviewingComponentId={reviewingComponentId}
+      onSetReviewingComponentId={setReviewingComponentId}
+      isTabInactive={isTabInactive}
+      onActivateTab={onActivateTab}
+      tabActivationError={tabActivationError}
+    />
   );
 }

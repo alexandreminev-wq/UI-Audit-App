@@ -4,7 +4,7 @@ import type { Component } from '../App';
 import { formatVisualEssentials } from '../utils/formatVisualEssentials';
 import { TokenTraceValue } from '../../../shared/tokenTrace/TokenTraceValue';
 import { useBlobUrl } from '../../../viewer/hooks/useBlobUrl';
-import { StylePropertiesTable, type StylePropertiesSection, Button } from '../../../shared/components';
+import { StylePropertiesTable, type StylePropertiesSection } from '../../../shared/components';
 
 interface ComponentDetailsProps {
   component: Component;
@@ -75,6 +75,7 @@ export function ComponentDetails({
 
   // Identity overrides (prototype parity)
   const [draftDisplayName, setDraftDisplayName] = useState<string>(component.name || "");
+  const [draftDescription, setDraftDescription] = useState<string>(component.description || "");
   const [draftCategory, setDraftCategory] = useState<string>(component.category || "Unknown");
   const [draftType, setDraftType] = useState<string>(component.type || "Unclassified");
   const [draftStatus, setDraftStatus] = useState<string>(component.status || "Unreviewed");
@@ -96,12 +97,13 @@ export function ComponentDetails({
     setDraftTags(component.tags || []);
     setNewTagInput("");
     setDraftDisplayName(component.name || "");
+    setDraftDescription(component.description || "");
     setDraftCategory(component.category || "Unknown");
     setDraftType(component.type || "Unclassified");
     setDraftStatus(component.status || "Unreviewed");
     setSelectedState(component.selectedState);
     setIsDirty(false);
-  }, [component.id, component.comments, component.tags, component.name, component.category, component.type, component.status, component.selectedState]);
+  }, [component.id, component.comments, component.tags, component.name, component.description, component.category, component.type, component.status, component.selectedState]);
 
   // Track dirty state
   useEffect(() => {
@@ -111,11 +113,12 @@ export function ComponentDetails({
       draftNotes !== component.comments ||
       !tagsEqual ||
       draftDisplayName.trim() !== (component.name || "").trim() ||
+      draftDescription.trim() !== (component.description || "").trim() ||
       draftCategory !== (component.category || "") ||
       draftType !== (component.type || "") ||
       draftStatus !== (component.status || "")
     );
-  }, [draftNotes, draftTags, draftDisplayName, draftCategory, draftType, draftStatus, component.comments, component.tags, component.name, component.category, component.type, component.status]);
+  }, [draftNotes, draftTags, draftDisplayName, draftDescription, draftCategory, draftType, draftStatus, component.comments, component.tags, component.name, component.description, component.category, component.type, component.status]);
 
   const handleAddTag = () => {
     const trimmed = newTagInput.trim();
@@ -155,6 +158,7 @@ export function ComponentDetails({
         projectId,
         componentKey: component.componentKey,
         displayName: draftDisplayName.trim() === "" ? null : draftDisplayName.trim(),
+        description: draftDescription.trim() === "" ? null : draftDescription.trim(),
         categoryOverride: draftCategory,
         typeOverride: draftType,
         statusOverride: draftStatus,
@@ -202,6 +206,7 @@ export function ComponentDetails({
       onUpdateComponent({
         ...component,
         name: draftDisplayName,
+        description: draftDescription,
         category: draftCategory,
         type: draftType,
         status: draftStatus,
@@ -234,6 +239,7 @@ export function ComponentDetails({
     setDraftTags(component.tags || []);
     setNewTagInput("");
     setDraftDisplayName(component.name || "");
+    setDraftDescription(component.description || "");
     setDraftCategory(component.category || "Unknown");
     setDraftType(component.type || "Unclassified");
     setDraftStatus(component.status || "Unreviewed");
@@ -336,30 +342,65 @@ export function ComponentDetails({
   };
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Component Name */}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+      {/* Component header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-              {component.name}
-            </h3>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{
+            margin: 0,
+            marginBottom: 4,
+            fontSize: 20,
+            fontWeight: 600,
+            color: 'hsl(var(--foreground))',
+          }}>
+            {component.name}
+          </h2>
+          {/* Caption with component description */}
+          {component.description && (
+            <div style={{
+              fontSize: 13,
+              color: 'hsl(var(--muted-foreground))',
+              marginBottom: 12,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {component.description}
+            </div>
+          )}
+          {/* Tags/chips */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}>
+            {/* Status chip */}
+            <span style={{
+              fontSize: 11,
+              padding: '3px 8px',
+              background: 'hsl(var(--muted))',
+              color: 'hsl(var(--muted-foreground))',
+              borderRadius: 'calc(var(--radius) - 2px)',
+            }}>
+              {component.status}
+            </span>
+            {/* Draft badge */}
             {component.isDraft && (
               <span style={{
                 fontSize: 11,
                 fontWeight: 600,
                 color: '#ea580c',
                 background: '#ffedd5',
-                padding: '2px 8px',
-                borderRadius: 4,
+                padding: '3px 8px',
+                borderRadius: 'calc(var(--radius) - 2px)',
               }}>
                 Unsaved
               </span>
             )}
           </div>
-          <p style={{ margin: 0, marginTop: 4, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
-            {component.category}
-          </p>
         </div>
         <button
           onClick={onClose}
@@ -381,242 +422,301 @@ export function ComponentDetails({
         </button>
       </div>
 
-      {/* Identity overrides */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Identity</label>
-          <button
-            type="button"
-            onClick={handleResetOverrides}
-            disabled={!component.overrides}
-            style={{
-              fontSize: 11,
-              padding: '4px 8px',
-              borderRadius: 'var(--radius)',
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--background))',
-              color: component.overrides ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
-              cursor: component.overrides ? 'pointer' : 'not-allowed',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => component.overrides && (e.currentTarget.style.background = 'hsl(var(--muted))')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'hsl(var(--background))')}
-            title="Reset identity overrides (revert to derived values)"
-          >
-            Reset
-          </button>
-        </div>
+      {/* Identity section */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Identity</h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Display name</label>
-          <input
-            value={draftDisplayName}
-            onChange={(e) => setDraftDisplayName(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              fontSize: 13,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 'var(--radius)',
-              background: 'hsl(var(--background))',
-              color: 'hsl(var(--foreground))',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
-            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Category</label>
-            <select
-              value={draftCategory}
-              onChange={(e) => {
-                const next = e.target.value;
-                setDraftCategory(next);
-                const options = getTypeOptions(next, draftType);
-                if (options.length > 0 && !options.includes(draftType)) {
-                  setDraftType(options[0]);
-                }
-              }}
+        <div style={{
+          padding: 12,
+          background: 'hsl(var(--muted))',
+          borderRadius: 'var(--radius)',
+          border: '1px solid hsl(var(--border))',
+          fontSize: 13,
+        }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>Name</label>
+            <input
+              value={draftDisplayName}
+              onChange={(e) => setDraftDisplayName(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                fontSize: 13,
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 'var(--radius)',
+                padding: '8px 10px',
                 background: 'hsl(var(--background))',
+                borderRadius: 'var(--radius)',
+                border: '1px solid hsl(var(--border))',
+                fontSize: 13,
                 color: 'hsl(var(--foreground))',
-                outline: 'none',
                 boxSizing: 'border-box',
               }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
-            >
-              {CATEGORY_OPTIONS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Type</label>
-            <select
-              value={draftType}
-              onChange={(e) => setDraftType(e.target.value)}
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>Description</label>
+            <input
+              value={draftDescription}
+              onChange={(e) => setDraftDescription(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                fontSize: 13,
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 'var(--radius)',
+                padding: '8px 10px',
                 background: 'hsl(var(--background))',
+                borderRadius: 'var(--radius)',
+                border: '1px solid hsl(var(--border))',
+                fontSize: 13,
                 color: 'hsl(var(--foreground))',
-                outline: 'none',
                 boxSizing: 'border-box',
               }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
-            >
-              {getTypeOptions(draftCategory || "Unknown", draftType).map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            />
           </div>
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Status</label>
-          <select
-            value={draftStatus}
-            onChange={(e) => setDraftStatus(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              fontSize: 13,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 'var(--radius)',
-              background: 'hsl(var(--background))',
-              color: 'hsl(var(--foreground))',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-            onFocus={(e) => e.currentTarget.style.borderColor = 'hsl(var(--ring))'}
-            onBlur={(e) => e.currentTarget.style.borderColor = 'hsl(var(--border))'}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* State Selector - only show for interactive categories */}
-      {component.availableStates && component.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(component.category) ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
-          <select
-            value={selectedState}
-            onChange={(e) => handleStateChange(e.target.value)}
-            disabled={isLoadingState}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              fontSize: 13,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 'var(--radius)',
-              background: isLoadingState ? 'hsl(var(--muted))' : 'hsl(var(--background))',
-              color: 'hsl(var(--foreground))',
-              outline: 'none',
-              cursor: isLoadingState ? 'not-allowed' : 'pointer',
-              boxSizing: 'border-box',
-            }}
-            onFocus={(e) => !isLoadingState && (e.currentTarget.style.borderColor = 'hsl(var(--ring))')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = 'hsl(var(--border))')}
-          >
-            {component.availableStates.map(({state}) => (
-              <option key={state} value={state}>
-                {capitalizeState(state)}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        component.availableStates && component.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(component.category) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>State</label>
-            <div style={{
-              fontSize: 13,
-              color: 'hsl(var(--foreground))',
-              padding: '8px 12px',
-              background: 'hsl(var(--muted))',
-              borderRadius: 'var(--radius)',
-              border: '1px solid hsl(var(--border))',
-            }}>
-              {capitalizeState(selectedState)}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>Category</label>
+              <select
+                value={draftCategory}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDraftCategory(next);
+                  const options = getTypeOptions(next, draftType);
+                  if (options.length > 0 && !options.includes(draftType)) {
+                    setDraftType(options[0]);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: 'hsl(var(--background))',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid hsl(var(--border))',
+                  fontSize: 13,
+                  color: 'hsl(var(--foreground))',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: 'hsl(var(--background))',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid hsl(var(--border))',
+                  fontSize: 13,
+                  color: 'hsl(var(--foreground))',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {getTypeOptions(draftCategory || "Unknown", draftType).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
-        )
-      )}
 
-      {/* Component Image */}
-      <div style={{
-        background: 'hsl(var(--muted))',
-        borderRadius: 'var(--radius)',
-        overflow: 'hidden',
-        border: '1px solid hsl(var(--border))',
-      }}>
-        {screenshotUrl ? (
-          <img
-            src={screenshotUrl}
-            alt={component.name}
-            style={{ width: '100%', height: 'auto', display: 'block' }}
-          />
-        ) : component.imageUrl ? (
-          <img
-            src={component.imageUrl}
-            alt={component.name}
-            style={{ width: '100%', height: 'auto', display: 'block' }}
-          />
-        ) : (
-          <div style={{
-            width: '100%',
-            padding: 32,
-            textAlign: 'center',
-            color: 'hsl(var(--muted-foreground))',
-            fontSize: 13,
-          }}>
-            No screenshot yet
+          <div>
+            <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>Status</label>
+            <select
+              value={draftStatus}
+              onChange={(e) => setDraftStatus(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                background: 'hsl(var(--background))',
+                borderRadius: 'var(--radius)',
+                border: '1px solid hsl(var(--border))',
+                fontSize: 13,
+                color: 'hsl(var(--foreground))',
+                boxSizing: 'border-box',
+              }}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
-        )}
+
+          {/* State field - only show for interactive categories */}
+          {component.availableStates && component.availableStates.length > 1 && ["Actions", "Forms", "Navigation"].includes(component.category) ? (
+            <div style={{ marginTop: 12 }}>
+              <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>State</label>
+              <select
+                value={selectedState}
+                onChange={(e) => handleStateChange(e.target.value)}
+                disabled={isLoadingState}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: isLoadingState ? 'hsl(var(--muted))' : 'hsl(var(--background))',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid hsl(var(--border))',
+                  fontSize: 13,
+                  color: 'hsl(var(--foreground))',
+                  cursor: isLoadingState ? 'not-allowed' : 'pointer',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {component.availableStates.map(({state}) => (
+                  <option key={state} value={state}>
+                    {capitalizeState(state)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            component.availableStates && component.availableStates.length === 1 && ["Actions", "Forms", "Navigation"].includes(component.category) && (
+              <div style={{ marginTop: 12 }}>
+                <label style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginBottom: 6, display: 'block' }}>State</label>
+                <div style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: 'hsl(var(--background))',
+                  color: 'hsl(var(--muted-foreground))',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid hsl(var(--border))',
+                  fontSize: 13,
+                  boxSizing: 'border-box',
+                }}>
+                  {capitalizeState(selectedState)}
+                </div>
+              </div>
+            )
+          )}
+        </div>
       </div>
 
-      {/* URL */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>Captured From</label>
-        {component.url ? (
-          <a
-            href={component.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
+      {/* Preview section */}
+      <div style={{ marginBottom: 24, maxWidth: '100%' }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Preview</h3>
+        <div style={{
+          width: '100%',
+          maxWidth: '100%',
+          maxHeight: 220,
+          minHeight: 180,
+          padding: 12,
+          borderRadius: 'var(--radius)',
+          border: '1px solid hsl(var(--border))',
+          background: 'hsl(var(--muted))',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxSizing: 'border-box',
+        }}>
+          {screenshotUrl ? (
+            <img
+              src={screenshotUrl}
+              alt="Component screenshot"
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                display: 'block',
+                objectFit: 'contain',
+              }}
+            />
+          ) : component.imageUrl ? (
+            <img
+              src={component.imageUrl}
+              alt="Component screenshot"
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                display: 'block',
+                objectFit: 'contain',
+              }}
+            />
+          ) : (
+            <div style={{
               fontSize: 13,
-              color: 'hsl(var(--primary))',
-              textDecoration: 'none',
-              wordBreak: 'break-all',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--primary) / 0.8)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--primary))'}
-          >
-            <span style={{ flex: 1 }}>{component.url}</span>
-            <ExternalLink style={{ width: 12, height: 12, flexShrink: 0 }} />
-          </a>
+              color: 'hsl(var(--muted-foreground))',
+            }}>
+              No screenshot yet
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Source section */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Source</h3>
+        {component.url ? (
+          <div style={{
+            padding: '8px 12px',
+            background: 'hsl(var(--muted))',
+            borderRadius: 'calc(var(--radius) - 2px)',
+            fontSize: 13,
+          }}>
+            <div style={{
+              color: 'hsl(var(--foreground))',
+              fontWeight: 500,
+              marginBottom: 4,
+            }}>
+              {new URL(component.url).hostname}
+            </div>
+            <a
+              href={component.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'hsl(var(--muted-foreground))',
+                fontSize: 12,
+                fontFamily: 'monospace',
+                wordBreak: 'break-all',
+                overflowWrap: 'anywhere',
+                lineHeight: 1.4,
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--primary))'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--muted-foreground))'}
+            >
+              <span style={{ flex: 1 }}>{component.url}</span>
+              <ExternalLink style={{ width: 12, height: 12, flexShrink: 0 }} />
+            </a>
+          </div>
         ) : (
-          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Unknown</div>
+          <div style={{
+            padding: 12,
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 'var(--radius)',
+            background: 'hsl(var(--muted))',
+            fontSize: 13,
+            color: 'hsl(var(--muted-foreground))',
+            lineHeight: 1.5,
+          }}>
+            No source found.
+          </div>
         )}
       </div>
 
@@ -874,50 +974,102 @@ export function ComponentDetails({
           </button>
         </div>
       </div>
+      </div>
 
-      {/* Footer: Save / Cancel / Delete (sticky, avoids covering content) */}
+      {/* Fixed Footer: Save / Cancel / Delete */}
       <div
         style={{
-          position: 'sticky',
-          bottom: 0,
-          marginLeft: -16,
-          marginRight: -16,
-          paddingLeft: 16,
-          paddingRight: 16,
-          paddingTop: 12,
-          paddingBottom: 12,
+          flexShrink: 0,
+          padding: '12px 16px',
           borderTop: '1px solid hsl(var(--border))',
           background: 'hsl(var(--background))',
           display: 'flex',
           gap: 8,
         }}
       >
-        <Button
+        <button
           onClick={handleSave}
           disabled={!(component.isDraft || isDirty) || isSaving}
-          variant="primary"
-          size="md"
-          style={{ flex: 1 }}
+          style={{
+            flex: 1,
+            padding: '8px 16px',
+            background: (!(component.isDraft || isDirty) || isSaving) ? 'hsl(var(--muted))' : 'hsl(var(--primary))',
+            color: (!(component.isDraft || isDirty) || isSaving) ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary-foreground))',
+            border: 'none',
+            borderRadius: 'var(--radius)',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: (!(component.isDraft || isDirty) || isSaving) ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!(!(component.isDraft || isDirty) || isSaving)) {
+              e.currentTarget.style.filter = 'brightness(0.9)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.filter = 'none';
+          }}
         >
           {isSaving ? 'Saving...' : 'Save'}
-        </Button>
-        <Button
+        </button>
+        <button
           onClick={handleCancel}
           disabled={!isDirty}
-          variant="ghost"
-          size="md"
+          style={{
+            padding: '8px 16px',
+            background: 'hsl(var(--background))',
+            color: !isDirty ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 'var(--radius)',
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: !isDirty ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (isDirty) {
+              e.currentTarget.style.background = 'hsl(var(--muted))';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'hsl(var(--background))';
+          }}
         >
           Cancel
-        </Button>
-        <Button
+        </button>
+        <button
           onClick={() => setShowDeleteConfirm(true)}
           disabled={isDeleting}
-          variant="ghost"
-          size="md"
-          style={{ color: isDeleting ? undefined : 'hsl(var(--destructive))' }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            background: 'transparent',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 'var(--radius)',
+            fontSize: '14px',
+            fontWeight: 500,
+            cursor: isDeleting ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s ease',
+            color: isDeleting ? 'hsl(var(--foreground))' : '#dc2626',
+            opacity: isDeleting ? 0.5 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (!isDeleting) {
+              e.currentTarget.style.background = 'hsl(var(--muted))';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isDeleting) {
+              e.currentTarget.style.background = 'transparent';
+            }
+          }}
         >
           {isDeleting ? 'Deleting...' : 'Delete'}
-        </Button>
+        </button>
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -963,22 +1115,44 @@ export function ComponentDetails({
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button
+              <button
                 onClick={handleDelete}
-                variant="destructive"
-                size="md"
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  padding: '8px 16px',
+                  background: 'hsl(var(--destructive))',
+                  color: 'hsl(var(--destructive-foreground))',
+                  border: 'none',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+                onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
               >
                 Delete
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={() => setShowDeleteConfirm(false)}
-                variant="ghost"
-                size="md"
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  padding: '8px 16px',
+                  background: 'hsl(var(--background))',
+                  color: 'hsl(var(--foreground))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'hsl(var(--background))'}
               >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         </div>

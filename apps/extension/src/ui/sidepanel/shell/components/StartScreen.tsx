@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { FolderOpen, Plus, LayoutGrid, ChevronRight } from 'lucide-react';
 import type { Project } from '../App';
-import { Button } from '../../../shared/components';
 
 interface StartScreenProps {
   onCreateProject: (title: string) => void;
@@ -37,8 +36,8 @@ export function StartScreen({ onCreateProject, onOpenProject, projects, loading,
   };
 
   const getProjectCount = (project: Project): string => {
-    // This will be populated from API in the future, for now show "0 Captures"
-    return '0 Captures';
+    const count = project.components.length;
+    return count === 1 ? '1 Capture' : `${count} Captures`;
   };
 
   return (
@@ -47,28 +46,46 @@ export function StartScreen({ onCreateProject, onOpenProject, projects, loading,
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         {/* Fixed Header */}
         <div style={{
-          padding: '16px',
+          flexShrink: 0,
           display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: '1px solid hsl(var(--border))',
         }}>
-          <h1 style={{
-            margin: 0,
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '4px 8px',
             fontSize: '14px',
-            fontWeight: 600,
+            fontWeight: 500,
             color: 'hsl(var(--foreground))',
           }}>
             Audits
-          </h1>
-          <Button
+          </div>
+          <button
             onClick={handleOpenViewer}
-            variant="ghost"
-            size="md"
-            style={{ width: '100%', justifyContent: 'center', background: '#ffffff' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              background: 'transparent',
+              border: 'none',
+              color: 'hsl(var(--muted-foreground))',
+              cursor: 'pointer',
+              borderRadius: 'var(--radius)',
+              fontSize: '14px',
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            title="Open Library"
           >
-            <LayoutGrid style={{ width: '16px', height: '16px' }} />
-            <span>Inventory</span>
-          </Button>
+            <LayoutGrid style={{ width: 18, height: 18 }} />
+            <span>Library</span>
+          </button>
         </div>
 
         {/* Scrollable Content */}
@@ -402,26 +419,58 @@ export function StartScreen({ onCreateProject, onOpenProject, projects, loading,
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
-                <Button
+                <button
                   onClick={handleCreateProject}
                   disabled={!projectTitle.trim()}
-                  variant="primary"
-                  size="md"
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    background: !projectTitle.trim() ? 'hsl(var(--muted))' : 'hsl(var(--primary))',
+                    color: !projectTitle.trim() ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary-foreground))',
+                    border: 'none',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: !projectTitle.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (projectTitle.trim()) {
+                      e.currentTarget.style.filter = 'brightness(0.9)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = 'none';
+                  }}
                 >
                   Create
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={() => {
                     setDrawerOpen(false);
                     setProjectTitle('');
                   }}
-                  variant="ghost"
-                  size="md"
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    background: 'hsl(var(--background))',
+                    color: 'hsl(var(--foreground))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'hsl(var(--muted))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'hsl(var(--background))';
+                  }}
                 >
                   Cancel
-                </Button>
+                </button>
               </div>
             </div>
           </div>

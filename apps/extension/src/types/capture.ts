@@ -282,6 +282,9 @@ export interface CaptureRecordV2 {
   url: string;
   createdAt: number; // ms since epoch (backward compatible)
 
+  displayName?: string; // Display name (defaults to type, but not linked after capture)
+  description?: string; // Optional description text (from textPreview or accessibleName)
+
   conditions: CaptureConditions;
 
   scope?: CaptureScope; // Milestone 4: optional scope context
