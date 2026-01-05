@@ -397,6 +397,60 @@ export function ComponentDetails({
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
+      {/* Preview section (moved to top, title removed) */}
+      <div style={{ marginBottom: 24, maxWidth: '100%' }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '100%',
+          maxHeight: 220,
+          minHeight: 180,
+          padding: 12,
+          borderRadius: 'var(--radius)',
+          border: '1px solid hsl(var(--border))',
+          background: 'hsl(var(--muted))',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxSizing: 'border-box',
+        }}>
+          {screenshotUrl ? (
+            <img
+              src={screenshotUrl}
+              alt="Component screenshot"
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                display: 'block',
+                objectFit: 'contain',
+              }}
+            />
+          ) : component.imageUrl ? (
+            <img
+              src={component.imageUrl}
+              alt="Component screenshot"
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                display: 'block',
+                objectFit: 'contain',
+              }}
+            />
+          ) : (
+            <div style={{
+              fontSize: 13,
+              color: 'hsl(var(--muted-foreground))',
+            }}>
+              No screenshot yet
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Identity section */}
       <div style={{ marginBottom: 24 }}>
         <h3 style={{
@@ -573,66 +627,6 @@ export function ComponentDetails({
         </div>
       </div>
 
-      {/* Preview section */}
-      <div style={{ marginBottom: 24, maxWidth: '100%' }}>
-        <h3 style={{
-          fontSize: 14,
-          fontWeight: 600,
-          marginTop: 0,
-          marginBottom: 8,
-          color: 'hsl(var(--foreground))',
-        }}>Preview</h3>
-        <div style={{
-          width: '100%',
-          maxWidth: '100%',
-          maxHeight: 220,
-          minHeight: 180,
-          padding: 12,
-          borderRadius: 'var(--radius)',
-          border: '1px solid hsl(var(--border))',
-          background: 'hsl(var(--muted))',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxSizing: 'border-box',
-        }}>
-          {screenshotUrl ? (
-            <img
-              src={screenshotUrl}
-              alt="Component screenshot"
-              style={{
-                width: 'auto',
-                height: 'auto',
-                maxWidth: '100%',
-                maxHeight: '100%',
-                display: 'block',
-                objectFit: 'contain',
-              }}
-            />
-          ) : component.imageUrl ? (
-            <img
-              src={component.imageUrl}
-              alt="Component screenshot"
-              style={{
-                width: 'auto',
-                height: 'auto',
-                maxWidth: '100%',
-                maxHeight: '100%',
-                display: 'block',
-                objectFit: 'contain',
-              }}
-            />
-          ) : (
-            <div style={{
-              fontSize: 13,
-              color: 'hsl(var(--muted-foreground))',
-            }}>
-              No screenshot yet
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Source section */}
       <div style={{ marginBottom: 24 }}>

@@ -802,7 +802,48 @@ export function DetailsDrawer({
                     }}>
                     {selectedComponent && (
                         <div>
-                            {/* Identity section (editable: prototype parity) - MOVED ABOVE PREVIEW */}
+                            {/* Preview section (moved to top, title removed) */}
+                            <div style={{ marginBottom: 24, maxWidth: "100%" }}>
+                                <div style={{
+                                    width: "100%",
+                                    maxWidth: "100%",
+                                    maxHeight: 220,
+                                    minHeight: 180,
+                                    padding: 12,
+                                    borderRadius: "var(--radius)",
+                                    border: "1px solid hsl(var(--border))",
+                                    background: "hsl(var(--muted))",
+                                    overflow: "hidden",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxSizing: "border-box",
+                                }}>
+                                    {screenshotUrl ? (
+                                        <img
+                                            src={screenshotUrl}
+                                            alt="Component screenshot"
+                                            style={{
+                                                width: "auto",
+                                                height: "auto",
+                                                maxWidth: "100%",
+                                                maxHeight: "100%",
+                                                display: "block",
+                                                objectFit: "contain",
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            fontSize: 13,
+                                            color: "hsl(var(--muted-foreground))",
+                                        }}>
+                                            No screenshot yet
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Identity section */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>Identity</h3>
 
@@ -920,49 +961,6 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
-                            {/* Preview section (7.5.2: hero screenshot) - MOVED AFTER IDENTITY + STATE */}
-                            <div style={{ marginBottom: 24, maxWidth: "100%" }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Preview
-                                </h3>
-                                <div style={{
-                                    width: "100%",
-                                    maxWidth: "100%",
-                                    maxHeight: 220,
-                                    minHeight: 180,
-                                    padding: 12,
-                                    borderRadius: "var(--radius)",
-                                    border: "1px solid hsl(var(--border))",
-                                    background: "hsl(var(--muted))",
-                                    overflow: "hidden",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    boxSizing: "border-box",
-                                }}>
-                                    {screenshotUrl ? (
-                                        <img
-                                            src={screenshotUrl}
-                                            alt="Component screenshot"
-                                            style={{
-                                                width: "auto",
-                                                height: "auto",
-                                                maxWidth: "100%",
-                                                maxHeight: "100%",
-                                                display: "block",
-                                                objectFit: "contain",
-                                            }}
-                                        />
-                                    ) : (
-                                        <div style={{
-                                            fontSize: 13,
-                                            color: "hsl(var(--muted-foreground))",
-                                        }}>
-                                            No screenshot yet
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
 
                             {/* HTML Structure section (7.6.2: collapsible, read-only) */}
                             {(() => {
