@@ -755,8 +755,18 @@ function updateOverlay(x: number, y: number) {
         return;
     }
 
-    // Find element under cursor (overlay has pointer-events: none, so it won't interfere)
-    const el = document.elementFromPoint(x, y);
+    // Find element under cursor using elementsFromPoint to capture disabled elements
+    // (disabled buttons have pointer-events: none, so elementFromPoint misses them)
+    const elements = document.elementsFromPoint(x, y);
+    
+    // Filter out our own overlay elements and find the first meaningful element
+    const el = elements.find(elem => 
+        elem !== overlayDiv && 
+        elem !== metadataPill &&
+        !overlayDiv?.contains(elem) &&
+        !metadataPill?.contains(elem)
+    );
+    
     if (!el) {
         overlayDiv.style.display = "none";
         updateMetadataPill(null);
