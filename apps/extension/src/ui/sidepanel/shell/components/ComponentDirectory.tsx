@@ -104,7 +104,10 @@ export function ComponentDirectory({
                           </span>
                         )}
                       </div>
-                      {component.availableStates && component.availableStates.length > 0 && (
+                      {/* Show states for interactive categories, description for static ones */}
+                      {['Actions', 'Forms', 'Navigation', 'Feedback'].includes(component.category) && 
+                       component.availableStates && 
+                       component.availableStates.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {component.availableStates.map(({state}) => (
                             <span
@@ -114,6 +117,13 @@ export function ComponentDirectory({
                               {state}
                             </span>
                           ))}
+                        </div>
+                      )}
+                      {/* Show description for non-interactive categories */}
+                      {!['Actions', 'Forms', 'Navigation', 'Feedback'].includes(component.category) && 
+                       component.description && (
+                        <div className="text-xs text-gray-500 truncate">
+                          {component.description}
                         </div>
                       )}
                     </div>
