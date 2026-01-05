@@ -19,6 +19,40 @@ chrome.runtime.sendMessage({ type: "UI/REGISTER_ACTIVE_TAB" }, () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// Global Hotkey: Cmd/Ctrl + Shift + C to toggle capture mode
+// ─────────────────────────────────────────────────────────────
+
+document.addEventListener("keydown", (e: KeyboardEvent) => {
+    // Cmd/Ctrl + Shift + C
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "C") {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Toggle capture mode
+        const newState = !isHoverModeActive;
+        
+        chrome.runtime.sendMessage(
+            { type: "AUDIT/TOGGLE", enabled: newState },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error("[UI Inventory] Failed to toggle capture:", chrome.runtime.lastError);
+                    showToast("Failed to toggle capture mode");
+                    return;
+                }
+                
+                if (response?.ok) {
+                    if (newState) {
+                        showToast("Capture mode enabled (⌘⇧C to toggle)", 2000);
+                    } else {
+                        showToast("Capture mode disabled", 2000);
+                    }
+                }
+            }
+        );
+    }
+}, true); // Use capture phase to intercept before other handlers
+
+// ─────────────────────────────────────────────────────────────
 // Toast utility (Milestone 5)
 // ─────────────────────────────────────────────────────────────
 
