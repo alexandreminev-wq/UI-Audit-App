@@ -46,7 +46,7 @@ import type {
     AuthorStyleProvenance,
     TokenEvidence,
 } from "../types/capture";
-import { generateSessionId, generateBlobId } from "../types/capture";
+import { generateSessionId, generateBlobId, generateCaptureId } from "../types/capture";
 import { deriveComponentKey } from "../ui/shared/componentKey";
 
 const auditEnabledByTab = new Map<number, boolean>();
@@ -1704,6 +1704,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 } as CaptureRecordV2;
                 
                 const componentKey = deriveComponentKey(mockCapture);
+                // Also compute what the key would be if v2 records do NOT include attributes (current capture pipeline)
+                const mockCaptureNoAttrs = {
+                    element: {
+                        tagName: tagName.toLowerCase(),
+                        role: role || null,
+                        intent: accessibleName ? { accessibleName } : undefined,
+                        textPreview: accessibleName || "",
+                        id: elementId || null,
+                    }
+                } as any as CaptureRecordV2;
+                const componentKeyNoAttrs = deriveComponentKey(mockCaptureNoAttrs);
                 
                 // Get current project's captures
                 const tabId = resolveTabId(msg, sender);
@@ -1735,8 +1746,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 
                 // Filter to captures with matching componentKey
                 const matchingCaptures = allCaptures.filter(capture => {
-                    const captureKey = deriveComponentKey(capture);
+                    // Backward compat: older v2 captures didn't persist element.attributes.
+                    // For form elements, attempt to extract name/placeholder from outerHTML for matching.
+                    const isForm = ["input", "textarea", "select"].includes(String((capture as any)?.element?.tagName ?? "").toLowerCase());
+                    const hasAttrs = !!(capture as any)?.element?.attributes;
+                    let normalized: CaptureRecordV2 = capture;
+                    if (isForm && !hasAttrs && typeof (capture as any)?.element?.outerHTML === "string") {
+                        const html = String((capture as any).element.outerHTML);
+                        const mName = html.match(/\sname=\"([^\"]*)\"/i);
+                        const mPh = html.match(/\splaceholder=\"([^\"]*)\"/i);
+                        const attrs = {
+                            name: mName ? mName[1] : undefined,
+                            placeholder: mPh ? mPh[1] : undefined,
+                        };
+                        normalized = {
+                            ...(capture as any),
+                            element: {
+                                ...(capture as any).element,
+                                attributes: attrs,
+                            },
+                        } as CaptureRecordV2;
+                    }
+                    const captureKey = deriveComponentKey(normalized);
                     return captureKey === componentKey;
+                });
+                const matchingNoAttrs = allCaptures.filter(capture => {
+                    const captureKey = deriveComponentKey(capture);
+                    return captureKey === componentKeyNoAttrs;
                 });
                 
                 // Check if requested state already exists
@@ -2038,6 +2074,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     classList: recordV1.element.classList,
                     textPreview: recordV1.element.textPreview,
                     outerHTML: recordV1.element.outerHTML || null, // Preserve outerHTML from content script
+                    // Preserve attributes for formContext + duplicate detection
+                    attributes: (recordV1.element as any).attributes || undefined,
                     intent,
                 },
 
@@ -2103,6 +2141,144 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         })();
 
         return true; // async response
+    }
+
+    if (msg?.type === "AUDIT/CAPTURE_REGION") {
+        (async () => {
+            const tabId = sender.tab?.id;
+            if (!tabId) {
+                sendResponse({ ok: false, error: "No tab ID" });
+                return;
+            }
+
+            const boundingBox = msg.boundingBox;
+            const devicePixelRatio = typeof msg.devicePixelRatio === "number" && Number.isFinite(msg.devicePixelRatio)
+                ? msg.devicePixelRatio
+                : 1;
+            const kind: "region" | "viewport" = msg.kind === "viewport" ? "viewport" : "region";
+
+            if (
+                !boundingBox ||
+                typeof boundingBox.left !== "number" ||
+                typeof boundingBox.top !== "number" ||
+                typeof boundingBox.width !== "number" ||
+                typeof boundingBox.height !== "number"
+            ) {
+                sendResponse({ ok: false, error: "Invalid boundingBox" });
+                return;
+            }
+
+            // Ensure session exists for this tab
+            const sessionId = await ensureSession(tabId);
+
+            // Get active project for this tab (rehydrate from storage if missing)
+            let projectId = activeProjectByTabId.get(tabId);
+            if (!projectId) {
+                projectId = await getActiveProjectPersisted(tabId);
+                if (projectId) {
+                    activeProjectByTabId.set(tabId, projectId);
+                    console.log("[UI Inventory] AUDIT/CAPTURE_REGION: Rehydrated active project for tab", tabId, ":", projectId);
+                }
+            }
+            // Fallback: if we still don't have a per-tab mapping, use the current project (best-effort)
+            if (!projectId && typeof currentProjectId === "string" && currentProjectId) {
+                projectId = currentProjectId;
+                activeProjectByTabId.set(tabId, projectId);
+            }
+
+            // Link session to active project if available (non-fatal)
+            if (projectId) {
+                try {
+                    await linkSessionToProject(projectId, sessionId);
+                } catch (err) {
+                    console.warn("[UI Inventory] Failed to link session to project (non-fatal):", err);
+                }
+            }
+
+            const createdAt = Date.now();
+            const captureId = generateCaptureId();
+            const url: string = typeof msg.url === "string" && msg.url ? msg.url : (await chrome.tabs.get(tabId)).url || "about:blank";
+            const viewportWidth = Number(msg?.viewport?.width || 0);
+            const viewportHeight = Number(msg?.viewport?.height || 0);
+
+            // Screenshot (crop visible tab)
+            let screenshot: CaptureRecordV2["screenshot"] | null = null;
+            try {
+                screenshot = await captureScreenshot(tabId, boundingBox, devicePixelRatio);
+            } catch {
+                screenshot = null;
+            }
+
+            const displayName = kind === "viewport" ? "Viewport" : "Region";
+
+            const recordV2: CaptureRecordV2 = {
+                id: captureId,
+                sessionId,
+                projectId,
+                captureSchemaVersion: 2,
+                stylePrimitiveVersion: 1,
+                url,
+                createdAt,
+                displayName,
+                description: undefined,
+                conditions: {
+                    viewport: { width: viewportWidth, height: viewportHeight },
+                    devicePixelRatio,
+                    visualViewportScale: null,
+                    browserZoom: null,
+                    timestamp: createdAt,
+                    themeHint: "unknown",
+                },
+                element: {
+                    tagName: "region",
+                    role: null,
+                    id: null,
+                    classList: [],
+                    textPreview: "",
+                    outerHTML: null,
+                    intent: { accessibleName: displayName },
+                },
+                boundingBox: {
+                    left: Number(boundingBox.left),
+                    top: Number(boundingBox.top),
+                    width: Number(boundingBox.width),
+                    height: Number(boundingBox.height),
+                },
+                styles: {
+                    primitives: makeDefaultPrimitives(),
+                    evidence: {
+                        method: "computed",
+                        cdpError: undefined,
+                        capturedAt: Date.now(),
+                        state: "default",
+                    },
+                },
+                screenshot: screenshot || null,
+                isDraft: true,
+            };
+
+            try {
+                await saveCapture(recordV2);
+            } catch (err) {
+                console.error("[UI Inventory] Failed to save region capture to IndexedDB:", err);
+            }
+
+            chrome.runtime.sendMessage(
+                { type: "AUDIT/CAPTURED", record: recordV2, tabId },
+                () => void chrome.runtime.lastError
+            );
+
+            if (projectId) {
+                chrome.runtime.sendMessage(
+                    { type: "UI/CAPTURE_SAVED", projectId, captureId: recordV2.id },
+                    () => void chrome.runtime.lastError
+                );
+            }
+
+            sendResponse({ ok: true, captureId: recordV2.id, projectId: recordV2.projectId || null });
+        })();
+
+        return true;
     }
 
     if (msg?.type === "AUDIT/CAPTURED") {
@@ -2592,7 +2768,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
 
                 // Get active projectId for this tab
-                const projectId = activeProjectByTabId.get(tabId);
+                let projectId = activeProjectByTabId.get(tabId);
+                if (!projectId) {
+                    // Rehydrate from chrome.storage.session (survives SW restarts)
+                    projectId = await getActiveProjectPersisted(tabId);
+                    if (projectId) {
+                        activeProjectByTabId.set(tabId, projectId);
+                    }
+                }
 
                 if (!projectId) {
                     sendResponse({ ok: true, projectId: null, sessionIds: [], captures: [] });
@@ -2604,7 +2787,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
                 // Load all captures across those sessions
                 const captures = await listCapturesBySessionIds(sessionIds);
-
                 sendResponse({ ok: true, projectId, sessionIds, captures });
             } catch (err) {
                 console.error("[UI Inventory] Failed to get project captures:", err);

@@ -203,6 +203,13 @@ let captureMenuView: "main" | "children" = "main";
 let captureMenuChildCandidates: Element[] = [];
 let captureMenuPos: { x: number; y: number } | null = null;
 let captureMenuPinnedPrev: { isFrozen: boolean; frozenEl: Element | null } | null = null;
+// Region selection (drag to capture a rectangle)
+let regionSelectHost: HTMLDivElement | null = null;
+let regionSelectShadow: ShadowRoot | null = null;
+let regionSelectIsActive = false;
+let regionSelectStart: { x: number; y: number } | null = null;
+let regionSelectRectEl: HTMLDivElement | null = null;
+let regionSelectKind: "region" | "viewport" = "region";
 let lastHoverElForPill: Element | null = null;
 let currentHoverEl: Element | null = null;
 let isFrozen = false;
@@ -218,6 +225,210 @@ let lastMouseY: number | null = null;
 // ─────────────────────────────────────────────────────────────
 // Sidebar (Milestone 6.1)
 // ─────────────────────────────────────────────────────────────
+
+function ensureRegionSelectOverlay() {
+    if (regionSelectHost && regionSelectShadow) return;
+
+    regionSelectHost = document.createElement("div");
+    regionSelectHost.id = "ui-inventory-region-select-host";
+    regionSelectHost.style.cssText = `
+        all: initial;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        pointer-events: none;
+    `;
+
+    regionSelectShadow = regionSelectHost.attachShadow({ mode: "open" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+        * { box-sizing: border-box; }
+        .overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: auto;
+            cursor: crosshair;
+            background: rgba(0,0,0,0.02);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .rect {
+            position: absolute;
+            border: 2px solid rgba(37, 99, 235, 0.9);
+            background: rgba(37, 99, 235, 0.12);
+            border-radius: 6px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        .hint {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(17, 24, 39, 0.92);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+    `;
+
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Drag to select a region. Press Esc to cancel.";
+
+    const rect = document.createElement("div");
+    rect.className = "rect";
+    rect.style.left = "0px";
+    rect.style.top = "0px";
+    rect.style.width = "0px";
+    rect.style.height = "0px";
+    rect.style.display = "none";
+    regionSelectRectEl = rect;
+
+    const updateRect = (start: { x: number; y: number }, cur: { x: number; y: number }) => {
+        const left = Math.max(0, Math.min(start.x, cur.x));
+        const top = Math.max(0, Math.min(start.y, cur.y));
+        const right = Math.min(window.innerWidth, Math.max(start.x, cur.x));
+        const bottom = Math.min(window.innerHeight, Math.max(start.y, cur.y));
+        const w = Math.max(0, right - left);
+        const h = Math.max(0, bottom - top);
+        rect.style.display = "block";
+        rect.style.left = `${Math.round(left)}px`;
+        rect.style.top = `${Math.round(top)}px`;
+        rect.style.width = `${Math.round(w)}px`;
+        rect.style.height = `${Math.round(h)}px`;
+    };
+
+    const stopRegionSelect = () => {
+        regionSelectIsActive = false;
+        regionSelectStart = null;
+        regionSelectKind = "region";
+        regionSelectRectEl = null;
+        if (regionSelectHost) {
+            regionSelectHost.remove();
+        }
+        regionSelectHost = null;
+        regionSelectShadow = null;
+    };
+
+    const sendRegionCapture = async (box: { left: number; top: number; width: number; height: number }, kind: "region" | "viewport") => {
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        const url = window.location.href;
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+        // Prevent hover UI from reappearing while the screenshot is being taken (it would end up in the image)
+        isCaptureInProgress = true;
+        if (overlayDiv) overlayDiv.style.display = "none";
+        if (pillDiv) pillDiv.style.display = "none";
+        chrome.runtime.sendMessage(
+            { type: "AUDIT/CAPTURE_REGION", boundingBox: box, devicePixelRatio, url, viewport, kind },
+            (resp) => {
+                const err = chrome.runtime.lastError;
+                if (err) {
+                    console.warn("[UI Inventory] CAPTURE_REGION sendMessage error:", err.message);
+                    isCaptureInProgress = false;
+                    return;
+                }
+                if (!resp?.ok) {
+                    console.warn("[UI Inventory] CAPTURE_REGION failed:", resp?.error || resp);
+                    isCaptureInProgress = false;
+                    return;
+                }
+                // Restore hover UI after capture is complete
+                isCaptureInProgress = false;
+                if (isHoverModeActive) {
+                    if (overlayDiv) overlayDiv.style.display = "";
+                    if (pillDiv) pillDiv.style.display = "";
+                }
+            }
+        );
+    };
+
+    overlay.addEventListener("pointerdown", (e) => {
+        if (!regionSelectIsActive) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        regionSelectStart = { x: e.clientX, y: e.clientY };
+        updateRect(regionSelectStart, regionSelectStart);
+        try {
+            (e.target as Element | null)?.setPointerCapture?.(e.pointerId);
+        } catch {
+            // ignore
+        }
+    }, true);
+
+    overlay.addEventListener("pointermove", (e) => {
+        if (!regionSelectIsActive || !regionSelectStart) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        updateRect(regionSelectStart, { x: e.clientX, y: e.clientY });
+    }, true);
+
+    overlay.addEventListener("pointerup", async (e) => {
+        if (!regionSelectIsActive || !regionSelectStart) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        const start = regionSelectStart;
+        const cur = { x: e.clientX, y: e.clientY };
+        const left = Math.max(0, Math.min(start.x, cur.x));
+        const top = Math.max(0, Math.min(start.y, cur.y));
+        const right = Math.min(window.innerWidth, Math.max(start.x, cur.x));
+        const bottom = Math.min(window.innerHeight, Math.max(start.y, cur.y));
+        const width = Math.max(0, right - left);
+        const height = Math.max(0, bottom - top);
+
+        // reject tiny selections
+        if (width >= 8 && height >= 8) {
+            await sendRegionCapture(
+                { left: Math.round(left), top: Math.round(top), width: Math.round(width), height: Math.round(height) },
+                regionSelectKind
+            );
+        }
+
+        stopRegionSelect();
+    }, true);
+
+    overlay.appendChild(hint);
+    overlay.appendChild(rect);
+
+    regionSelectShadow.appendChild(style);
+    regionSelectShadow.appendChild(overlay);
+    document.documentElement.appendChild(regionSelectHost);
+
+    // expose cancel helper via host dataset hook (used by keydown Escape)
+    (regionSelectHost as any).__uiinv_cancel = stopRegionSelect;
+    (regionSelectHost as any).__uiinv_sendViewport = async () => {
+        await sendRegionCapture(
+            { left: 0, top: 0, width: Math.round(window.innerWidth), height: Math.round(window.innerHeight) },
+            "viewport"
+        );
+        stopRegionSelect();
+    };
+    (regionSelectHost as any).__uiinv_sendRegion = async () => {
+        // just a marker; actual region is sent on pointerup
+    };
+}
+
+function startRegionSelect(kind: "region" | "viewport") {
+    ensureRegionSelectOverlay();
+    regionSelectIsActive = true;
+    regionSelectStart = null;
+    regionSelectKind = kind;
+    // Hide hover UI while selecting a screenshot region/viewport
+    if (overlayDiv) overlayDiv.style.display = "none";
+    if (pillDiv) pillDiv.style.display = "none";
+    // enable pointer events for host while active
+    if (regionSelectHost) {
+        regionSelectHost.style.pointerEvents = "auto";
+    }
+}
 
 let sidebarHost: HTMLDivElement | null = null;
 let sidebarShadow: ShadowRoot | null = null;
@@ -1036,23 +1247,33 @@ function renderCaptureMenu() {
         )
     );
 
-    const stateSec = mkSection("State");
-    const states: CaptureMenuActionState[] = [
-        { label: "Default state (non-hover)", mode: "default", requestedState: "default", kbd: "D" },
-        { label: "Force hover", mode: "force_hover", requestedState: "hover", kbd: "H" },
-        { label: "Force active", mode: "force_active", requestedState: "active", kbd: "A" },
-        { label: "Capture As-Is", mode: "as_is", requestedState: "default", kbd: "S" },
-    ];
-    for (const s of states) {
-        stateSec.appendChild(
-            mkBtn(
-                s.label,
-                s.kbd ?? null,
-                exactTarget ? async () => await closeAndCapture(exactTarget, s) : null,
-                !exactTarget
-            )
-        );
-    }
+    const shotsSec = mkSection("Screenshots");
+    shotsSec.appendChild(
+        mkBtn(
+            "Capture region… (drag)",
+            "R",
+            async () => {
+                closeCaptureMenu();
+                startRegionSelect("region");
+            },
+            false
+        )
+    );
+    shotsSec.appendChild(
+        mkBtn(
+            "Capture visible viewport",
+            "V",
+            async () => {
+                closeCaptureMenu();
+                startRegionSelect("viewport");
+                const sendViewport = (regionSelectHost as any)?.__uiinv_sendViewport as (() => Promise<void>) | undefined;
+                if (sendViewport) {
+                    await sendViewport();
+                }
+            },
+            false
+        )
+    );
 
     const envSec = mkSection("Environment");
     const canFreeze = !!exactTarget;
@@ -1084,7 +1305,7 @@ function renderCaptureMenu() {
     hint.textContent = "Tip: Right-click to open here. Press Esc to close.";
 
     content.appendChild(selectionSec);
-    content.appendChild(stateSec);
+    content.appendChild(shotsSec);
     content.appendChild(envSec);
     content.appendChild(hint);
 }
@@ -1505,6 +1726,9 @@ function updateOverlay(x: number, y: number) {
 function onMouseMove(e: MouseEvent) {
     if (!isHoverModeActive || pendingUpdate) return;
 
+    // Disable hover highlight while selecting a screenshot region/viewport
+    if (regionSelectIsActive) return;
+
     // M9: Track mouse position for post-capture overlay refresh
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
@@ -1523,6 +1747,24 @@ function onMouseMove(e: MouseEvent) {
 
 async function onPointerCapture(e: PointerEvent) {
     if (!isHoverModeActive) return;
+
+    // Allow interactions with our UI surfaces (never treat pointerdown inside UI as a capture)
+    if (captureMenuHost && e.composedPath().includes(captureMenuHost)) {
+        return;
+    }
+    if (confirmationPopoverHost && e.composedPath().includes(confirmationPopoverHost)) {
+        return;
+    }
+    if (sidebarHost && e.composedPath().includes(sidebarHost)) {
+        return;
+    }
+
+    // Allow region selection overlay to own pointer events
+    if (regionSelectIsActive) {
+        if (regionSelectHost && e.composedPath().includes(regionSelectHost)) {
+            return;
+        }
+    }
 
     // Allow interactions with the state menu
     if (stateMenuHost && e.composedPath().includes(stateMenuHost)) {
@@ -1562,6 +1804,13 @@ async function onPointerCapture(e: PointerEvent) {
 async function onClickSelect(e: MouseEvent) {
     if (!isHoverModeActive) return;
 
+    // Allow region selection overlay to own click events
+    if (regionSelectIsActive) {
+        if (regionSelectHost && e.composedPath().includes(regionSelectHost)) {
+            return;
+        }
+    }
+
     // If confirmation popover is open, either let it handle the click or close it
     if (confirmationPopoverIsOpen) {
         if (confirmationPopoverHost && e.composedPath().includes(confirmationPopoverHost)) {
@@ -1575,6 +1824,16 @@ async function onClickSelect(e: MouseEvent) {
             confirmationPopoverCallbacks.onCancel();
         }
         closeConfirmationPopover();
+        return;
+    }
+
+    // Skip this click if pointerdown just handled capture/opened a state menu
+    // (prevents immediately closing the state menu right after opening it on pointerdown)
+    if (suppressNextClickCapture) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        suppressNextClickCapture = false;
         return;
     }
 
@@ -1606,12 +1865,6 @@ async function onClickSelect(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-
-    // Skip this click if pointerdown just captured
-    if (suppressNextClickCapture) {
-        suppressNextClickCapture = false;
-        return;
-    }
 
     // If frozen, pointerdown already handled capture - don't double-capture
     if (isFrozen) {
@@ -1652,6 +1905,7 @@ async function checkDuplicateAndCapture(target: Element, requestedState?: string
     const elementId = (target as HTMLElement).id || "";
     const elementName = (target as HTMLInputElement).name || "";
     const placeholder = (target as HTMLInputElement).placeholder || "";
+    const inputType = (target instanceof HTMLInputElement) ? (target.type || "") : "";
 
     console.log("[UI Inventory] Checking duplicate for:", { tagName, role, accessibleName, requestedState, elementId, elementName, placeholder });
 
@@ -1670,7 +1924,6 @@ async function checkDuplicateAndCapture(target: Element, requestedState?: string
         });
 
         console.log("[UI Inventory] Duplicate check response:", response);
-
         if (!response?.ok) {
             // If check fails, proceed with capture anyway
             console.warn("[UI Inventory] Duplicate check failed, proceeding with capture");
@@ -1946,6 +2199,11 @@ function onKeyDown(e: KeyboardEvent) {
 
     // Escape: exit selection mode
     if (e.key === "Escape") {
+        if (regionSelectIsActive) {
+            const cancel = (regionSelectHost as any)?.__uiinv_cancel as (() => void) | undefined;
+            if (cancel) cancel();
+            return;
+        }
         if (confirmationPopoverIsOpen) {
             // Cancel on escape
             if (confirmationPopoverCallbacks?.onCancel) {
@@ -2100,6 +2358,15 @@ function stopHoverMode() {
     captureMenuChildCandidates = [];
     captureMenuPos = null;
     captureMenuPinnedPrev = null;
+
+    if (regionSelectHost) {
+        regionSelectHost.remove();
+        regionSelectHost = null;
+        regionSelectShadow = null;
+    }
+    regionSelectIsActive = false;
+    regionSelectStart = null;
+    regionSelectRectEl = null;
     
     // Clean up confirmation popover
     if (confirmationPopoverHost) {

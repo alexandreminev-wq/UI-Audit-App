@@ -384,6 +384,7 @@ export default function App() {
     setCurrentProject(null);
   };
 
+
   // Map ProjectRecords to Projects for StartScreen
   const shellProjects: Project[] = projects.map((p) => {
     const componentCount = projectCounts[p.id] || 0;

@@ -811,12 +811,12 @@ export async function listSessionIdsForProject(projectId: string): Promise<strin
  * List captures across multiple sessions (sorted by createdAt ascending)
  * Read-only helper for aggregating captures from multiple sessions
  */
-export async function listCapturesBySessionIds(sessionIds: string[]): Promise<CaptureRecordV2[]> {
+export async function listCapturesBySessionIds(sessionIds: string[]): Promise<(CaptureRecord | CaptureRecordV2)[]> {
     if (!Array.isArray(sessionIds)) {
         throw new Error("sessionIds must be an array");
     }
 
-    const allCaptures: CaptureRecordV2[] = [];
+    const allCaptures: (CaptureRecord | CaptureRecordV2)[] = [];
 
     for (const sessionId of sessionIds) {
         const captures = await listCapturesBySession(sessionId);

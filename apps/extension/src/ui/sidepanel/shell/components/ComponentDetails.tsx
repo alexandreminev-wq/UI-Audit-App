@@ -34,6 +34,7 @@ export function ComponentDetails({
     "Media",
     "Feedback",
     "Layout",
+    "Screenshots",
     "Data Display",
     "Unknown",
   ];
@@ -49,12 +50,13 @@ export function ComponentDetails({
 
   const TYPE_OPTIONS_BY_CATEGORY: Record<string, string[]> = {
     Actions: ["Button", "Link", "Icon Button", "Toggle Button"],
-    Forms: ["Input", "Textarea", "Select", "Checkbox", "Radio", "Switch", "Slider", "Date Picker", "File Upload"],
+    Forms: ["Input", "Textarea", "Select", "Checkbox", "Radio", "Switch", "Slider", "Date Picker", "File Upload", "Fieldset"],
     Navigation: ["Nav Link", "Menu", "Menu Item", "Tabs", "Tab", "Breadcrumb", "Pagination", "Sidebar Item"],
     Content: ["Heading", "Paragraph", "Text", "Label", "List", "List Item", "Rich Text"],
     Media: ["Image", "Icon", "Avatar", "Video", "Illustration", "Logo"],
     Feedback: ["Alert", "Toast", "Banner", "Tooltip", "Modal", "Snackbar", "Inline Message", "Empty State"],
     Layout: ["Card", "Container", "Section", "Panel", "Divider", "Grid", "Landmark"],
+    Screenshots: ["Region", "Viewport"],
     "Data Display": ["Table", "Table Row", "Table Cell", "Badge", "Chip", "Tag", "Stat", "Key Value"],
     Unknown: ["Element", "Custom Element", "Unclassified"],
   };
@@ -628,6 +630,67 @@ export function ComponentDetails({
         </div>
       </div>
 
+      {/* Tags (explicit Save only) */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginTop: 0,
+          marginBottom: 8,
+          color: 'hsl(var(--foreground))',
+        }}>Tags</h3>
+
+        {draftTags.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {draftTags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  background: 'hsl(var(--muted))',
+                  color: 'hsl(var(--foreground))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 6,
+                }}
+              >
+                {tag}
+                <button
+                  onClick={() => handleRemoveTag(tag)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'hsl(var(--muted-foreground))',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: 14,
+                    lineHeight: 1,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--foreground))'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--muted-foreground))'}
+                  title="Remove tag"
+                  type="button"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No tags yet.</div>
+        )}
+
+        <TagAutocomplete
+          projectId={projectId}
+          currentTags={draftTags}
+          onAddTag={handleAddTag}
+          placeholder="Add a tag..."
+        />
+      </div>
+
       {/* Styles (formerly Visual Essentials) - moved under Identity */}
       <div style={{ marginBottom: 24 }}>
         <h3 style={{
@@ -818,66 +881,6 @@ export function ComponentDetails({
         />
       </div>
 
-      {/* Tags (explicit Save only) */}
-      <div style={{ marginBottom: 24 }}>
-        <h3 style={{
-          fontSize: 14,
-          fontWeight: 600,
-          marginTop: 0,
-          marginBottom: 8,
-          color: 'hsl(var(--foreground))',
-        }}>Tags</h3>
-
-        {draftTags.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {draftTags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '4px 12px',
-                  fontSize: 11,
-                  background: 'hsl(var(--muted))',
-                  color: 'hsl(var(--foreground))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 6,
-                }}
-              >
-                {tag}
-                <button
-                  onClick={() => handleRemoveTag(tag)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'hsl(var(--muted-foreground))',
-                    cursor: 'pointer',
-                    padding: 0,
-                    fontSize: 14,
-                    lineHeight: 1,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = 'hsl(var(--foreground))'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(var(--muted-foreground))'}
-                  title="Remove tag"
-                  type="button"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>No tags yet.</div>
-        )}
-
-        <TagAutocomplete
-          projectId={projectId}
-          currentTags={draftTags}
-          onAddTag={handleAddTag}
-          placeholder="Add a tag..."
-        />
-      </div>
       </div>
 
       {/* Fixed Footer: Save / Cancel / Delete */}

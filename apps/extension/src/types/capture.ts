@@ -85,6 +85,19 @@ export interface ElementCore {
   classList?: string[];
   textPreview?: string;
   outerHTML?: string | null; // HTML structure for display
+  // Optional attributes (used for formContext + duplicate detection)
+  // NOTE: kept minimal on purpose; extend carefully.
+  attributes?: {
+    name?: string;
+    placeholder?: string;
+    ariaLabel?: string;
+    ariaLabelledBy?: string;
+    ariaExpanded?: string;
+    ariaChecked?: string;
+    ariaSelected?: string;
+    ariaDisabled?: string;
+    ariaCurrent?: string;
+  };
   // intent anchors (v2.2)
   intent: ElementIntent;
 }

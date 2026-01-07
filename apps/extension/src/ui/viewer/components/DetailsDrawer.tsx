@@ -182,6 +182,7 @@ export function DetailsDrawer({
         "Media",
         "Feedback",
         "Layout",
+        "Screenshots",
         "Data Display",
         "Unknown",
     ];
@@ -197,12 +198,13 @@ export function DetailsDrawer({
 
     const TYPE_OPTIONS_BY_CATEGORY: Record<string, string[]> = {
         Actions: ["Button", "Link", "Icon Button", "Toggle Button"],
-        Forms: ["Input", "Textarea", "Select", "Checkbox", "Radio", "Switch", "Slider", "Date Picker", "File Upload"],
+        Forms: ["Input", "Textarea", "Select", "Checkbox", "Radio", "Switch", "Slider", "Date Picker", "File Upload", "Fieldset"],
         Navigation: ["Nav Link", "Menu", "Menu Item", "Tabs", "Tab", "Breadcrumb", "Pagination", "Sidebar Item"],
         Content: ["Heading", "Paragraph", "Text", "Label", "List", "List Item", "Rich Text"],
         Media: ["Image", "Icon", "Avatar", "Video", "Illustration", "Logo"],
         Feedback: ["Alert", "Toast", "Banner", "Tooltip", "Modal", "Snackbar", "Inline Message", "Empty State"],
         Layout: ["Card", "Container", "Section", "Panel", "Divider", "Grid", "Landmark"],
+        Screenshots: ["Region", "Viewport"],
         "Data Display": ["Table", "Table Row", "Table Cell", "Badge", "Chip", "Tag", "Stat", "Key Value"],
         Unknown: ["Element", "Custom Element", "Unclassified"],
     };
@@ -961,6 +963,109 @@ export function DetailsDrawer({
                                 </div>
                             </div>
 
+                            {/* Tags section (7.7.2: editable) */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={drawerSectionTitleStyle}>
+                                    Tags
+                                </h3>
+                                {/* Existing tags */}
+                                {draftTags.length > 0 ? (
+                                    <div style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 8,
+                                        marginBottom: 12,
+                                    }}>
+                                        {draftTags.map((tag, index) => (
+                                            <span
+                                                key={index}
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    padding: "4px 8px 4px 10px",
+                                                    fontSize: 12,
+                                                    background: "hsl(var(--muted))",
+                                                    color: "hsl(var(--foreground))",
+                                                    border: "1px solid hsl(var(--border))",
+                                                    borderRadius: "calc(var(--radius) - 2px)",
+                                                    lineHeight: 1.4,
+                                                }}
+                                            >
+                                                {tag}
+                                                <button
+                                                    onClick={() => handleRemoveTag(tag)}
+                                                    style={{
+                                                        background: "none",
+                                                        border: "none",
+                                                        padding: 0,
+                                                        cursor: "pointer",
+                                                        color: "hsl(var(--muted-foreground))",
+                                                        fontSize: 14,
+                                                        lineHeight: 1,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                    }}
+                                                    title="Remove tag"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        padding: 8,
+                                        fontSize: 12,
+                                        color: "hsl(var(--muted-foreground))",
+                                        marginBottom: 12,
+                                    }}>
+                                        No tags yet.
+                                    </div>
+                                )}
+                                {/* Add tag input */}
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <input
+                                        type="text"
+                                        value={newTagInput}
+                                        onChange={(e) => setNewTagInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                handleAddTag();
+                                            }
+                                        }}
+                                        placeholder="Add a tag..."
+                                        style={{
+                                            flex: 1,
+                                            padding: "6px 12px",
+                                            background: "hsl(var(--background))",
+                                            borderRadius: "var(--radius)",
+                                            border: "1px solid hsl(var(--border))",
+                                            fontSize: 13,
+                                            color: "hsl(var(--foreground))",
+                                        }}
+                                    />
+                                    <button
+                                        onClick={handleAddTag}
+                                        disabled={newTagInput.trim() === ""}
+                                        style={{
+                                            padding: "6px 16px",
+                                            background: newTagInput.trim() === "" ? "hsl(var(--muted))" : "hsl(var(--primary))",
+                                            color: newTagInput.trim() === "" ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
+                                            border: "none",
+                                            borderRadius: "var(--radius)",
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            cursor: newTagInput.trim() === "" ? "not-allowed" : "pointer",
+                                        }}
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* Styles (formerly Visual Essentials) - moved under Identity */}
                             <div style={{ marginBottom: 24 }}>
                                 <h3 style={drawerSectionTitleStyle}>
@@ -1095,109 +1200,6 @@ export function DetailsDrawer({
                                         resize: "vertical",
                                     }}
                                 />
-                            </div>
-
-                            {/* Tags section (7.7.2: editable) */}
-                            <div style={{ marginBottom: 24 }}>
-                                <h3 style={drawerSectionTitleStyle}>
-                                    Tags
-                                </h3>
-                                {/* Existing tags */}
-                                {draftTags.length > 0 ? (
-                                    <div style={{
-                                        display: "flex",
-                                        flexWrap: "wrap",
-                                        gap: 8,
-                                        marginBottom: 12,
-                                    }}>
-                                        {draftTags.map((tag, index) => (
-                                            <span
-                                                key={index}
-                                                style={{
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    gap: 6,
-                                                    padding: "4px 8px 4px 10px",
-                                                    fontSize: 12,
-                                                    background: "hsl(var(--muted))",
-                                                    color: "hsl(var(--foreground))",
-                                                    border: "1px solid hsl(var(--border))",
-                                                    borderRadius: "calc(var(--radius) - 2px)",
-                                                    lineHeight: 1.4,
-                                                }}
-                                            >
-                                                {tag}
-                                                <button
-                                                    onClick={() => handleRemoveTag(tag)}
-                                                    style={{
-                                                        background: "none",
-                                                        border: "none",
-                                                        padding: 0,
-                                                        cursor: "pointer",
-                                                        color: "hsl(var(--muted-foreground))",
-                                                        fontSize: 14,
-                                                        lineHeight: 1,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                    }}
-                                                    title="Remove tag"
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        padding: 8,
-                                        fontSize: 12,
-                                        color: "hsl(var(--muted-foreground))",
-                                        marginBottom: 12,
-                                    }}>
-                                        No tags yet.
-                                    </div>
-                                )}
-                                {/* Add tag input */}
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <input
-                                        type="text"
-                                        value={newTagInput}
-                                        onChange={(e) => setNewTagInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                                e.preventDefault();
-                                                handleAddTag();
-                                            }
-                                        }}
-                                        placeholder="Add a tag..."
-                                        style={{
-                                            flex: 1,
-                                            padding: "6px 12px",
-                                            background: "hsl(var(--background))",
-                                            borderRadius: "var(--radius)",
-                                            border: "1px solid hsl(var(--border))",
-                                            fontSize: 13,
-                                            color: "hsl(var(--foreground))",
-                                        }}
-                                    />
-                                    <button
-                                        onClick={handleAddTag}
-                                        disabled={newTagInput.trim() === ""}
-                                        style={{
-                                            padding: "6px 16px",
-                                            background: newTagInput.trim() === "" ? "hsl(var(--muted))" : "hsl(var(--primary))",
-                                            color: newTagInput.trim() === "" ? "hsl(var(--muted-foreground))" : "hsl(var(--primary-foreground))",
-                                            border: "none",
-                                            borderRadius: "var(--radius)",
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            cursor: newTagInput.trim() === "" ? "not-allowed" : "pointer",
-                                        }}
-                                    >
-                                        Add
-                                    </button>
-                                </div>
                             </div>
 
                             {/* Source section (7.5.2b: captured from URLs) */}

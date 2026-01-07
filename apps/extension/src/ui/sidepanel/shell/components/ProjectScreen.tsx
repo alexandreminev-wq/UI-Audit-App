@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Project, Component } from '../App';
-import type { CaptureRecordV2 } from '../../../../../types/capture';
+import type { CaptureRecordV2 } from '../../../../types/capture';
 import { ProjectView } from './ProjectView';
+import { ExtensionContextScreen } from './ExtensionContextScreen';
 import { classifyCapture } from '../utils/classifyCapture';
 import { deriveComponentKey } from '../../../shared/componentKey';
 
@@ -27,6 +28,13 @@ export function ProjectScreen({
   const objectUrlsRef = useRef<Set<string>>(new Set());
   const pendingReviewIdRef = useRef<string | null>(null);
 
+  type ActiveContextKind = "page" | "viewer" | "extension";
+  const [activeContext, setActiveContext] = useState<{ kind: ActiveContextKind; tabId: number | null; url: string | null }>({
+    kind: "page",
+    tabId: null,
+    url: null,
+  });
+
   // 7.8.1: Current page tab state (not extension tabs)
   const [currentPageTabId, setCurrentPageTabId] = useState<number | null>(null);
   const [auditEnabled, setAuditEnabled] = useState<boolean>(false);
@@ -39,13 +47,47 @@ export function ProjectScreen({
       const pageTab = tabs[0];
 
       if (pageTab) {
-        setCurrentPageTabId(pageTab.id ?? null);
-        console.log("[ProjectScreen] Current page tab:", pageTab.id, pageTab.url);
+        const url = pageTab.url ?? null;
+        const isExtensionTab = typeof url === "string" && url.startsWith("chrome-extension://");
+        const isViewerTab = isExtensionTab && typeof url === "string" && url.includes("/viewer.html");
+
+        setActiveContext({
+          kind: isExtensionTab ? (isViewerTab ? "viewer" : "extension") : "page",
+          tabId: pageTab.id ?? null,
+          url,
+        });
+
+        if (!isExtensionTab) {
+          setCurrentPageTabId(pageTab.id ?? null);
+          console.log("[ProjectScreen] Current page tab:", pageTab.id, pageTab.url);
+          return;
+        }
+
+        // Note: We don't automatically switch projects when the viewer URL changes
+        // The sidepanel stays on the manually selected project
+
+        // If active tab is an extension page (e.g. viewer), fall back to routing state.
+        try {
+          const routing = await chrome.runtime.sendMessage({ type: "AUDIT/GET_ROUTING_STATE" });
+          const routedTabId = typeof routing?.activeAuditTabId === "number" ? routing.activeAuditTabId : null;
+          if (routedTabId !== null) {
+            setCurrentPageTabId(routedTabId);
+            console.log("[ProjectScreen] Active tab is extension page; using routed page tab:", routedTabId);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
+        // Keep previous currentPageTabId rather than switching to extension tab.
+        console.log("[ProjectScreen] Active tab is extension page; keeping previous page tab:", currentPageTabId);
       } else {
+        setActiveContext({ kind: "page", tabId: null, url: null });
         setCurrentPageTabId(null);
       }
     } catch (err) {
       console.error("[ProjectScreen] Failed to query active tab:", err);
+      setActiveContext({ kind: "page", tabId: null, url: null });
       setCurrentPageTabId(null);
     }
   };
@@ -83,11 +125,30 @@ export function ProjectScreen({
         // 2) Build one component per componentKey
         const baseComponents: Component[] = Array.from(capturesByKey.entries()).map(([componentKey, stateCaptures]) => {
           // Sort captures by state priority: default > hover > active > focus > disabled > open
+          // Also de-dupe per state so the State dropdown doesn't show repeated "Default" entries.
+          // Prefer saved (non-draft) over draft; within that, prefer newest createdAt.
           const stateOrder = ["default", "hover", "active", "focus", "disabled", "open"];
-          const sortedCaptures = [...stateCaptures].sort((a, b) => {
-            const aState = a.styles?.evidence?.state || "default";
-            const bState = b.styles?.evidence?.state || "default";
-            return stateOrder.indexOf(aState) - stateOrder.indexOf(bState);
+          const byState = new Map<string, CaptureRecordV2>();
+          const getCreatedAt = (c: CaptureRecordV2) => (typeof c.createdAt === "number" ? c.createdAt : 0);
+          const isDraft = (c: CaptureRecordV2) => c.isDraft === true;
+          const chooseBetter = (a: CaptureRecordV2, b: CaptureRecordV2) => {
+            const aDraft = isDraft(a);
+            const bDraft = isDraft(b);
+            if (aDraft !== bDraft) return aDraft ? b : a; // prefer non-draft
+            return getCreatedAt(a) >= getCreatedAt(b) ? a : b; // prefer newest
+          };
+          for (const cap of stateCaptures) {
+            const s = (cap.styles?.evidence?.state || "default") as string;
+            const existing = byState.get(s);
+            byState.set(s, existing ? chooseBetter(existing, cap) : cap);
+          }
+          const dedupedCaptures = Array.from(byState.values());
+          const sortedCaptures = [...dedupedCaptures].sort((a, b) => {
+            const aState = (a.styles?.evidence?.state || "default") as string;
+            const bState = (b.styles?.evidence?.state || "default") as string;
+            const ai = stateOrder.indexOf(aState);
+            const bi = stateOrder.indexOf(bState);
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
           });
 
           // Use first capture (default state if available) as the primary/display capture
@@ -120,7 +181,7 @@ export function ProjectScreen({
           }
 
           // Extract URL with fallbacks
-          const captureUrl = primaryCapture.page?.url || primaryCapture.url || (primaryCapture as any).pageUrl || '';
+          const captureUrl = primaryCapture.url || (primaryCapture as any).pageUrl || '';
 
           const component = {
             id: primaryCapture.id, // primary captureId (default state)
@@ -283,10 +344,28 @@ export function ProjectScreen({
       await refreshCurrentPageTab();
 
       // Get the current page tab ID to use for project association
+      let tabId: number | null = null;
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const tabId = tabs[0]?.id ?? null;
+      const activeTab = tabs[0];
+      const url = activeTab?.url ?? null;
+      const isExtensionTab = typeof url === "string" && url.startsWith("chrome-extension://");
+
+      if (activeTab && !isExtensionTab) {
+        tabId = activeTab.id ?? null;
+      } else {
+        // Fall back to routing ownership if an extension page is active (e.g. viewer).
+        try {
+          const routing = await chrome.runtime.sendMessage({ type: "AUDIT/GET_ROUTING_STATE" });
+          tabId = typeof routing?.activeAuditTabId === "number" ? routing.activeAuditTabId : null;
+        } catch {
+          tabId = null;
+        }
+      }
 
       if (tabId !== null) {
+        // Ensure UI state tracks the chosen page tab (especially when viewer is active).
+        setCurrentPageTabId(tabId);
+
         // Set active project for this tab
         chrome.runtime.sendMessage({
           type: "UI/SET_ACTIVE_PROJECT_FOR_TAB",
@@ -312,10 +391,22 @@ export function ProjectScreen({
   }, [project.id]);
 
   useEffect(() => {
-    if (currentPageTabId !== null) {
-      loadCapturesForTab(currentPageTabId);
+    if (activeContext.kind === "page" && currentPageTabId !== null) {
+      // Set the project mapping for this tab BEFORE loading captures
+      // This ensures the service worker knows which project to query
+      chrome.runtime.sendMessage({
+        type: "UI/SET_ACTIVE_PROJECT_FOR_TAB",
+        projectId: project.id,
+        tabId: currentPageTabId,
+      }, (resp) => {
+        if (chrome.runtime.lastError) {
+          console.error("[ProjectScreen] Failed to set project mapping:", chrome.runtime.lastError);
+        }
+        // Load captures after setting the mapping (or on error, to show the inactive tab screen)
+        loadCapturesForTab(currentPageTabId);
+      });
     }
-  }, [currentPageTabId, project.id]);
+  }, [currentPageTabId, project.id, activeContext.kind]);
 
   // Listen for capture saved events
   useEffect(() => {
@@ -372,6 +463,36 @@ export function ProjectScreen({
     };
   }, [currentPageTabId]);
 
+  // React immediately to tab focus / URL changes (including viewer/extension tabs)
+  useEffect(() => {
+    const onActivated = async () => {
+      await refreshCurrentPageTab();
+    };
+
+    const onUpdated = async (tabId: number, changeInfo: any) => {
+      // Refresh if the active tab's URL changes or load completes
+      if (changeInfo.url || changeInfo.status === "complete") {
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          const activeId = tabs?.[0]?.id ?? null;
+          if (activeId !== null && activeId === tabId) {
+            await refreshCurrentPageTab();
+          }
+        } catch (err) {
+          console.error("[ProjectScreen] Error in onUpdated:", err);
+        }
+      }
+    };
+
+    chrome.tabs.onActivated.addListener(onActivated);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    return () => {
+      chrome.tabs.onActivated.removeListener(onActivated);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+    };
+  }, [project.id]);
+
   // 7.8.1: Listen for active tab changes from service worker
   useEffect(() => {
     const handleMessage = async (msg: any) => {
@@ -389,7 +510,7 @@ export function ProjectScreen({
             type: "UI/SET_ACTIVE_PROJECT_FOR_TAB",
             projectId: project.id,
             tabId,
-          }, (resp) => {
+          }, (_resp) => {
             if (chrome.runtime.lastError) {
               console.warn("[ProjectScreen] Failed to set project for tab:", chrome.runtime.lastError);
             }
@@ -481,6 +602,19 @@ export function ProjectScreen({
       }
     );
   };
+
+  // If the active tab is an extension page (viewer or otherwise), show a dedicated screen.
+  if (activeContext.kind !== "page") {
+    return (
+      <ExtensionContextScreen
+        kind={activeContext.kind}
+        activeTabId={activeContext.tabId}
+        activeUrl={activeContext.url}
+        currentProjectId={project.id}
+        onBack={onBack}
+      />
+    );
+  }
 
   return (
     <ProjectView

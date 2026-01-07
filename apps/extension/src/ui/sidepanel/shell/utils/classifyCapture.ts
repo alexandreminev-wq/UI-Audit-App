@@ -6,6 +6,7 @@ export type FunctionalCategory =
   | "Feedback"
   | "Media"
   | "Layout"
+  | "Screenshots"
   | "Unknown";
 
 export type Classification = {
@@ -82,6 +83,21 @@ export function classifyCapture(capture: any): Classification {
   const tag = (capture?.element?.tagName || capture?.element?.tag || '').toLowerCase();
   const role = (capture?.element?.role || capture?.element?.ariaRole || '').toLowerCase();
 
+  // Region/viewport screenshot captures (screenshot-first)
+  if (tag === "region") {
+    const displayName =
+      typeof capture?.displayName === "string" && capture.displayName.trim()
+        ? capture.displayName.trim()
+        : "Region";
+    const isViewport = displayName.toLowerCase() === "viewport";
+    return {
+      functionalCategory: "Screenshots",
+      typeKey: isViewport ? "viewport" : "region",
+      displayName,
+      confidence: 95,
+    };
+  }
+
   // v2.2+ stores intent anchors under element.intent (service worker transforms v1 -> v2)
   const intent = capture?.element?.intent || {};
 
@@ -127,6 +143,11 @@ export function classifyCapture(capture: any): Classification {
   }
 
   // Forms
+  else if (tag === 'fieldset') {
+    functionalCategory = 'Forms';
+    typeKey = 'fieldset';
+    confidence += 20;
+  }
   else if (role === 'textbox' ||
            (tag === 'input' && ['text', 'email', 'search', 'url', 'tel', 'password', 'number'].includes(inputType)) ||
            (tag === 'input' && inputType === '')) {

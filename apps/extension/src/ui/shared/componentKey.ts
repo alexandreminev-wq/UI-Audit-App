@@ -28,6 +28,12 @@ export function buildComponentSignature(capture: CaptureRecordV2): string {
     // Core element identity (structural only - state-invariant)
     // Excludes style primitives since they vary between states (default/hover/active/etc.)
     const tagName = element.tagName.toLowerCase();
+
+    // Region/viewport screenshot captures should never be grouped; treat each capture as unique.
+    if (tagName === "region") {
+        return `region|${capture.id}`;
+    }
+
     const role = element.role || inferRoleFromTag(tagName);
     const accessibleName = element.intent?.accessibleName || element.textPreview || "";
 

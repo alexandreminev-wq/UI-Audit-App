@@ -547,7 +547,7 @@ export function inferCategory(element: CaptureRecordV2["element"]): string {
     if (tag === "a" || role === "link") return "Actions";
 
     // Forms
-    if (tag === "input" || tag === "select" || tag === "textarea") return "Forms";
+    if (tag === "input" || tag === "select" || tag === "textarea" || tag === "fieldset") return "Forms";
     if (role === "textbox" || role === "combobox" || role === "checkbox" || role === "radio") return "Forms";
 
     // Navigation

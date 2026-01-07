@@ -6,17 +6,18 @@ interface ComponentDirectoryProps {
   components: Component[];
   selectedComponent: Component | null;
   onSelectComponent: (component: Component) => void;
+  expandedCategories: Set<string>;
+  onToggleCategory: (category: string) => void;
 }
 
 export function ComponentDirectory({ 
   components, 
   selectedComponent, 
-  onSelectComponent 
+  onSelectComponent,
+  expandedCategories,
+  onToggleCategory,
 }: ComponentDirectoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set()
-  );
 
   // Group components by category
   const componentsByCategory = components.reduce((acc, component) => {
@@ -37,16 +38,6 @@ export function ComponentDirectory({
     }
     return acc;
   }, {} as Record<string, Component[]>);
-
-  const toggleCategory = (category: string) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(category)) {
-      newExpanded.delete(category);
-    } else {
-      newExpanded.add(category);
-    }
-    setExpandedCategories(newExpanded);
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -72,7 +63,7 @@ export function ComponentDirectory({
           return (
             <div key={category} className="border-b border-gray-100 last:border-b-0">
               <button
-                onClick={() => toggleCategory(category)}
+                onClick={() => onToggleCategory(category)}
                 style={{
                   width: '100%',
                   display: 'flex',

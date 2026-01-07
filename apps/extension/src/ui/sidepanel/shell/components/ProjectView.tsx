@@ -41,6 +41,7 @@ export function ProjectView({
   isLoadingComponents,
 }: ProjectViewProps) {
   const [showTagManagement, setShowTagManagement] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   
   const reviewingComponent = reviewingComponentId
     ? components.find(c => c.id === reviewingComponentId)
@@ -48,6 +49,18 @@ export function ProjectView({
 
   // Only show capture button when NOT reviewing a component AND tab is not inactive
   const showCaptureButton = !reviewingComponentId && !isTabInactive;
+
+  const handleToggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
 
   return (
     <div style={{
@@ -200,6 +213,8 @@ export function ProjectView({
             components={components}
             selectedComponent={reviewingComponent}
             onSelectComponent={(component) => onSetReviewingComponentId(component.id)}
+            expandedCategories={expandedCategories}
+            onToggleCategory={handleToggleCategory}
           />
         )}
       </div>
