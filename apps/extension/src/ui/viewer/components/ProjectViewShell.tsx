@@ -1375,14 +1375,88 @@ export function ProjectViewShell({
                 )}
 
                 {/* Styles Table (locked view) */}
-                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && (
-                    <StylesTable
-                        items={filteredStyles}
-                        visibleProps={ui.visibleProps.styles}
-                        selectedId={ui.drawer.selectedStyleId}
-                        onSelect={handleStyleClick}
-                    />
-                )}
+                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && (() => {
+                    // Determine if view is unfiltered (no filters or search applied)
+                    const isUnfiltered =
+                        selectedKinds.size === 0 &&
+                        selectedStyleSources.size === 0 &&
+                        (ui.filters.searchQuery ?? "").trim() === "";
+
+                    // If filtered: render flat table
+                    if (!isUnfiltered) {
+                        return (
+                            <StylesTable
+                                items={filteredStyles}
+                                visibleProps={ui.visibleProps.styles}
+                                selectedId={ui.drawer.selectedStyleId}
+                                onSelect={handleStyleClick}
+                            />
+                        );
+                    }
+
+                    // If unfiltered: render grouped sections by kind
+                    // Group styles by kind
+                    const stylesByKind = new Map<string, typeof filteredStyles>();
+                    for (const style of filteredStyles) {
+                        const kind = style.kind || "Unknown";
+                        if (!stylesByKind.has(kind)) {
+                            stylesByKind.set(kind, []);
+                        }
+                        stylesByKind.get(kind)!.push(style);
+                    }
+
+                    // Sort kinds: alphabetical, but "Unknown" last
+                    const sortedKinds = Array.from(stylesByKind.keys()).sort((a, b) => {
+                        if (a === "Unknown") return 1;
+                        if (b === "Unknown") return -1;
+                        return a.localeCompare(b);
+                    });
+
+                    return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                            {sortedKinds.map(kind => {
+                                const kindStyles = stylesByKind.get(kind)!;
+                                const count = kindStyles.length;
+                                const styleWord = count === 1 ? "style" : "styles";
+
+                                return (
+                                    <div key={kind}>
+                                        {/* Section header */}
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "baseline",
+                                            gap: 8,
+                                            marginBottom: 12,
+                                        }}>
+                                            <h2 style={{
+                                                fontSize: 18,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                margin: 0,
+                                            }}>
+                                                {kind}
+                                            </h2>
+                                            <span style={{
+                                                fontSize: 13,
+                                                color: "hsl(var(--muted-foreground))",
+                                            }}>
+                                                {count} {styleWord}
+                                            </span>
+                                        </div>
+
+                                        {/* Section table */}
+                                        <StylesTable
+                                            items={kindStyles}
+                                            visibleProps={ui.visibleProps.styles}
+                                            selectedId={ui.drawer.selectedStyleId}
+                                            onSelect={handleStyleClick}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
             </div>
 
 
