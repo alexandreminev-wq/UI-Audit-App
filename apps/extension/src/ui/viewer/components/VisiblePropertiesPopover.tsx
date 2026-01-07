@@ -10,7 +10,6 @@ interface VisiblePropertiesPopoverProps {
         name: boolean;
         category: boolean;
         type: boolean;
-        status: boolean;
         source: boolean;
         captures: boolean;
         styleEvidence: boolean;
@@ -49,7 +48,6 @@ export function VisiblePropertiesPopover({
         { key: "name", label: "Name" },
         { key: "category", label: "Category" },
         { key: "type", label: "Type" },
-        { key: "status", label: "Status" },
         { key: "source", label: "Source" },
         { key: "captures", label: "Captures" },
         { key: "styleEvidence", label: "Style evidence" },

@@ -26,7 +26,6 @@ interface ComponentsGridProps {
         name: boolean;
         category: boolean;
         type: boolean;
-        status: boolean;
         source: boolean;
         captures: boolean;
         styleEvidence: boolean;
@@ -52,7 +51,7 @@ export function ComponentsGrid({
     };
 
     const hasAnyVisible = visibleProps.name || visibleProps.category || visibleProps.type ||
-                         visibleProps.status || visibleProps.source || visibleProps.captures ||
+                         visibleProps.source || visibleProps.captures ||
                          visibleProps.styleEvidence;
 
     // Helper: Get representative capture for a component
@@ -132,7 +131,7 @@ export function ComponentsGrid({
             gap: 12,
         }}>
             {items.map((comp) => {
-                const hasChips = visibleProps.type || visibleProps.status;
+                const hasChips = visibleProps.type;
                 const metaParts: string[] = [];
                 if (visibleProps.captures) metaParts.push(`${comp.capturesCount} captures`);
                 if (visibleProps.source) metaParts.push(comp.source);
@@ -171,7 +170,7 @@ export function ComponentsGrid({
                                 {/* Hero thumbnail */}
                                 <div style={{ position: "relative" }}>
                                     <ComponentHero blobId={comp.thumbnailBlobId} alt={comp.name} />
-                                    {visibleProps.status && showStatusPill && (
+                                    {showStatusPill && (
                                         <div style={{
                                             position: "absolute",
                                             top: 8,

@@ -50,7 +50,6 @@ type ViewerUiState = {
             name: boolean;
             category: boolean;
             type: boolean;
-            status: boolean;
             source: boolean;
             captures: boolean;
             styleEvidence: boolean;
@@ -195,7 +194,6 @@ export function ProjectViewShell({
                     name: savedVisibleProps?.components?.name ?? true,
                     category: savedVisibleProps?.components?.category ?? true,
                     type: savedVisibleProps?.components?.type ?? true,
-                    status: savedVisibleProps?.components?.status ?? true,
                     source: savedVisibleProps?.components?.source ?? true,
                     captures: savedVisibleProps?.components?.captures ?? true,
                     styleEvidence: savedVisibleProps?.components?.styleEvidence ?? false,
