@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Download } from "lucide-react";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
-import { CheckboxList } from "./CheckboxList";
+import { CheckboxList, type CheckboxItem } from "./CheckboxList";
 import { VisiblePropertiesPopover } from "./VisiblePropertiesPopover";
 import { ComponentsGrid } from "./ComponentsGrid";
 import { ComponentsTable } from "./ComponentsTable";
@@ -11,6 +11,7 @@ import { StylesTable } from "./StylesTable";
 import type { ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
 import type { CaptureRecordV2 } from "../../../types/capture";
 import { deriveComponentCaptures, deriveStyleLocations, deriveRelatedComponentsForStyle, deriveVisualEssentialsFromCapture } from "../adapters/deriveViewerModels";
+import { buildComponentSignature, hashSignature } from "../../shared/componentKey";
 import { exportProject } from "../utils/exportToFigma";
 
 // ─────────────────────────────────────────────────────────────
@@ -171,10 +172,146 @@ export function ProjectViewShell({
         Array.from(new Set(components.map(c => c.status))).sort(),
         [components]
     );
-    const uniqueSources = useMemo(() =>
-        Array.from(new Set(components.map(c => c.source))).sort(),
-        [components]
-    );
+
+    // Helper: normalize URL values consistently across filtering and display
+    const normalizeUrlValue = (raw: string | undefined | null): string => {
+        if (!raw || raw.trim() === "") {
+            return "(missing url)";
+        }
+        return raw.trim();
+    };
+
+    // Build map of componentKey -> Set<url> for efficient source filtering
+    const urlsByComponentKey = useMemo(() => {
+        const map = new Map<string, Set<string>>();
+        for (const capture of rawCaptures) {
+            const sig = buildComponentSignature(capture);
+            const componentKey = hashSignature(sig);
+            const url = normalizeUrlValue(capture.url);
+
+            if (!map.has(componentKey)) {
+                map.set(componentKey, new Set());
+            }
+            map.get(componentKey)!.add(url);
+        }
+        return map;
+    }, [rawCaptures]);
+
+    const uniqueSources = useMemo(() => {
+        const allUrls = new Set<string>();
+        for (const urls of urlsByComponentKey.values()) {
+            for (const url of urls) {
+                allUrls.add(url);
+            }
+        }
+        return Array.from(allUrls).sort();
+    }, [urlsByComponentKey]);
+
+    // Create readable source options grouped by hostname
+    const sourceOptions = useMemo((): CheckboxItem[] => {
+        // Helper: truncate label preserving start and end
+        const truncateLabel = (label: string, maxLength: number = 45): string => {
+            if (label.length <= maxLength) return label;
+            const startChars = 30;
+            const endChars = 12;
+            return label.substring(0, startChars) + '…' + label.substring(label.length - endChars);
+        };
+
+        // Group URLs by hostname (use Set for automatic deduplication)
+        const urlsByHostname = new Map<string, Set<string>>();
+
+        for (const url of uniqueSources) {
+            // Handle missing URLs
+            if (url === "(missing url)") {
+                if (!urlsByHostname.has("Unknown host")) {
+                    urlsByHostname.set("Unknown host", new Set());
+                }
+                urlsByHostname.get("Unknown host")!.add(url);
+                continue;
+            }
+
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname;
+
+                if (!urlsByHostname.has(hostname)) {
+                    urlsByHostname.set(hostname, new Set());
+                }
+                urlsByHostname.get(hostname)!.add(url);
+            } catch {
+                // Invalid URL - group under "Unknown host" but preserve original value
+                if (!urlsByHostname.has("Unknown host")) {
+                    urlsByHostname.set("Unknown host", new Set());
+                }
+                urlsByHostname.get("Unknown host")!.add(url);
+            }
+        }
+
+        // Build flat list with headers and options
+        const items: CheckboxItem[] = [];
+        const hostnames = Array.from(urlsByHostname.keys()).sort();
+
+        for (const hostname of hostnames) {
+            const urlsSet = urlsByHostname.get(hostname)!;
+            const urls = Array.from(urlsSet);
+
+            // Sort URLs within each hostname by their display label for determinism
+            const urlsWithLabels = urls.map(url => {
+                if (url === "(missing url)") {
+                    return { url, sortKey: url, label: url };
+                }
+
+                try {
+                    const urlObj = new URL(url);
+                    const pathname = urlObj.pathname;
+                    const search = urlObj.search;
+                    const sortKey = pathname + search;
+                    return { url, sortKey, label: "" }; // label computed below
+                } catch {
+                    return { url, sortKey: url, label: "" }; // label computed below
+                }
+            });
+
+            // Sort by sortKey for deterministic ordering
+            urlsWithLabels.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+            // Add hostname header (skip if only one hostname total)
+            if (hostnames.length > 1) {
+                items.push({ type: "header", label: hostname });
+            }
+
+            // Add URL options under this hostname
+            for (const { url, sortKey } of urlsWithLabels) {
+                if (url === "(missing url)") {
+                    items.push({ type: "option", value: url, label: url });
+                    continue;
+                }
+
+                try {
+                    const urlObj = new URL(url);
+                    const pathname = urlObj.pathname;
+                    const search = urlObj.search;
+
+                    // Format: pathname + search
+                    let label = pathname + search;
+                    if (label === "/" || label === "") {
+                        label = "(homepage)";
+                    } else {
+                        label = truncateLabel(label);
+                    }
+
+                    items.push({ type: "option", value: url, label });
+                } catch {
+                    // Fallback for invalid URLs - preserve original value
+                    const label = truncateLabel(url);
+                    items.push({ type: "option", value: url, label });
+                }
+            }
+        }
+
+        return items;
+    }, [uniqueSources]);
+
     const uniqueKinds = useMemo(() =>
         Array.from(new Set(styleItems.map(s => s.kind))).sort(),
         [styleItems]
@@ -203,9 +340,17 @@ export function ProjectViewShell({
             result = result.filter(c => selectedStatuses.has(c.status));
         }
 
-        // Apply source filter
+        // Apply source filter (check if component has captures from selected URLs)
         if (selectedSources.size > 0) {
-            result = result.filter(c => selectedSources.has(c.source));
+            result = result.filter(c => {
+                const componentUrls = urlsByComponentKey.get(c.id);
+                if (!componentUrls) return false;
+                // Check if any component URL intersects with selected sources
+                for (const url of componentUrls) {
+                    if (selectedSources.has(url)) return true;
+                }
+                return false;
+            });
         }
 
         // Apply unknownOnly filter (Components tab only) - filters by Category: Unknown
@@ -226,7 +371,7 @@ export function ProjectViewShell({
         }
 
         return result;
-    }, [components, selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
+    }, [components, urlsByComponentKey, selectedCategories, selectedTypes, selectedStatuses, selectedSources, ui.filters.unknownOnly, ui.filters.searchQuery]);
 
     // Filtered datasets (7.4.2: use real styleItems)
     const filteredStyles = useMemo(() => {
@@ -847,7 +992,7 @@ export function ProjectViewShell({
                         >
                             <CheckboxList
                                 title="Source"
-                                options={uniqueSources}
+                                options={sourceOptions}
                                 selected={selectedSources}
                                 onChange={setSelectedSources}
                             />
