@@ -53,13 +53,6 @@ export function CheckboxList({
         onChange(new Set());
     };
 
-    const handleSelectAll = () => {
-        const optionValues = normalizedItems
-            .filter((item): item is { type: "option"; value: string; label: string } => item.type === "option")
-            .map(item => item.value);
-        onChange(new Set(optionValues));
-    };
-
     return (
         <>
             {/* Title */}
@@ -67,9 +60,18 @@ export function CheckboxList({
                 fontSize: 12,
                 fontWeight: 600,
                 color: "hsl(var(--foreground))",
-                marginBottom: 8,
+                marginBottom: 4,
             }}>
                 {title}
+            </div>
+
+            {/* Helper text */}
+            <div style={{
+                fontSize: 11,
+                color: "hsl(var(--muted-foreground))",
+                marginBottom: 8,
+            }}>
+                No selection = All
             </div>
 
             {/* Checkbox options */}
@@ -125,8 +127,6 @@ export function CheckboxList({
 
             {/* Footer actions */}
             <div style={{
-                display: "flex",
-                gap: 8,
                 borderTop: "1px solid hsl(var(--border))",
                 paddingTop: 8,
             }}>
@@ -134,7 +134,7 @@ export function CheckboxList({
                     type="button"
                     onClick={handleClear}
                     style={{
-                        flex: 1,
+                        width: "100%",
                         padding: "4px 8px",
                         fontSize: 12,
                         background: "hsl(var(--background))",
@@ -145,22 +145,6 @@ export function CheckboxList({
                     }}
                 >
                     Clear
-                </button>
-                <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    style={{
-                        flex: 1,
-                        padding: "4px 8px",
-                        fontSize: 12,
-                        background: "hsl(var(--background))",
-                        color: "hsl(var(--foreground))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                        cursor: "pointer",
-                    }}
-                >
-                    Select all
                 </button>
             </div>
         </>
