@@ -5,8 +5,6 @@ import { FilterPopover } from "./FilterPopover";
 import { CheckboxList, type CheckboxItem } from "./CheckboxList";
 import { VisiblePropertiesPopover } from "./VisiblePropertiesPopover";
 import { ComponentsGrid } from "./ComponentsGrid";
-import { ComponentsTable } from "./ComponentsTable";
-import { StylesGrid } from "./StylesGrid";
 import { StylesTable } from "./StylesTable";
 import type { ViewerComponent, ViewerStyle } from "../types/projectViewerTypes";
 import type { CaptureRecordV2 } from "../../../types/capture";
@@ -29,7 +27,6 @@ const devWarn = (...args: unknown[]) => { if (isDev) console.warn(...args); };
 type ViewerUiState = {
     route: {
         activeTab: "components" | "styles";
-        activeView: "grid" | "table";
     };
     popovers: {
         openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties";
@@ -175,7 +172,6 @@ export function ProjectViewShell({
         return {
             route: {
                 activeTab: "components",
-                activeView: "grid",
             },
             popovers: {
                 openMenu: null,
@@ -663,10 +659,6 @@ export function ProjectViewShell({
         setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: null } }));
     }, [ui.route.activeTab]);
 
-    useEffect(() => {
-        setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: null } }));
-    }, [ui.route.activeView]);
-
     // Persist visible properties to localStorage
     useEffect(() => {
         saveVisiblePropsToStorage(ui.visibleProps);
@@ -779,13 +771,6 @@ export function ProjectViewShell({
             borderRadius: "calc(var(--radius) - 2px)",
             cursor: "pointer",
         },
-        segmentedButtonView: {
-            padding: "6px 12px",
-            fontSize: 14,
-            border: "none",
-            borderRadius: "calc(var(--radius) - 2px)",
-            cursor: "pointer",
-        },
         filterRow: {
             display: "flex",
             alignItems: "center",
@@ -871,7 +856,7 @@ export function ProjectViewShell({
                     </div>
                 </div>
 
-                {/* Second row: Tab selector (Components/Styles) + View toggle (Grid/Table) */}
+                {/* Second row: Tab selector (Components/Styles) + Export button */}
                 <div style={inlineStyles.secondRow}>
                     {/* Left: Components/Styles tabs */}
                     <div style={inlineStyles.segmentedContainer}>
@@ -901,35 +886,8 @@ export function ProjectViewShell({
                         </button>
                     </div>
 
-                    {/* Right: Grid/Table view toggle and Export button */}
+                    {/* Right: Export button */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={inlineStyles.segmentedContainer}>
-                            <button
-                                type="button"
-                                onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "grid" } }))}
-                                style={{
-                                    ...inlineStyles.segmentedButtonView,
-                                    background: ui.route.activeView === "grid" ? "hsl(var(--background))" : "transparent",
-                                    color: ui.route.activeView === "grid" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                    fontWeight: ui.route.activeView === "grid" ? 600 : 500,
-                                }}
-                            >
-                                Grid
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeView: "table" } }))}
-                                style={{
-                                    ...inlineStyles.segmentedButtonView,
-                                    background: ui.route.activeView === "table" ? "hsl(var(--background))" : "transparent",
-                                    color: ui.route.activeView === "table" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                                    fontWeight: ui.route.activeView === "table" ? 600 : 500,
-                                }}
-                            >
-                                Table
-                            </button>
-                        </div>
-
                         {/* Export to Figma button */}
                         <button
                             type="button"
@@ -1292,24 +1250,14 @@ export function ProjectViewShell({
                     </div>
                 )}
 
-                {/* Layout 1: Components / Grid */}
-                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "grid" && (
+                {/* Components Grid (locked view) */}
+                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && (
                     <ComponentsGrid
                         items={filteredComponents}
                         visibleProps={ui.visibleProps.components}
                         selectedId={ui.drawer.selectedComponentId}
                         onSelect={handleComponentClick}
                         rawCaptures={rawCaptures}
-                    />
-                )}
-
-                {/* Layout 2: Components / Table */}
-                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && ui.route.activeView === "table" && (
-                    <ComponentsTable
-                        items={filteredComponents}
-                        visibleProps={ui.visibleProps.components}
-                        selectedId={ui.drawer.selectedComponentId}
-                        onSelect={handleComponentClick}
                     />
                 )}
 
@@ -1350,18 +1298,8 @@ export function ProjectViewShell({
                     </div>
                 )}
 
-                {/* Layout 3: Styles / Grid */}
-                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && ui.route.activeView === "grid" && (
-                    <StylesGrid
-                        items={filteredStyles}
-                        visibleProps={ui.visibleProps.styles}
-                        selectedId={ui.drawer.selectedStyleId}
-                        onSelect={handleStyleClick}
-                    />
-                )}
-
-                {/* Layout 4: Styles / Table */}
-                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && ui.route.activeView === "table" && (
+                {/* Styles Table (locked view) */}
+                {ui.route.activeTab === "styles" && !componentsLoading && !componentsError && hasStyles && (
                     <StylesTable
                         items={filteredStyles}
                         visibleProps={ui.visibleProps.styles}
