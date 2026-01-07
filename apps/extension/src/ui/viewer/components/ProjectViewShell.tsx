@@ -56,6 +56,8 @@ type ViewerUiState = {
             status: boolean;
             source: boolean;
             captures: boolean;
+            styleEvidence: boolean;
+            styleEvidenceKeys: string[];
         };
         styles: {
             token: boolean;
@@ -70,6 +72,59 @@ type ViewerUiState = {
         selectedStyleId: string | null;
     };
 };
+
+// ─────────────────────────────────────────────────────────────
+// Constants and localStorage helpers
+// ─────────────────────────────────────────────────────────────
+
+// All available Visual Essentials keys (matching deriveVisualEssentialsFromCapture labels)
+const ALL_STYLE_EVIDENCE_KEYS = [
+    "Text color",
+    "Font family",
+    "Font size",
+    "Font weight",
+    "Line height",
+    "Background",
+    "Border width",
+    "Border color",
+    "Radius",
+    "Shadow",
+    "Padding",
+    "Disabled",
+] as const;
+
+// Default subset shown when style evidence is first enabled
+const DEFAULT_STYLE_EVIDENCE_KEYS = [
+    "Text color",
+    "Font family",
+    "Font size",
+    "Background",
+    "Padding",
+];
+
+const VISIBLE_PROPS_STORAGE_KEY = "uiinv.viewer.visibleProperties.v1";
+
+function loadVisiblePropsFromStorage(): Partial<ViewerUiState["visibleProps"]> | null {
+    try {
+        const raw = localStorage.getItem(VISIBLE_PROPS_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        // Basic validation
+        if (typeof parsed !== "object" || !parsed) return null;
+        return parsed;
+    } catch (err) {
+        devWarn("Failed to load visible props from localStorage:", err);
+        return null;
+    }
+}
+
+function saveVisiblePropsToStorage(visibleProps: ViewerUiState["visibleProps"]): void {
+    try {
+        localStorage.setItem(VISIBLE_PROPS_STORAGE_KEY, JSON.stringify(visibleProps));
+    } catch (err) {
+        devWarn("Failed to save visible props to localStorage:", err);
+    }
+}
 
 // ─────────────────────────────────────────────────────────────
 // ProjectViewShell Component
@@ -114,49 +169,55 @@ export function ProjectViewShell({
     // ─────────────────────────────────────────────────────────────
     // Grouped UI state
     // ─────────────────────────────────────────────────────────────
-    const [ui, setUi] = useState<ViewerUiState>({
-        route: {
-            activeTab: "components",
-            activeView: "grid",
-        },
-        popovers: {
-            openMenu: null,
-        },
-        filters: {
-            searchQuery: "",
-            unknownOnly: false,
-            components: {
-                categories: new Set(),
-                types: new Set(),
-                statuses: new Set(),
-                sources: new Set(),
+    const [ui, setUi] = useState<ViewerUiState>(() => {
+        const savedVisibleProps = loadVisiblePropsFromStorage();
+
+        return {
+            route: {
+                activeTab: "components",
+                activeView: "grid",
             },
-            styles: {
-                kinds: new Set(),
-                sources: new Set(),
+            popovers: {
+                openMenu: null,
             },
-        },
-        visibleProps: {
-            components: {
-                name: true,
-                category: true,
-                type: true,
-                status: true,
-                source: true,
-                captures: true,
+            filters: {
+                searchQuery: "",
+                unknownOnly: false,
+                components: {
+                    categories: new Set(),
+                    types: new Set(),
+                    statuses: new Set(),
+                    sources: new Set(),
+                },
+                styles: {
+                    kinds: new Set(),
+                    sources: new Set(),
+                },
             },
-            styles: {
-                token: true,
-                kind: true,
-                source: true,
-                uses: true,
+            visibleProps: {
+                components: {
+                    name: savedVisibleProps?.components?.name ?? true,
+                    category: savedVisibleProps?.components?.category ?? true,
+                    type: savedVisibleProps?.components?.type ?? true,
+                    status: savedVisibleProps?.components?.status ?? true,
+                    source: savedVisibleProps?.components?.source ?? true,
+                    captures: savedVisibleProps?.components?.captures ?? true,
+                    styleEvidence: savedVisibleProps?.components?.styleEvidence ?? false,
+                    styleEvidenceKeys: savedVisibleProps?.components?.styleEvidenceKeys ?? DEFAULT_STYLE_EVIDENCE_KEYS,
+                },
+                styles: {
+                    token: savedVisibleProps?.styles?.token ?? true,
+                    kind: savedVisibleProps?.styles?.kind ?? true,
+                    source: savedVisibleProps?.styles?.source ?? true,
+                    uses: savedVisibleProps?.styles?.uses ?? true,
+                },
             },
-        },
-        drawer: {
-            open: false,
-            selectedComponentId: null,
-            selectedStyleId: null,
-        },
+            drawer: {
+                open: false,
+                selectedComponentId: null,
+                selectedStyleId: null,
+            },
+        };
     });
 
     // Derive available filter options from datasets (7.4.1: use real components)
@@ -323,6 +384,9 @@ export function ProjectViewShell({
 
     // Filtered datasets (7.4.1: use real components)
     const filteredComponents = useMemo(() => {
+        // Safe toLowerCase helper - prevents crash when fields are undefined/null
+        const safeLower = (v: unknown) => (typeof v === "string" ? v.toLowerCase() : "");
+
         let result = components;
 
         // Apply category filter
@@ -359,15 +423,29 @@ export function ProjectViewShell({
         }
 
         // Apply search filter
-        if (ui.filters.searchQuery.trim()) {
-            const query = ui.filters.searchQuery.toLowerCase();
-            result = result.filter(c =>
-                c.name.toLowerCase().includes(query) ||
-                c.category.toLowerCase().includes(query) ||
-                c.type.toLowerCase().includes(query) ||
-                c.status.toLowerCase().includes(query) ||
-                c.source.toLowerCase().includes(query)
-            );
+        const searchQuery = safeLower(ui.filters.searchQuery).trim();
+        if (searchQuery) {
+            result = result.filter(c => {
+                // Search across component metadata fields
+                const matchesMetadata =
+                    safeLower(c.name).includes(searchQuery) ||
+                    safeLower(c.category).includes(searchQuery) ||
+                    safeLower(c.type).includes(searchQuery) ||
+                    safeLower(c.status).includes(searchQuery) ||
+                    safeLower(c.source).includes(searchQuery);
+
+                if (matchesMetadata) return true;
+
+                // Also search across component's capture URLs
+                const componentUrls = urlsByComponentKey.get(c.id);
+                if (componentUrls) {
+                    for (const url of componentUrls) {
+                        if (safeLower(url).includes(searchQuery)) return true;
+                    }
+                }
+
+                return false;
+            });
         }
 
         return result;
@@ -375,6 +453,9 @@ export function ProjectViewShell({
 
     // Filtered datasets (7.4.2: use real styleItems)
     const filteredStyles = useMemo(() => {
+        // Safe toLowerCase helper - prevents crash when fields are undefined/null
+        const safeLower = (v: unknown) => (typeof v === "string" ? v.toLowerCase() : "");
+
         let result = styleItems;
 
         // Apply kind filter
@@ -388,13 +469,13 @@ export function ProjectViewShell({
         }
 
         // Apply search filter
-        if (ui.filters.searchQuery.trim()) {
-            const query = ui.filters.searchQuery.toLowerCase();
+        const searchQuery = safeLower(ui.filters.searchQuery).trim();
+        if (searchQuery) {
             result = result.filter(s =>
-                s.token.toLowerCase().includes(query) ||
-                s.value.toLowerCase().includes(query) ||
-                s.kind.toLowerCase().includes(query) ||
-                s.source.toLowerCase().includes(query)
+                safeLower(s.token).includes(searchQuery) ||
+                safeLower(s.value).includes(searchQuery) ||
+                safeLower(s.kind).includes(searchQuery) ||
+                safeLower(s.source).includes(searchQuery)
             );
         }
 
@@ -585,6 +666,11 @@ export function ProjectViewShell({
     useEffect(() => {
         setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: null } }));
     }, [ui.route.activeView]);
+
+    // Persist visible properties to localStorage
+    useEffect(() => {
+        saveVisiblePropsToStorage(ui.visibleProps);
+    }, [ui.visibleProps]);
 
     useEffect(() => {
         if (ui.drawer.open) {
@@ -1096,6 +1182,7 @@ export function ProjectViewShell({
                             openMenu={ui.popovers.openMenu}
                             setOpenMenu={(menu) => setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: menu } }))}
                             filterButtonStyle={inlineStyles.filterButton}
+                            allStyleEvidenceKeys={ALL_STYLE_EVIDENCE_KEYS}
                         />
                     </div>
                 </div>
@@ -1212,6 +1299,7 @@ export function ProjectViewShell({
                         visibleProps={ui.visibleProps.components}
                         selectedId={ui.drawer.selectedComponentId}
                         onSelect={handleComponentClick}
+                        rawCaptures={rawCaptures}
                     />
                 )}
 
