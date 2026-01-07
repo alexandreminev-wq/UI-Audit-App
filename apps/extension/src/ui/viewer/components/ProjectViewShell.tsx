@@ -1249,15 +1249,93 @@ export function ProjectViewShell({
                 )}
 
                 {/* Components Grid (locked view) */}
-                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && (
-                    <ComponentsGrid
-                        items={filteredComponents}
-                        visibleProps={ui.visibleProps.components}
-                        selectedId={ui.drawer.selectedComponentId}
-                        onSelect={handleComponentClick}
-                        rawCaptures={rawCaptures}
-                    />
-                )}
+                {ui.route.activeTab === "components" && !componentsLoading && !componentsError && hasComponents && (() => {
+                    // Determine if view is unfiltered (no filters or search applied)
+                    const isUnfiltered =
+                        selectedCategories.size === 0 &&
+                        selectedTypes.size === 0 &&
+                        selectedStatuses.size === 0 &&
+                        selectedSources.size === 0 &&
+                        !ui.filters.unknownOnly &&
+                        ui.filters.searchQuery.trim() === "";
+
+                    // If filtered: render flat grid
+                    if (!isUnfiltered) {
+                        return (
+                            <ComponentsGrid
+                                items={filteredComponents}
+                                visibleProps={ui.visibleProps.components}
+                                selectedId={ui.drawer.selectedComponentId}
+                                onSelect={handleComponentClick}
+                                rawCaptures={rawCaptures}
+                            />
+                        );
+                    }
+
+                    // If unfiltered: render grouped sections by category
+                    // Group components by category
+                    const componentsByCategory = new Map<string, typeof filteredComponents>();
+                    for (const comp of filteredComponents) {
+                        const cat = comp.category || "Unknown";
+                        if (!componentsByCategory.has(cat)) {
+                            componentsByCategory.set(cat, []);
+                        }
+                        componentsByCategory.get(cat)!.push(comp);
+                    }
+
+                    // Sort categories: alphabetical, but "Unknown" last
+                    const sortedCategories = Array.from(componentsByCategory.keys()).sort((a, b) => {
+                        if (a === "Unknown") return 1;
+                        if (b === "Unknown") return -1;
+                        return a.localeCompare(b);
+                    });
+
+                    return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                            {sortedCategories.map(category => {
+                                const categoryComponents = componentsByCategory.get(category)!;
+                                const count = categoryComponents.length;
+                                const componentWord = count === 1 ? "component" : "components";
+
+                                return (
+                                    <div key={category}>
+                                        {/* Section header */}
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "baseline",
+                                            gap: 8,
+                                            marginBottom: 12,
+                                        }}>
+                                            <h2 style={{
+                                                fontSize: 18,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                margin: 0,
+                                            }}>
+                                                {category}
+                                            </h2>
+                                            <span style={{
+                                                fontSize: 13,
+                                                color: "hsl(var(--muted-foreground))",
+                                            }}>
+                                                {count} {componentWord}
+                                            </span>
+                                        </div>
+
+                                        {/* Section grid */}
+                                        <ComponentsGrid
+                                            items={categoryComponents}
+                                            visibleProps={ui.visibleProps.components}
+                                            selectedId={ui.drawer.selectedComponentId}
+                                            onSelect={handleComponentClick}
+                                            rawCaptures={rawCaptures}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
 
                 {/* Styles Loading State (7.4.2 - reuses component loading state) */}
                 {ui.route.activeTab === "styles" && componentsLoading && (
