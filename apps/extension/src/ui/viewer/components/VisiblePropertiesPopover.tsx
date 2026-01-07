@@ -13,6 +13,8 @@ interface VisiblePropertiesPopoverProps {
         status: boolean;
         source: boolean;
         captures: boolean;
+        styleEvidence: boolean;
+        styleEvidenceKeys: string[];
     };
     visibleStyleProps: {
         token: boolean;
@@ -25,6 +27,7 @@ interface VisiblePropertiesPopoverProps {
     openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties";
     setOpenMenu: (menu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties") => void;
     filterButtonStyle: React.CSSProperties;
+    allStyleEvidenceKeys: readonly string[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +43,7 @@ export function VisiblePropertiesPopover({
     openMenu,
     setOpenMenu,
     filterButtonStyle,
+    allStyleEvidenceKeys,
 }: VisiblePropertiesPopoverProps) {
     const componentsProperties = [
         { key: "name", label: "Name" },
@@ -48,6 +52,7 @@ export function VisiblePropertiesPopover({
         { key: "status", label: "Status" },
         { key: "source", label: "Source" },
         { key: "captures", label: "Captures" },
+        { key: "styleEvidence", label: "Style evidence" },
     ] as const;
 
     const stylesProperties = [
@@ -56,6 +61,32 @@ export function VisiblePropertiesPopover({
         { key: "source", label: "Source" },
         { key: "uses", label: "Uses" },
     ] as const;
+
+    const handleStyleKeyToggle = (key: string, checked: boolean) => {
+        setVisibleComponentProps(prev => {
+            const current = new Set(prev.styleEvidenceKeys);
+            if (checked) {
+                current.add(key);
+            } else {
+                current.delete(key);
+            }
+            return { ...prev, styleEvidenceKeys: Array.from(current) };
+        });
+    };
+
+    const handleSelectAllStyleKeys = () => {
+        setVisibleComponentProps(prev => ({
+            ...prev,
+            styleEvidenceKeys: Array.from(allStyleEvidenceKeys),
+        }));
+    };
+
+    const handleClearStyleKeys = () => {
+        setVisibleComponentProps(prev => ({
+            ...prev,
+            styleEvidenceKeys: [],
+        }));
+    };
 
     return (
         <Popover.Root
@@ -132,6 +163,81 @@ export function VisiblePropertiesPopover({
                                     {label}
                                 </label>
                             ))}
+
+                            {/* Style evidence keys sub-section */}
+                            {visibleComponentProps.styleEvidence && (
+                                <div style={{
+                                    marginTop: 8,
+                                    marginLeft: 24,
+                                    paddingLeft: 12,
+                                    borderLeft: "2px solid hsl(var(--border))",
+                                }}>
+                                    {/* Controls row */}
+                                    <div style={{
+                                        display: "flex",
+                                        gap: 8,
+                                        marginBottom: 8,
+                                        fontSize: 12,
+                                    }}>
+                                        <button
+                                            type="button"
+                                            onClick={handleSelectAllStyleKeys}
+                                            style={{
+                                                padding: "2px 8px",
+                                                fontSize: 11,
+                                                background: "hsl(var(--muted))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "4px",
+                                                cursor: "pointer",
+                                                color: "hsl(var(--foreground))",
+                                            }}
+                                        >
+                                            Select all
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleClearStyleKeys}
+                                            style={{
+                                                padding: "2px 8px",
+                                                fontSize: 11,
+                                                background: "hsl(var(--muted))",
+                                                border: "1px solid hsl(var(--border))",
+                                                borderRadius: "4px",
+                                                cursor: "pointer",
+                                                color: "hsl(var(--foreground))",
+                                            }}
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+
+                                    {/* Individual style key checkboxes */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                        {allStyleEvidenceKeys.map((key) => (
+                                            <label
+                                                key={key}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 8,
+                                                    padding: "2px 4px",
+                                                    cursor: "pointer",
+                                                    fontSize: 13,
+                                                    color: "hsl(var(--muted-foreground))",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={visibleComponentProps.styleEvidenceKeys.includes(key)}
+                                                    onChange={(e) => handleStyleKeyToggle(key, e.target.checked)}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {key}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

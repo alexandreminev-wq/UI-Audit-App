@@ -3,6 +3,10 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useBlobUrl } from "../hooks/useBlobUrl";
+import { buildComponentSignature, hashSignature } from "../../shared/componentKey";
+import type { CaptureRecordV2 } from "../../../types/capture";
+import { deriveVisualEssentialsFromCapture } from "../adapters/deriveViewerModels";
+import { StylePropertiesTable, type StylePropertiesSection } from "../../shared/components/StylePropertiesTable";
 
 type ComponentItem = {
     id: string;
@@ -25,9 +29,12 @@ interface ComponentsGridProps {
         status: boolean;
         source: boolean;
         captures: boolean;
+        styleEvidence: boolean;
+        styleEvidenceKeys: string[];
     };
     selectedId: string | null;
     onSelect: (id: string) => void;
+    rawCaptures: CaptureRecordV2[];
 }
 
 export function ComponentsGrid({
@@ -35,6 +42,7 @@ export function ComponentsGrid({
     visibleProps,
     selectedId,
     onSelect,
+    rawCaptures,
 }: ComponentsGridProps) {
     const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -44,7 +52,29 @@ export function ComponentsGrid({
     };
 
     const hasAnyVisible = visibleProps.name || visibleProps.category || visibleProps.type ||
-                         visibleProps.status || visibleProps.source || visibleProps.captures;
+                         visibleProps.status || visibleProps.source || visibleProps.captures ||
+                         visibleProps.styleEvidence;
+
+    // Helper: Get representative capture for a component
+    const getRepresentativeCapture = (componentId: string): CaptureRecordV2 | undefined => {
+        // Find the default state capture for this component
+        for (const capture of rawCaptures) {
+            const sig = buildComponentSignature(capture);
+            const captureKey = hashSignature(sig);
+            if (captureKey === componentId && capture.state === "default") {
+                return capture;
+            }
+        }
+        // Fallback: return any capture for this component
+        for (const capture of rawCaptures) {
+            const sig = buildComponentSignature(capture);
+            const captureKey = hashSignature(sig);
+            if (captureKey === componentId) {
+                return capture;
+            }
+        }
+        return undefined;
+    };
 
     const statusPill = (status: string): { bg: string; fg: string; border?: string } => {
         const s = (status || "").toLowerCase();
@@ -62,26 +92,34 @@ export function ComponentsGrid({
             <div style={{
                 width: "100%",
                 aspectRatio: "16 / 10",
+                padding: 12,
                 background: "hsl(var(--muted))",
                 overflow: "hidden",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                boxSizing: "border-box",
             }}>
                 {url ? (
                     <img
                         src={url}
                         alt={alt}
                         style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "contain",
-                            objectPosition: "center",
+                            width: "auto",
+                            height: "auto",
+                            maxWidth: "100%",
+                            maxHeight: "100%",
                             display: "block",
+                            objectFit: "contain",
                         }}
                     />
                 ) : (
-                    <div style={{ width: "100%", height: "100%" }} />
+                    <div style={{
+                        fontSize: 13,
+                        color: "hsl(var(--muted-foreground))",
+                    }}>
+                        No screenshot
+                    </div>
                 )}
             </div>
         );
@@ -90,7 +128,7 @@ export function ComponentsGrid({
     return (
         <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
             gap: 12,
         }}>
             {items.map((comp) => {
@@ -191,31 +229,6 @@ export function ComponentsGrid({
                                         </div>
                                     )}
 
-                                    {/* State Pills */}
-                                    {comp.availableStates && comp.availableStates.length > 0 && (
-                                        <div style={{
-                                            display: "flex",
-                                            flexWrap: "wrap",
-                                            gap: 4,
-                                            marginBottom: hasChips || hasMeta ? 8 : 0,
-                                        }}>
-                                            {comp.availableStates.map(({state}) => (
-                                                <span
-                                                    key={state}
-                                                    style={{
-                                                        fontSize: 11,
-                                                        padding: "2px 6px",
-                                                        borderRadius: 4,
-                                                        backgroundColor: "hsl(var(--accent))",
-                                                        color: "hsl(var(--accent-foreground))",
-                                                    }}
-                                                >
-                                                    {state}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-
                                     {/* Chips row (Type only; Status is shown as overlay pill) */}
                                     {hasChips && (
                                         <div style={{
@@ -237,6 +250,39 @@ export function ComponentsGrid({
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Style Evidence Table */}
+                                    {visibleProps.styleEvidence && (() => {
+                                        const capture = getRepresentativeCapture(comp.id);
+                                        if (!capture) return null;
+
+                                        const visualEssentials = deriveVisualEssentialsFromCapture(capture);
+                                        if (visualEssentials.rows.length === 0) return null;
+
+                                        // Filter rows based on selected style evidence keys
+                                        const selectedKeysSet = new Set(visibleProps.styleEvidenceKeys);
+                                        const filteredRows = visualEssentials.rows.filter(row =>
+                                            selectedKeysSet.has(row.label)
+                                        );
+
+                                        // Don't show table if no rows are selected
+                                        if (filteredRows.length === 0) return null;
+
+                                        // Convert visualEssentials rows to StylePropertiesSection format
+                                        const sections: StylePropertiesSection[] = [{
+                                            title: "Visual Essentials",
+                                            rows: filteredRows.map(row => ({
+                                                label: row.label,
+                                                value: row.value,
+                                            })),
+                                        }];
+
+                                        return (
+                                            <div style={{ marginTop: 12, marginBottom: hasMeta ? 0 : 0 }}>
+                                                <StylePropertiesTable sections={sections} />
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Footer/meta */}
                                     {hasMeta && (
