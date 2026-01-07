@@ -1,740 +1,152 @@
-# MILESTONES
+# UI Inventory — Milestones
 
-  *Last updated: 2026-01-07*
-
-  This file is the canonical milestone plan for the **UI Inventory App**.
-  Milestones are intentionally incremental, verifiable, and biased toward
-  **runtime correctness over theoretical completeness**.
-
-  ---
-
-  ## Guiding Principles (Canon)
-
-  - We are building **guided capture + audit of real UI usage**, not full UI reconstruction.
-  - Service Worker is the **only** IndexedDB accessor.
-  - UI surfaces (content script / sidepanel / viewer) communicate via message passing only.
-  - Viewer computes **derived labels and groupings at runtime** — no persisted derived keys.
-  - Prefer small, reversible diffs.
-  - No edits to `dist/**`.
-
-  ---
-
-  ## Milestones 1–3 (FOUNDATION — COMPLETE)
-
-  **Outcome**
-  - Chrome Extension (MV3) scaffolded
-  - Service Worker ownership of storage
-  - Content script capture pipeline established
-  - Basic Viewer + Sidepanel scaffolding
-  - Initial data model (`CaptureRecordV2`)
-
-  ---
-
-  ## Milestone 4 (CAPTURE DEPTH — COMPLETE)
-
-  **Outcome**
-  - Improved capture fidelity
-  - Landmark / scope context
-  - Style extraction groundwork
-  - Screenshot + blob handling
-  - Runtime-safe message passing patterns
-
-  ---
-
-  ## Milestone 5 (STYLE PRIMITIVES — COMPLETE)
-
-  **Outcome**
-  - StylePrimitives extraction
-  - Typography, radius, spacing, shadow evidence
-  - Inline CSS variable source tracking (`var(--...)`)
-  - Debug surfaces for style evidence
-
-  ---
-
-  ## Milestone 6 (CATEGORIZATION + NAMING — COMPLETE)
-
-  **Outcome**
-  - Classifier introduced and refined
-  - Improved naming consistency
-  - Category / Type groundwork
-  - Sidepanel directory behavior stabilized
-  - Viewer prototype explored in separate repo
-
-  ---
-
-  # 🟦 Milestone 7 — Style Normalization + Finish Viewer
-  **Branch:** `m7-style-normalization`
-
-  This milestone transitions the Viewer from prototype to **production-ready audit workspace** and aligns it visually, structurally, and conceptually with the
-  Sidepanel.
-
-  ---
-
-  ## Milestone 7 — Viewer Stabilization & Completion
-
-  ### 7.0 Guardrails & Style Normalization ✅
-  - Shared theme/tokens across sidepanel + viewer
-  - Consistent Tailwind entry points
-  - Viewer and sidepanel aligned on styling primitives
-
-  ---
-
-  ### 7.1 Viewer Shell Integration ✅
-  - ViewerApp split from viewer.tsx
-  - ProjectViewShell introduced as page-level container
-  - Stable routing between Projects → Project Viewer
-
-  ---
-
-  ### 7.2 Viewer Interaction Skeleton ✅
-  - Components / Styles tabs
-  - Grid / Table toggles
-  - Toolbar UI (filters, visible properties)
-  - Placeholder → real content transition
-
-  ---
-
-  ### 7.3 Inventory Derivation (Read-only) ✅
-  - Viewer derives all data from IndexedDB captures
-  - No Viewer writes
-  - Adapters introduced as single source of truth
-
-  ---
-
-  ### 7.4 Viewer Correctness & Guardrails ✅ **(COMPLETED)**
-
-  #### 7.4.1 Inventory Wiring
-  - Real component and style inventories (no mocks)
-  - Deterministic grouping and sorting
-
-  #### 7.4.2 Style Inventory Completion
-  - Style grouping by kind + value
-  - Token fallback semantics ("—")
-  - Runtime collision fix (styles vs inlineStyles)
-
-  #### 7.4.3 Drawer View Models
-  - Component → captures
-  - Style → locations + related components
-  - Drawer adapters implemented
-  - ProjectViewShell derives drawer data via useMemo
-
-  #### 7.4.4 Project Scoping Enforcement
-  - ViewerApp enforces strict project scoping
-  - Adapters assume pre-scoped input
-  - DEV-only logging for:
-    - captures loaded vs scoped
-    - dropped mismatches
-    - empty-after-scope regressions
-
-  #### 7.4.5 Selection Hygiene & Drawer Safety
-  - Drawer selection cleared on **projectId change only**
-  - No clearing on data refresh or re-derivation
-  - Stale selection detection (DEV-only)
-  - Drawer safe empty states
-  - No cross-project leakage or silent failures
-
-  **Milestone 7.4 exit criteria met. Viewer is now stable and correct.**
-
-  ---
-
-  ## Milestone 7.5 — Viewer ↔ Sidepanel Parity
-
-  ### 7.5.1 Drawer Content Parity ✅ **(COMPLETED VIA AUDIT)**
-
-  **Outcome:**
-  - Audit completed comparing Viewer DetailsDrawer vs Sidepanel ComponentDetails
-  - **No code changes required** — existing drawer structure is semantically correct for inventory context
-  - Sidepanel is for **editing single components**; Viewer is for **browsing aggregated inventory**
-  - Structural differences are intentional and appropriate
-
-  **Parity gaps identified and deferred:**
-  - **Screenshot display** → 7.5.2 (requires blob handling)
-  - **HTML Structure section** → deferred (requires new section + wiring)
-  - **Comments field** → deferred (Viewer is read-only by design)
-  - **Section ordering** → kept as-is (Viewer order is logical for inventory browsing)
-
-  ---
-
-  ### 7.5.2 Screenshot Thumbnails ✅
-  - Render thumbnails from existing `screenshotBlobId`
-  - Viewer cards (Grid + Table) show representative capture thumbnails
-  - Viewer drawer already supports screenshot rendering; cards now match parity intent
-  - Graceful fallback if unavailable
-
-  ---
-
-  ### 7.5.3 Minor Interaction Polish
-  - Toggle drawer on re-select
-  - Escape to close drawer
-  - Small UX refinements only
-
-  ---
-
-  ## Milestone 7.6 — Viewer Usability Refinements (Optional)
-  - Empty project UX
-  - Deterministic default sorts
-  - Viewer-only filter persistence
-
-  ---
-  ### 7.7 — Annotations (Notes + Tags) + Save/Delete Parity
-
-**Goal:**  
-Introduce component-scoped annotations (Notes + Tags) shared between Viewer and Sidepanel, with explicit Save semantics and delete parity.
-
-#### 7.7.1 — Annotations foundation (read-only Viewer)
-**Status:** ✅ Complete
-
-- IndexedDB upgraded from v3 → v4
-- Added `annotations` store keyed by `projectId:componentKey`
-- Service Worker APIs:
-  - `ANNOTATIONS/GET_PROJECT`
-  - `ANNOTATIONS/GET_ONE`
-- Viewer:
-  - Identity section added (Component + Style)
-  - HTML Structure section (derived, collapsible)
-  - Notes (read-only)
-  - Tags (read-only)
-  - Annotations merged into Viewer inventory via:
-    annotation.componentKey === component.id
-  
-#### 7.7.2 — Editable annotations + explicit save model
-**Status:** ✅ Complete
-
-##### 7.7.2a — Stability + rendering fixes
-- Fixed blank DetailsDrawer caused by hook order / conditional rendering
-- Ensured annotations load after project selection
-- Prevented crash on missing annotation records
-
-##### 7.7.2b — Edit + Save + Delete parity
-- Notes and Tags are **always editable** (no “Edit mode”)
-- Added explicit **Save / Cancel / Delete** actions
-- Removed:
-- Clear action
-- Edit button
-- Delete confirmation modal implemented
-- Delete now fully functional (Viewer ↔ Service Worker ↔ IndexedDB)
-- Footer actions are fixed and consistent with prototype
-- Viewer behavior now mirrors Sidepanel delta semantics
-- Minor UX parity: Tags section appears between Identity and Styles (Viewer + Sidepanel)
-
-**Result:**  
-Viewer and Sidepanel now share the same annotation data model, lifecycle, and intent.
+This document defines the official project milestones.
+Milestones marked as **LOCKED** define the MVP contract and should not be expanded.
 
 ---
 
-### 7.8 — Cross-surface annotation parity ✅
-**Status:** ✅ Complete
-
-- Sidepanel Notes + Tags wired to the same `annotations` store as Viewer
-- Deterministic `componentKey` shared across surfaces (Viewer + Sidepanel)
-- Explicit Save / Cancel semantics (no onBlur saves)
-- Draft-until-save capture flow:
-  - Capturing creates a persisted draft (`isDraft: true`)
-  - Drafts are only committed on explicit Save
-- Sidepanel UX: one active audit tab at a time to reduce confusion
-- Sidepanel extension tab awareness:
-  - Viewer tab: show “Viewer mode” project list instead of “No captures yet…”
-  - Other extension pages: show capture unavailable message (no capture on `chrome-extension://` pages)
+## Milestone 1–6 (Completed)
+Foundational architecture, capture pipeline, Viewer scaffolding, and explainable inventory model.
+Details preserved in git history.
 
 ---
 
-### 7.9 — Manual Identity Overrides (Display Name / Category / Type / Status) ✅
-**Status:** ✅ Complete
+## Milestone 7 — Viewer Completion (LOCKED ✅)
 
-- Added `component_overrides` store keyed by `projectId:componentKey`
-- Viewer and Sidepanel can edit identity fields with explicit Save / Cancel
-- Reset supported (delete override record → revert to derived values)
+**Goal:** Deliver a complete, trustworthy Viewer for reviewing captured UI inventory.
 
----
+### 7.1–7.3 Viewer Shell & Navigation
+- Project-based routing (no session UI)
+- URL-driven project navigation
+- Back/forward browser support
+- Stable Viewer shell layout
 
-### 7.10 — Multi-State Component Capture ✅
-**Status:** ✅ Complete
-
-**Goal:** Associate different visual states (Default, Hover, Active, Focus, Disabled, Open) of the same component and display them as a unified entry.
-
-#### 7.10.1 — State Capture Infrastructure
-- Extended capture to support buttons and links with multiple states
-- CDP-based state forcing (pseudo-classes) with mouse automation fallback
-- State menu UI in content script for selecting which state to capture
-- Default state capture with hover-clearing logic (mouse move + delay)
-
-#### 7.10.2 — Component Grouping by State
-- Introduced stable `componentKey` generation (structural identity excluding state-dependent styles)
-- Modified `buildComponentSignature` to exclude color/backgroundColor/borderColor from key
-- Captures of the same component across different states share the same `componentKey`
-
-#### 7.10.3 — Multi-State UI (Sidepanel)
-- Grouped captures by `componentKey` into single component entries
-- Added `availableStates` array to track all captured states for a component
-- State dropdown selector for switching between states
-- Screenshot, HTML, and Visual Essentials update when state changes
-- Notes and tags shared across all states of the same component
-
-#### 7.10.4 — Multi-State UI (Viewer)
-- Viewer DetailsDrawer shows state selector dropdown
-- State switching fetches and displays correct capture data
-- Visual Essentials dynamically update based on selected state
-- Identity fields remain stable across state changes
-
-**Key Implementation Details:**
-- `componentKey` = hash of `${tagName}|${role}|${accessibleName}` (no style properties)
-- State stored in `capture.styles.evidence.state`
-- Default state prioritized in sort order for display
-- `UI/GET_CAPTURE` message handler added for fetching specific state captures
+**Status:** ✅ Done
 
 ---
 
-### 7.11 — Figma Export ✅
-**Status:** ✅ Complete
+### 7.4 Derived Inventory (Components + Styles)
+- Components derived from saved captures only
+- Styles derived independently from same capture set
+- Draft captures excluded from Viewer
+- Re-derivation on delete
 
-**Goal:** Export captured inventory to Figma-importable format with screenshots and structured metadata.
-
-#### 7.11.1 — Export Package Format
-- ZIP package containing:
-  - `inventory.json` — Structured component spec with visual essentials, states, sources
-  - `images/*.png` — Component screenshots (one per state)
-- Export initiated from Viewer "Export to Figma" button
-- Uses `jszip` library for client-side ZIP generation
-
-#### 7.11.2 — Data Structure
-**inventory.json structure:**
-```json
-{
-  "version": "1.0",
-  "exportedAt": "ISO timestamp",
-  "project": { "id", "name" },
-  "components": [
-    {
-      "componentKey": "deterministic hash",
-      "name": "derived display name",
-      "category": "Actions | Forms | ...",
-      "type": "Button | Link | ...",
-      "status": "Unreviewed | Canonical | ...",
-      "sources": ["url1", "url2"],
-      "notes": "user annotations",
-      "tags": ["tag1", "tag2"],
-      "states": [
-        {
-          "state": "default | hover | active | ...",
-          "screenshotFilename": "componentKey_state.png",
-          "visualEssentials": { "Text": [...], "Surface": [...], "Spacing": [...] },
-          "stylePrimitives": { raw style data },
-          "htmlSnippet": "outerHTML"
-        }
-      ]
-    }
-  ]
-}
-```
-
-#### 7.11.3 — Service Worker Export APIs
-- `EXPORT/GET_PROJECT_DATA` — Fetch all non-draft captures + project metadata
-- `EXPORT/GET_BLOB_BYTES` — Retrieve screenshot blob as byte array
-- Blob transfer via Chrome messaging (ArrayBuffer → plain array conversion for structured cloning)
-
-#### 7.11.4 — Figma Plugin Implementation
-**Structure:**
-- `apps/figma-plugin/` — Standalone Figma plugin directory
-- `manifest.json` — Plugin metadata and entry points
-- `code.ts` — Main thread (Figma API interactions)
-- `ui.html` + `ui.ts` — UI thread (file handling, ZIP processing)
-- `build.js` — Custom build script (esbuild + inline script injection)
-
-**Features:**
-- Drag-and-drop + file input for ZIP import
-- Creates Figma frames organized by category
-- Places screenshots as image fills using `figma.createImage()`
-- Text nodes for metadata (name, category, type, status, sources, notes, tags)
-- Visual essentials displayed as formatted text blocks
-- HTML snippet included (collapsed/small text)
-
-**Key Technical Solutions:**
-- WebP → PNG conversion (Figma doesn't support WebP)
-- Canvas API used for image format conversion
-- Inline script bundling (Figma data URL CSP restrictions)
-- Error handling for unsupported image formats with fallback UI
-
-#### 7.11.5 — Documentation
-- Created `docs/FIGMA_EXPORT.md` with full specification
-- Documents export format, plugin usage, and architecture
-
-**Outcome:**  
-Full round-trip workflow: Capture → Review → Export → Import to Figma for design system audits.
+**Status:** ✅ Done
 
 ---
 
-### 7.12 — Capture Interactivity (Context Menu + Screenshot Modes) ✅
-**Status:** ✅ Complete (2026-01-07)
+### 7.5 Viewer Interactions
+- Grid layout for components
+- Table layout for styles
+- Component details drawer
+- State switching (default, hover, active, etc.)
 
-**Goal:** Make capture more intentional and reduce mis-captures by adding an optional “power user” interaction layer.
-
-**Completed:**
-- [x] In-page right-click capture menu (does not replace browser context menu globally)
-- [x] Keyboard fallback to open menu: `.` (period)
-- [x] Region screenshot capture via click+drag
-- [x] Visible viewport screenshot capture
-- [x] Screenshot-first captures stored as full capture records (`element.tagName = "region"`)
-- [x] Taxonomy: classify screenshot-first captures under `Screenshots → Region/Viewport`
-- [x] Duplicate detection reliability improvements across Service Worker restarts (rehydrate routing state)
-- [x] Input duplicate detection: include minimal element attributes to stabilize identity
-- [x] Sidepanel component list polish: category accordions persist open/closed after closing details
-- [x] Classification tweak: `<fieldset>` defaults to `Forms → Fieldset`
-
+**Status:** ✅ Done (pre-scope reduction)
 
 ---
 
-## Milestone 8 — UI Polish & Standardization 🎨
-**Branch:** `m9-polish-v1`  
-**Status:** 🟡 In Progress (Phase 1 Complete, Phase 2 Partial)
+### 7.6 Review Layers
+- Notes + tags (annotations)
+- Identity overrides (name, category, type, status)
+- Explicit save semantics
+- Non-mutating merges
 
-**Goal:** Standardize styling, layout, and component libraries across Sidepanel and Viewer for consistency and maintainability.
-
-### 8.0 — Foundation Analysis ✅
-**Status:** ✅ Complete
-
-- Completed delta analysis of Visual Essentials tables (Sidepanel vs Viewer)
-- Completed delta analysis of layout containers and structure
-- Documented styling inconsistencies (Tailwind vs CSS variables)
-- Created prioritized incremental plan (Phase 1-9)
-
-### 8.1 — Phase 1: CSS Variables Foundation ✅
-**Status:** ✅ Complete
-
-**Goal:** Convert Sidepanel from Tailwind to inline styles with CSS variables
-
-**Completed:**
-- [x] Convert ComponentDetails container styles
-- [x] Convert section headers and labels
-- [x] Convert form inputs (identity fields)
-- [x] Convert borders and backgrounds
-- [x] Convert spacing utilities
-- [x] All inline styles using CSS variables
-- [x] Consistent hover/focus handlers
-- [x] Elastic sidepanel width (360px minimum, 100% width)
-- [x] HTML Structure section formatting matches Viewer (collapsible details)
-
-**Outcome:** Both UIs use same styling system (CSS variables)
-
-### 8.1.1 — StartScreen Redesign ✅
-**Status:** ✅ Complete
-
-**Goal:** Modernize StartScreen with fixed footer, empty state, and slide-in drawer
-
-**Completed:**
-- [x] Fixed header/content/footer layout architecture (matches Viewer pattern)
-- [x] Header: "Audits" title + "Inventory" button (ghost variant, white bg, grid icon)
-- [x] Project cards: Date display (last modified), chevron icons, enhanced hover states
-- [x] Fixed footer: "+ Create New Audit" button (dark theme)
-- [x] Slide-in drawer: Bottom drawer with backdrop, smooth animation, Enter/Escape handlers
-- [x] Empty state: Illustration card + "Your audit is one step away" messaging
-- [x] Background color: #fafafa
-- [x] No separator line between header and content
-- [x] Added createdAt/updatedAt to Project interface
-
-**Outcome:** Professional, modern StartScreen with intuitive onboarding UX
-
-### 8.2 — Phase 2: Button Parity ✅
-**Status:** ✅ Complete (2026-01-05)
-
-**Tasks:**
-- [x] Add destructive variant to Button component
-- [x] Convert Sidepanel footer buttons to shared Button component
-- [x] Convert Sidepanel delete confirmation modal buttons
-- [x] Fix Button component runtime errors
-- [x] Replace Button component with inline-styled buttons (ComponentDetails)
-- [x] Replace Button component with inline-styled buttons (StartScreen)
-- [x] Consistent styling across sidepanel and viewer
-
-**Outcome:** Button runtime errors resolved; all buttons use inline styles with CSS variables for consistency
-
-### 8.3 — Phase 3: Close Button Consistency
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Decide: Lucide X icon or Unicode ✕
-- [ ] Standardize button style (ghost variant + icon)
-- [ ] Align positioning and padding
-- [ ] Ensure proper aria-labels
-
-### 8.4 — Phase 4: Spacing & Padding Polish
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Standardize container padding (16px or 24px horizontal)
-- [ ] Align section gaps (16px vs 24px)
-- [ ] Standardize footer padding
-- [ ] Align header padding
-- [ ] Ensure consistent spacing around inputs
-
-### 8.5 — Phase 5: Content Order Alignment
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Decide canonical section order
-- [ ] Reorder Sidepanel sections to match
-- [ ] Update scroll-to and focus logic
-- [ ] Test tab order and keyboard navigation
-
-### 8.6 — Phase 6: Footer Behavior
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Decide: Always render or conditional
-- [ ] Implement chosen strategy in both UIs
-- [ ] Update logic depending on footer presence
-- [ ] Test save/cancel/delete flows
-
-### 8.7 — Phase 7: Header Behavior
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Decide: Fixed header or scrollable
-- [ ] Implement chosen strategy
-- [ ] Update close button positioning
-- [ ] Test scroll behavior and focus
-
-### 8.8 — Phase 8: Layout Architecture
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Convert Sidepanel to 3-section flexbox (if needed)
-- [ ] Update body padding for footer height
-- [ ] Test scroll behavior thoroughly
-- [ ] Test on different viewport sizes
-
-### 8.9 — Phase 9: Accessibility Improvements
-**Status:** ⏳ Not Started
-
-**Tasks:**
-- [ ] Add ARIA labels to Sidepanel sections
-- [ ] Consider Radix Dialog/Sheet primitive
-- [ ] Add visually-hidden headings
-- [ ] Test keyboard navigation
-- [ ] Test with screen reader
-- [ ] Ensure proper focus management
-
-**Milestone 8 Timeline:** 12-18 hours estimated
+**Status:** ✅ Done
 
 ---
 
-## Milestone 9 — Data Model Enhancement ✅
-**Branch:** `m9-polish-v1`
-**Status:** ✅ Complete (2026-01-05)
+### 7.7 Export
+- Export derived inventory to Figma
+- Evidence-first frames
+- No layout guessing or mutation
 
-**Goal:** Improve component naming and description UX by separating display name from descriptive text
-
-### 9.1 — DisplayName/Description Split ✅
-**Status:** ✅ Complete
-
-**Motivation:**
-- Previous approach combined element type and descriptive text in a single "name" field
-- Made editing awkward (had to maintain "Type · Description" format manually)
-- Description text was buried and not prominently displayed
-
-**Solution:**
-- Split into two separate fields:
-  - `displayName`: Element type (e.g., "Button", "Input") - defaults from tagName, editable, not linked to type after capture
-  - `description`: Descriptive text (e.g., "Save Changes", "Search Products") - extracted from element content, editable
-
-**Implementation:**
-
-**Schema Changes:**
-- [x] Added `displayName?: string` to `CaptureRecordV2`
-- [x] Added `description?: string` to `CaptureRecordV2`
-- [x] Added `description?: string` to `Component` interface (sidepanel)
-- [x] Added `description?: string` to `ViewerComponent` type (viewer)
-- [x] Added `description` to `ComponentOverrideRecord`
-- [x] Updated `upsertComponentOverride()` to handle description
-
-**Capture Logic:**
-- [x] Service worker populates `displayName` as capitalized tagName during capture
-- [x] Service worker extracts `description` with comprehensive fallback chain:
-  - `intent.accessibleName` (highest priority)
-  - `element.textPreview`
-  - `element.textContent`
-  - `element.innerText`
-  - `element.text`
-  - `element.attributes.ariaLabel` (lowest priority)
-- [x] Updated `OVERRIDES/UPSERT` handler to persist description changes
-
-**UI Updates:**
-- [x] **Sidepanel ComponentDetails:**
-  - Header shows displayName as title, description as subtitle
-  - Identity section has separate "Name" and "Description" input fields
-  - Added `draftDescription` state with full sync/dirty checking
-  - Save/Cancel handlers include description
-- [x] **Sidepanel StartScreen:**
-  - Fixed Button component runtime error
-- [x] **Viewer DetailsDrawer:**
-  - Header shows displayName as title, description as subtitle
-  - Identity section has separate "Name" and "Description" input fields
-  - Added `draftDescription` state with full sync/dirty checking
-  - Save/Cancel handlers include description
-- [x] **Viewer ComponentsGrid:**
-  - Cards display description below name with truncation
-- [x] **Viewer Adapter:**
-  - `deriveComponentInventory()` extracts description from captures
-  - Prioritizes `capture.displayName` over derived name
-
-**Backward Compatibility:**
-- All `description` fields are optional
-- Old captures work without description (gracefully handle undefined)
-- No migration required
-
-**Outcome:**
-✅ Better UX for component naming and description
-✅ Separate editable fields for display name and description
-✅ Description prominently displayed as subtitle in headers
-✅ Smart text extraction with comprehensive fallbacks
-✅ Fully backward compatible with old captures
+**Status:** ✅ Done
 
 ---
 
-## Milestone 10 — Project-Wide Tagging System ✅
-**Branch:** `m9-polish-v1`
-**Status:** ✅ Complete (2026-01-05)
+## Milestone 8 — MVP Tightening & Regression Recovery (LOCKED 🚨)
 
-**Goal:** Implement a project-scoped tagging system with tag reuse via dropdown autocomplete and simple tag management interface.
+**This milestone defines the FINAL MVP scope.**
 
-### 10.1 — Database Layer ✅
-**Status:** ✅ Complete
-
-**Schema Changes:**
-- [x] Added `ProjectTagRecord` interface with fields:
-  - `id`: `"${projectId}:${tagName}"`
-  - `projectId`: Project scope
-  - `tagName`: The tag text
-  - `usageCount`: How many components use this tag
-  - `createdAt`: First use timestamp
-  - `lastUsedAt`: Most recent use timestamp
-- [x] Upgraded IndexedDB from version 5 → 6
-- [x] Created `projectTags` store with indexes:
-  - Primary key: `id`
-  - Index: `byProjectId` (for fetching all tags in a project)
-  - Index: `byLastUsedAt` (for sorting by recency)
-
-**CRUD Functions:**
-- [x] `getAllProjectTags(projectId)` - Get all tags for a project, sorted by most recent
-- [x] `incrementTagUsage(projectId, tagName)` - Increment usage count (or create tag)
-- [x] `decrementTagUsage(projectId, tagName)` - Decrement usage count (delete if 0)
-- [x] `deleteProjectTag(projectId, tagName)` - Force delete a tag
-- [x] `getComponentsWithTag(projectId, tagName)` - Find all components using a tag
-- [x] `deleteAllProjectTags(projectId)` - Cascade delete for project cleanup
-
-### 10.2 — Service Worker Integration ✅
-**Status:** ✅ Complete
-
-**Message Handlers:**
-- [x] `TAGS/GET_ALL` - Returns all project tags sorted by `lastUsedAt` descending
-- [x] `TAGS/DELETE` - Deletes tag from `projectTags` store and removes from all annotations
-- [x] Updated `ANNOTATIONS/UPSERT` to automatically sync tag usage counts:
-  - Compares old tags vs new tags
-  - Increments usage for added tags
-  - Decrements usage for removed tags
-
-### 10.3 — Tag Autocomplete Component ✅
-**Status:** ✅ Complete
-
-**Created:** `apps/extension/src/ui/sidepanel/shell/components/TagAutocomplete.tsx`
-
-**Features:**
-- [x] Input field with dropdown that appears on focus/typing
-- [x] Fetches all project tags via `TAGS/GET_ALL` message
-- [x] Filters tags as user types (case-insensitive)
-- [x] Excludes already-added tags from suggestions
-- [x] Shows usage count next to each tag in dropdown
-- [x] Click to select or press Enter on highlighted item
-- [x] Arrow keys to navigate dropdown (↑↓)
-- [x] ESC to close dropdown
-- [x] Shows "Create new tag: [input]" option if no exact match
-- [x] Click-outside to close
-- [x] Matches existing design system colors
-
-### 10.4 — ComponentDetails Integration ✅
-**Status:** ✅ Complete
-
-**Updated:** `apps/extension/src/ui/sidepanel/shell/components/ComponentDetails.tsx`
-
-**Changes:**
-- [x] Replaced manual tag input with `TagAutocomplete` component
-- [x] Updated `handleAddTag` to accept tag parameter (instead of reading from state)
-- [x] Removed obsolete `newTagInput` state variable
-- [x] Removed `setNewTagInput("")` calls from `useEffect` and `handleCancel`
-- [x] Maintains existing tag display pills with remove buttons
-- [x] Maintains duplicate checking logic
-
-### 10.5 — Tag Management UI ✅
-**Status:** ✅ Complete
-
-**Created:** `apps/extension/src/ui/sidepanel/shell/components/TagManagement.tsx`
-
-**Features:**
-- [x] Full-screen overlay component (similar to ComponentDetails)
-- [x] Fixed header with "Manage Tags" title and close button
-- [x] Scrollable list of all project tags
-- [x] Each tag row shows:
-  - Tag name
-  - Usage count (e.g., "Used in 5 components")
-  - Delete button (trash icon)
-- [x] Confirmation dialog before deleting:
-  - "Delete '[tagName]'? This will remove it from X components."
-  - Shows affected component count
-  - Cannot be undone warning
-- [x] Empty state: "No tags created yet" with illustration
-- [x] Tags sorted by most recently used
-- [x] Delete button shows on hover
-- [x] Toast notifications for success/error
-- [x] `onTagsChanged` callback to refresh component list after deletion
-
-### 10.6 — ProjectView Integration ✅
-**Status:** ✅ Complete
-
-**Updated:** `apps/extension/src/ui/sidepanel/shell/components/ProjectView.tsx`
-
-**Changes:**
-- [x] Added "Tags" button in header next to "Library" button
-- [x] Icon: Tag icon from lucide-react
-- [x] Opens `TagManagement` component as overlay
-- [x] State: `showTagManagement` boolean
-- [x] Passes `onRefresh` callback to refresh components after tag deletion
-
-### 10.7 — Bug Fixes ✅
-**Status:** ✅ Complete
-
-**Issues Fixed:**
-- [x] Fixed `setNewTagInput is not defined` error when opening capture details
-  - Root cause: Removed state variable but left two references in useEffect and handleCancel
-  - Solution: Removed both `setNewTagInput("")` calls
-- [x] Fixed duplicate `onFocus` attribute in TagAutocomplete
-  - Root cause: Two onFocus handlers on same input element
-  - Solution: Combined into single handler with both border color change and dropdown show
-
-**Outcome:**
-✅ Full project-wide tagging system with autocomplete, reuse, and management
-✅ Tag usage counts automatically maintained
-✅ Simple delete workflow with confirmation
-✅ Consistent styling with existing design system
-✅ Zero breaking changes to existing functionality
+No new features may be added beyond this milestone.
 
 ---
 
-## Milestone 11 — Capture Depth & Intelligence (Future)
-Out of scope for current stabilization:
-- Smarter component signatures
-- Token normalization
-- Hierarchies and relationships
-- Cross-session comparisons
+### 8.1 Regression Recovery (REQUIRED)
+
+**Goal:** Restore previously working MVP-critical behavior.
+
+- Restore **Source filter** to include capture-level URLs (not page-only)
+- Restore **Visible Properties**:
+  - Inline style evidence tables inside component cards
+  - Read-only, no interaction
+- Fix **state semantics**:
+  - Buttons use interaction states (hover, active, focus, disabled)
+  - Form elements use value states (checked/unchecked, selected/unselected)
+  - Prevent cross-type state assignment
+
+**Status:** ⏳ Planned
 
 ---
 
-## Milestone 12 — Manual Refinement Workflows (Future)
+### 8.2 Scope Reduction (REQUIRED)
 
-* Bulk select
-* Bulk status/tag updates
-* Variant grouping (canonical selection)
-* Pattern marking (styles → tokens/patterns)
+**Goal:** Reduce UI complexity to MVP-essential views only.
 
-## Milestone 13 — Automated Suggestions (Future)
+- Components:
+  - Grid view only
+  - Remove view toggles
+- Styles:
+  - Table view only
+  - Remove view toggles
+- Remove unused or redundant controls
 
-* Status/category/type suggestions
-* Pattern detection that learns from manual edits
+**Status:** ⏳ Planned
+
+---
+
+### 8.3 Viewer Polish (CAPPED)
+
+**Goal:** Finish the Viewer without expanding scope.
+
+Allowed:
+- Header spacing, alignment, hierarchy polish
+- Viewer empty states:
+  - No projects
+  - Project with no captures
+  - No styles
+- Non-active tab view polish (copy + layout)
+
+Not allowed:
+- New controls
+- New views
+- New interaction patterns
+
+**Status:** ⏳ Planned
+
+---
+
+## Milestone 9 — Post-MVP (NOT STARTED)
+
+Explicitly out of MVP scope:
+- Cloud sync
+- Team accounts
+- Sharing
+- Advanced analytics
+- Capture deduplication
+- Automated grouping
+- Design system enforcement
+
+---
+
+## MVP Definition (LOCKED)
+
+MVP is complete when a solo designer can:
+1. Create an audit
+2. Capture UI elements
+3. Review components and styles
+4. Annotate and override identity
+5. Export to Figma
+6. Exit without broken or ambiguous state
+
+Offline-only. Deterministic. Explainable.
