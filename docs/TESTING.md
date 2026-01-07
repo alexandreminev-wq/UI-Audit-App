@@ -1,6 +1,6 @@
-# Testing Checklist — v2.3 (Milestone 1–6.1)
+# Testing Checklist — v2.4 (Milestone 1–8.x)
 
-_Last updated: 2025-12-25 (Europe/Madrid)_
+_Last updated: 2026-01-07 (Europe/Madrid)_
 
 This is a manual smoke-test checklist for developers.
 
@@ -55,6 +55,24 @@ Confirm fields are populated where relevant.
 - Cancel returns to hover mode
 - Screenshot should not include UI overlays (best-effort)
 
+### G.1) Capture interactivity: right-click menu + keyboard fallback
+- Enable capture mode
+- Hover a target element and **right-click**
+  - Confirm an in-page capture menu appears near the pointer
+  - Confirm the hovered element is “locked” while the menu is open
+- Press `.` (period)
+  - Confirm the same menu can be opened via keyboard fallback
+
+### G.2) Capture interactivity: screenshot-first modes
+- From the in-page capture menu, choose **Capture region… (drag)**
+  - Confirm crosshair appears
+  - Drag a rectangle and release
+  - Confirm a new capture is created with screenshot and correct crop
+- From the menu, choose **Capture visible viewport**
+  - Confirm a new capture is created whose screenshot matches the visible viewport area
+- For both:
+  - Confirm hover highlight UI is not visible in the screenshot (best-effort)
+
 ### H) Viewer trust loop
 - Viewer manual refresh works
 - Undo last capture works
@@ -98,6 +116,11 @@ Confirm fields are populated where relevant.
   - auto-refresh list
   - auto-open the new component detail
 
+### N.1) Accordion persistence
+- In the component directory, expand one or more category accordions
+- Open a component detail view, then close it
+- Confirm the previously expanded category accordions remain expanded (no auto-collapse)
+
 ### O) Delete capture (real delete)
 - Delete from detail view
 - Confirm capture disappears
@@ -130,6 +153,15 @@ Confirm fields are populated where relevant.
   - Verify classifier assigns `displayType: "Checkbox"` (input type)
 - Capture a `<div>` with no role
   - Verify classifier assigns a fallback category (e.g., "Container" or "Other")
+
+### S.1) Fieldset classification
+- Capture a `<fieldset>` element
+  - Verify it classifies to `Forms → Fieldset` by default (no manual override needed)
+
+### S.2) Screenshot taxonomy
+- Create a **Region** capture and a **Viewport** capture
+  - Verify they appear under `Screenshots → Region/Viewport`
+  - Verify they remain unique captures (no unwanted dedupe)
 
 ### T) Visual Essentials readability (no raw JSON by default)
 - Capture an element and open its detail view in side panel

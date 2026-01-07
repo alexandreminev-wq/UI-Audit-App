@@ -1,6 +1,6 @@
 # MILESTONES
 
-  *Last updated: 2026-01-05*
+  *Last updated: 2026-01-07*
 
   This file is the canonical milestone plan for the **UI Inventory App**.
   Milestones are intentionally incremental, verifiable, and biased toward
@@ -215,6 +215,7 @@ Introduce component-scoped annotations (Notes + Tags) shared between Viewer and 
 - Delete now fully functional (Viewer ↔ Service Worker ↔ IndexedDB)
 - Footer actions are fixed and consistent with prototype
 - Viewer behavior now mirrors Sidepanel delta semantics
+- Minor UX parity: Tags section appears between Identity and Styles (Viewer + Sidepanel)
 
 **Result:**  
 Viewer and Sidepanel now share the same annotation data model, lifecycle, and intent.
@@ -231,6 +232,9 @@ Viewer and Sidepanel now share the same annotation data model, lifecycle, and in
   - Capturing creates a persisted draft (`isDraft: true`)
   - Drafts are only committed on explicit Save
 - Sidepanel UX: one active audit tab at a time to reduce confusion
+- Sidepanel extension tab awareness:
+  - Viewer tab: show “Viewer mode” project list instead of “No captures yet…”
+  - Other extension pages: show capture unavailable message (no capture on `chrome-extension://` pages)
 
 ---
 
@@ -356,6 +360,25 @@ Viewer and Sidepanel now share the same annotation data model, lifecycle, and in
 
 **Outcome:**  
 Full round-trip workflow: Capture → Review → Export → Import to Figma for design system audits.
+
+---
+
+### 7.12 — Capture Interactivity (Context Menu + Screenshot Modes) ✅
+**Status:** ✅ Complete (2026-01-07)
+
+**Goal:** Make capture more intentional and reduce mis-captures by adding an optional “power user” interaction layer.
+
+**Completed:**
+- [x] In-page right-click capture menu (does not replace browser context menu globally)
+- [x] Keyboard fallback to open menu: `.` (period)
+- [x] Region screenshot capture via click+drag
+- [x] Visible viewport screenshot capture
+- [x] Screenshot-first captures stored as full capture records (`element.tagName = "region"`)
+- [x] Taxonomy: classify screenshot-first captures under `Screenshots → Region/Viewport`
+- [x] Duplicate detection reliability improvements across Service Worker restarts (rehydrate routing state)
+- [x] Input duplicate detection: include minimal element attributes to stabilize identity
+- [x] Sidepanel component list polish: category accordions persist open/closed after closing details
+- [x] Classification tweak: `<fieldset>` defaults to `Forms → Fieldset`
 
 
 ---

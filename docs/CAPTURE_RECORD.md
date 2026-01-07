@@ -1,6 +1,6 @@
 # CAPTURE_RECORD
 
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-07*
 
 This document defines the **Capture Record** schema used by the UI Audit Tool.
 
@@ -37,22 +37,42 @@ This preserves the capture record as immutable evidence while still allowing des
 
 ---
 
-## 2. High-Level Structure
+## 2. High-Level Structure (v2)
 
 ```ts
-CaptureRecord {
+CaptureRecordV2 {
   id: string
   sessionId: string
   projectId?: string
 
+  captureSchemaVersion: 2
+  stylePrimitiveVersion?: 1
+
+  url: string
   createdAt: timestamp
 
-  page: PageContext
-  element: ElementContext
+  // Optional human-facing labels (not used for identity)
+  displayName?: string
+  description?: string
 
-  styles: CaptureStyles
+  conditions: CaptureConditions
+  scope?: CaptureScope
 
-  screenshot: ScreenshotRef
+  element: ElementCore
+  boundingBox: { left: number; top: number; width: number; height: number }
+
+  styles: {
+    primitives: StylePrimitives
+    computed?: Record<StyleKey, string>
+    author?: AuthorStyleEvidence
+    evidence?: StyleEvidenceMeta
+    tokens?: TokenEvidence
+  }
+
+  screenshot?: CaptureScreenshotRef | null
+
+  // Draft-until-save
+  isDraft?: boolean
 }
 ````
 
@@ -60,36 +80,33 @@ CaptureRecord {
 
 ## 3. Identity & Context
 
-### PageContext
+### ElementCore
 
 ```ts
-PageContext {
-  url: string
-  title?: string
-}
-```
-
-* Represents the page where the element was captured
-* Used for provenance and linking back to source
-
----
-
-### ElementContext
-
-```ts
-ElementContext {
+ElementCore {
   tagName: string
-  attributes?: Record<string, string>
-  accessibleName?: string
+  role?: string | null
 
-  outerHTML?: string
+  // Locator-ish signals (best-effort)
+  id?: string | null
+  classList?: string[]
+  textPreview?: string
+  outerHTML?: string | null
 
-  boundingBox?: {
-    x: number
-    y: number
-    width: number
-    height: number
+  // Minimal attribute subset (used for form context + duplicate detection)
+  attributes?: {
+    name?: string
+    placeholder?: string
+    ariaLabel?: string
+    ariaLabelledBy?: string
+    ariaExpanded?: string
+    ariaChecked?: string
+    ariaSelected?: string
+    ariaDisabled?: string
+    ariaCurrent?: string
   }
+
+  intent: ElementIntent
 }
 ```
 
@@ -106,17 +123,10 @@ Notes:
 
 ## 4. Style Capture (Visual Evidence)
 
-### CaptureStyles
-
-```ts
-CaptureStyles {
-  computed?: Record<string, string>
-  primitives?: StylePrimitives
-}
-```
-
-* `computed` is an optional raw dump for debugging
-* `primitives` is the canonical, normalized representation used by the Viewer
+Capture stores:
+- **`styles.primitives`**: canonical normalized values used by Viewer/Sidepanel
+- **`styles.author` / `styles.tokens`**: best-effort CDP provenance (when available)
+- **`styles.evidence.state`**: which interaction state produced the evidence (default/hover/active/...)
 
 ---
 
@@ -257,14 +267,33 @@ Notes:
 ## 6. Screenshot Reference
 
 ```ts
-ScreenshotRef {
+CaptureScreenshotRef {
   screenshotBlobId: string
+  mimeType: string
+  width: number
+  height: number
 }
 ```
 
 * Screenshot bytes are stored separately
 * Capture record stores only the reference
 * Viewer retrieves screenshot data via Service Worker
+
+---
+
+## 6.1 Screenshot-first captures (Region / Viewport)
+
+In addition to element captures, the system supports screenshot-first captures:
+
+- **Region**: user click+drags a rectangle
+- **Viewport**: capture of the visible viewport area
+
+These are represented as normal `CaptureRecordV2` rows, with:
+
+- `element.tagName = "region"`
+- `displayName = "Region"` or `"Viewport"`
+- `boundingBox` matching the selected region / viewport
+- `screenshot` referencing the stored cropped image blob
 
 ---
 

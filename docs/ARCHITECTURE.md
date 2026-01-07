@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-  *Last updated: 2025-12-31*
+  *Last updated: 2026-01-07*
 
 This document describes the high-level architecture of the **UI Audit Tool** Chrome extension and Viewer.
 
@@ -79,9 +79,10 @@ Each layer has strict responsibilities and boundaries.
 
 ### Responsibilities
 - Identify the DOM element being captured
+- Provide in-page capture interactivity (hover highlight, click-to-capture, right-click menu, keyboard fallback)
 - Extract **computed visual evidence**
 - Normalize values into `StylePrimitives`
-- Capture screenshot and bounding box
+- Define capture geometry (element bounding box, region drag box, or viewport box)
 - Send capture payload to Service Worker
 
 ### Explicit Non-Responsibilities
@@ -103,11 +104,13 @@ Capture is **mechanical and repeatable**.
 - Persist draft captures (draft-until-save)
 - Manage sessions and projects
 - Store and retrieve screenshot blobs
+- Perform screenshot capture + cropping via CDP/offscreen processing (best-effort)
 - Persist review layers:
   - Annotations (Notes + Tags)
   - Component identity overrides (Display Name / Category / Type / Status)
 - Fan out UI events (e.g. capture saved)
  - Maintain audit routing state (single active audit tab)
+ - Persist active project ↔ tab routing in session storage for Service Worker restarts
 
 ### IndexedDB Stores
 - `captures`
@@ -121,6 +124,8 @@ Capture is **mechanical and repeatable**.
 
 ### Message-Based API
 - `AUDIT/CAPTURE`
+- `AUDIT/CAPTURE_REGION` (region drag + viewport screenshots)
+- `AUDIT/CHECK_DUPLICATE` (duplicate detection before capture)
 - `AUDIT/GET_BLOB`
 - `AUDIT/GET_ROUTING_STATE`
 - `AUDIT/CLAIM_TAB`

@@ -1,6 +1,6 @@
-# STYLE_KEYS — v2.2
+# STYLE_KEYS — v2.2+
 
-*Last updated: 2025-12-31 (Europe/Madrid)*
+*Last updated: 2026-01-07 (Europe/Madrid)*
 
 This document defines the **minimal style evidence** we extract/store for MVP.
 Goal: capture enough signal to support viewer-side comparison, and later designer-friendly summaries.
@@ -51,7 +51,7 @@ For each color-like property we store:
 Minimum set:
 - `backgroundColor`
 - `color`
-- `borderColor` (optional depending on element type)
+- `borderColor` (Phase 2+: per-side optional, depending on element type)
 
 ---
 
@@ -59,6 +59,11 @@ Minimum set:
 - `boxShadowRaw` (computed string)
 - `shadowPresence`: `"none" | "some"`
 - `shadowLayerCount` (optional)
+
+---
+
+## Opacity (Phase 1+)
+- `opacity` (number 0–1, best-effort; separate from color alpha)
 
 ---
 

@@ -1,6 +1,6 @@
 # COMPONENT_MODEL
 
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-07*
 
 This document defines the **canonical component model** used by the UI Inventory App across capture, review, and export.
 It governs how captured UI elements are represented, classified, reviewed, and organized across both:
@@ -130,6 +130,7 @@ Types are **strictly conditional** on Category.
 * Slider
 * Date Picker
 * File Upload
+* Fieldset
 
 ---
 
@@ -214,7 +215,18 @@ Types are **strictly conditional** on Category.
 
 ---
 
-### 3.8 Data Display
+### 3.8 Screenshots
+
+> Screenshot-first evidence captured from the page, not a specific DOM element identity.
+
+**Types**
+
+* Region
+* Viewport
+
+---
+
+### 3.9 Data Display
 
 > Structured or token-like information.
 
@@ -231,7 +243,7 @@ Types are **strictly conditional** on Category.
 
 ---
 
-### 3.9 Unknown
+### 3.10 Unknown
 
 > Captured but not confidently classified.
 
