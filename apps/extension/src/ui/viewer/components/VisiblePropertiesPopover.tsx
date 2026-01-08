@@ -1,4 +1,5 @@
 import * as Popover from "@radix-ui/react-popover";
+import { SlidersHorizontal } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -91,9 +92,13 @@ export function VisiblePropertiesPopover({
         >
             <Popover.Trigger asChild>
                 <button type="button"
+                    title="Visible properties"
                     style={{
                         ...filterButtonStyle,
-                        fontWeight: 500,
+                        padding: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                         background: openMenu === "properties" ? "hsl(var(--accent))" : "hsl(var(--background))",
                     }}
                     onMouseEnter={(e) => {
@@ -107,7 +112,7 @@ export function VisiblePropertiesPopover({
                         }
                     }}
                 >
-                    Visible properties
+                    <SlidersHorizontal size={16} />
                 </button>
             </Popover.Trigger>
             <Popover.Portal>
