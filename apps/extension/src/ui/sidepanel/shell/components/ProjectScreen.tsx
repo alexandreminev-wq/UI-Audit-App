@@ -611,7 +611,6 @@ export function ProjectScreen({
         activeTabId={activeContext.tabId}
         activeUrl={activeContext.url}
         currentProjectId={project.id}
-        onBack={onBack}
       />
     );
   }

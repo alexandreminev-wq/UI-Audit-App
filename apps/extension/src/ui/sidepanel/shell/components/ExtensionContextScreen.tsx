@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, LayoutGrid } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 
 type ActiveContextKind = "viewer" | "extension";
 
@@ -13,7 +13,6 @@ interface ExtensionContextScreenProps {
   activeTabId: number | null;
   activeUrl: string | null;
   currentProjectId: string;
-  onBack: () => void;
 }
 
 function isViewerUrl(url: string | null | undefined): boolean {
@@ -25,7 +24,6 @@ export function ExtensionContextScreen({
   activeTabId,
   activeUrl,
   currentProjectId,
-  onBack,
 }: ExtensionContextScreenProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,24 +96,6 @@ export function ExtensionContextScreen({
         padding: "12px 16px",
         borderBottom: "1px solid hsl(var(--border))",
       }}>
-        <button
-          onClick={onBack}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: "var(--radius)",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "hsl(var(--foreground))",
-          }}
-          title="Back"
-        >
-          <ChevronLeft style={{ width: 18, height: 18 }} />
-        </button>
         <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: "hsl(var(--foreground))" }}>{title}</div>
           <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -146,28 +126,8 @@ export function ExtensionContextScreen({
           )}
         </div>
 
-        <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--foreground))" }}>Projects</div>
-          <button
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("viewer.html") })}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 10px",
-              borderRadius: "var(--radius)",
-              border: "1px solid hsl(var(--border))",
-              background: "transparent",
-              cursor: "pointer",
-              color: "hsl(var(--foreground))",
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-            title="Open Viewer"
-          >
-            <LayoutGrid style={{ width: 16, height: 16 }} />
-            Open Viewer
-          </button>
+        <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: "hsl(var(--foreground))" }}>
+          Projects
         </div>
 
         {loading ? (
