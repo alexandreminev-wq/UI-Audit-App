@@ -16,15 +16,38 @@ export function ProjectsHome({
     onSelectProject: (projectId: string) => void;
     onDeleteProject: (projectId: string) => Promise<void>;
 }) {
+    const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(null);
     const [confirmProject, setConfirmProject] = useState<ViewerProject | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        if (!openMenuProjectId) return;
+
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement | null;
+            if (target && target.closest("[data-project-menu-root='true']")) {
+                return;
+            }
+            setOpenMenuProjectId(null);
+        };
+
+        document.addEventListener("mousedown", onMouseDown);
+        return () => document.removeEventListener("mousedown", onMouseDown);
+    }, [openMenuProjectId]);
 
     const handleKeyDown = (e: KeyboardEvent, action: () => void) => {
         if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             action();
         }
+    };
+
+    const requestDelete = (project: ViewerProject) => {
+        setDeleteError(null);
+        setConfirmProject(project);
+        setOpenMenuProjectId(null);
     };
 
     const confirmDelete = async () => {
@@ -110,24 +133,98 @@ export function ProjectsHome({
                             textAlign: "left",
                         }}
                     >
-                        <div>
-                            <div style={{
-                                fontSize: 15,
-                                fontWeight: 500,
-                                color: "hsl(var(--foreground))",
-                                marginBottom: 8,
-                            }}>
-                                {project.name}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                            <div data-project-menu-root="true" style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                                <button
+                                    type="button"
+                                    aria-label={`Project actions for ${project.name}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setOpenMenuProjectId((prev) => (prev === project.id ? null : project.id));
+                                    }}
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 8,
+                                        border: "1px solid hsl(var(--border))",
+                                        background: "hsl(var(--background))",
+                                        color: "hsl(var(--muted-foreground))",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 18,
+                                        lineHeight: "18px",
+                                    }}
+                                >
+                                    ⋯
+                                </button>
+
+                                {openMenuProjectId === project.id && (
+                                    <div
+                                        data-project-menu-root="true"
+                                        style={{
+                                            position: "absolute",
+                                            top: 34,
+                                            left: 0,
+                                            zIndex: 10,
+                                            minWidth: 180,
+                                            background: "hsl(var(--popover))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: "var(--radius)",
+                                            boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+                                            padding: 6,
+                                        }}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => requestDelete(project)}
+                                            style={{
+                                                width: "100%",
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center",
+                                                padding: "8px 10px",
+                                                borderRadius: "calc(var(--radius) - 2px)",
+                                                border: "none",
+                                                background: "transparent",
+                                                color: "hsl(var(--destructive))",
+                                                cursor: "pointer",
+                                                fontSize: 13,
+                                                fontWeight: 500,
+                                            }}
+                                        >
+                                            <span>Delete project…</span>
+                                            <span aria-hidden>⌫</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <div style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                fontSize: 13,
-                                color: "hsl(var(--muted-foreground))",
-                            }}>
-                                <Clock size={14} strokeWidth={1.5} />
-                                <span>{project.updatedAtLabel}</span>
+
+                            <div>
+                                <div style={{
+                                    fontSize: 15,
+                                    fontWeight: 500,
+                                    color: "hsl(var(--foreground))",
+                                    marginBottom: 8,
+                                }}>
+                                    {project.name}
+                                </div>
+                                <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                    <Clock size={14} strokeWidth={1.5} />
+                                    <span>{project.updatedAtLabel}</span>
+                                </div>
                             </div>
                         </div>
                         <div style={{
