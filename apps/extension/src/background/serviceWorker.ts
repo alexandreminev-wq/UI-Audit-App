@@ -130,6 +130,18 @@ const AUTHOR_PROP_SHORTHAND_FALLBACKS: Partial<Record<AuthorStylePropertyKey, st
     columnGap: ["gap"],
 };
 
+/**
+ * CSS properties that inherit from parent elements.
+ * Only these should scan inherited rules for authored values.
+ */
+const INHERITED_PROPERTIES: Set<AuthorStylePropertyKey> = new Set([
+    'color',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'lineHeight',
+]);
+
 // DEV-only logging (best-effort heuristic)
 const isDevBuild = (() => {
     try {
@@ -845,7 +857,9 @@ async function collectAuthorStylesForCapture(
 
             // Prefer matched rules (element-specific), then inherited.
             scan(matchedCSSRules);
-            if (authoredValue === null) {
+
+            // Only scan inherited rules for properties that actually inherit
+            if (authoredValue === null && INHERITED_PROPERTIES.has(key)) {
                 scan(inheritedRuleMatches);
             }
 
