@@ -62,7 +62,17 @@ Viewer must look polished and consistent before shipping MVP.
 
 **Exit criteria:** Viewer looks polished and consistent across all states (empty, populated, filtered).
 
-**Estimated effort:** 1 week (total Phase 0: 2 weeks)
+**Estimated effort:** 1 week
+
+### 0.4 Connect CDP tokens to Viewer
+- `extractToken()` only reads from inline styles (`primitives.sources`)
+- CDP extracts tokens from stylesheets and stores them in `capture.styles.tokens.used`
+- Fix: Update `extractToken` to check `tokens.used` first, then fall back to inline sources
+- This ensures CSS variables from MUI, design systems, and stylesheets appear in the Viewer
+
+**Exit criteria:** Tokens appear correctly for all captured elements using CSS variables (not just inline).
+
+**Estimated effort:** 0.5 days (total Phase 0: ~2.5 weeks)
 
 ---
 
