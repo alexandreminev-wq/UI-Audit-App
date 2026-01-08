@@ -90,8 +90,9 @@ export function deriveVisualEssentialsFromPrimitives(primitives: any): ViewerVis
             section: "Surface"
         });
     }
-    if (primitives.shadow?.boxShadowRaw) {
-        rows.push({ label: "Shadow", value: primitives.shadow.boxShadowRaw, section: "Surface" });
+    if (primitives.shadow) {
+        const shadowValue = primitives.shadow.boxShadowRaw || "none";
+        rows.push({ label: "Shadow", value: shadowValue, section: "Surface" });
     }
 
     // Spacing section

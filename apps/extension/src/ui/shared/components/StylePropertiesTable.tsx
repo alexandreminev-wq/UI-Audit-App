@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 export interface StylePropertyRow {
   label: string;
   value: string;
-  customContent?: ReactNode; // For TokenTraceValue or other custom rendering
+  customContent?: ReactNode; // For TokenTraceValue or other custom rendering (replaces entire row)
+  valueNode?: ReactNode; // Custom rendering for value cell only (label still shown)
 }
 
 export interface StylePropertiesSection {
@@ -95,10 +96,10 @@ export function StylePropertiesTable({ sections }: StylePropertiesTableProps) {
                   }}
                 >
                   {row.customContent ? (
-                    // Custom rendering (e.g., TokenTraceValue)
+                    // Custom rendering (e.g., TokenTraceValue) - replaces entire row
                     <div style={{ width: '100%' }}>{row.customContent}</div>
                   ) : (
-                    // Default label-value pair
+                    // Label-value pair (with optional custom value rendering)
                     <>
                       <span
                         style={{
@@ -110,24 +111,32 @@ export function StylePropertiesTable({ sections }: StylePropertiesTableProps) {
                       >
                         {row.label}
                       </span>
-                      <span
-                        onClick={isFontFamily ? () => toggleRow(rowKey) : undefined}
-                        style={{
-                          fontSize: '13px',
-                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                          color: '#374151',
-                          textAlign: 'right',
-                          overflow: shouldTruncate ? 'hidden' : 'visible',
-                          textOverflow: shouldTruncate ? 'ellipsis' : 'clip',
-                          whiteSpace: shouldTruncate ? 'nowrap' : 'normal',
-                          cursor: isFontFamily ? 'pointer' : 'default',
-                          minWidth: 0,
-                          flex: 1,
-                        }}
-                        title={isFontFamily ? 'Click to expand/collapse' : undefined}
-                      >
-                        {row.value}
-                      </span>
+                      {row.valueNode ? (
+                        // Custom value rendering (e.g., color tile + hex)
+                        <div style={{ minWidth: 0, flex: 1, textAlign: 'right' }}>
+                          {row.valueNode}
+                        </div>
+                      ) : (
+                        // Default string value
+                        <span
+                          onClick={isFontFamily ? () => toggleRow(rowKey) : undefined}
+                          style={{
+                            fontSize: '13px',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                            color: '#374151',
+                            textAlign: 'right',
+                            overflow: shouldTruncate ? 'hidden' : 'visible',
+                            textOverflow: shouldTruncate ? 'ellipsis' : 'clip',
+                            whiteSpace: shouldTruncate ? 'nowrap' : 'normal',
+                            cursor: isFontFamily ? 'pointer' : 'default',
+                            minWidth: 0,
+                            flex: 1,
+                          }}
+                          title={isFontFamily ? 'Click to expand/collapse' : undefined}
+                        >
+                          {row.value}
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
