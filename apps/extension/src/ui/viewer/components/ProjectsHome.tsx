@@ -64,35 +64,47 @@ export function ProjectsHome({
     };
 
     return (
-        <div style={{
-            maxWidth: 800,
-            margin: "0 auto",
-            padding: "48px 24px",
-        }}>
-            <h1 style={{
-                fontSize: 32,
-                fontWeight: 600,
-                margin: "0 0 8px 0",
-                color: "hsl(var(--foreground))",
+        <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* Header */}
+            <div style={{
+                padding: "32px 24px",
+                borderBottom: "1px solid hsl(var(--border))",
+                background: "hsl(var(--background))",
             }}>
-                UI Audit Tool
-            </h1>
-            <p style={{
-                fontSize: 16,
-                color: "hsl(var(--muted-foreground))",
-                margin: "0 0 48px 0",
-            }}>
-                Review and organize your captured UI components
-            </p>
+                <div style={{ maxWidth: 800, margin: "0 auto" }}>
+                    <h1 style={{
+                        fontSize: 32,
+                        fontWeight: 600,
+                        margin: "0 0 8px 0",
+                        color: "hsl(var(--foreground))",
+                    }}>
+                        UI Audit Tool
+                    </h1>
+                    <p style={{
+                        fontSize: 16,
+                        color: "hsl(var(--muted-foreground))",
+                        margin: 0,
+                    }}>
+                        Review and organize your captured UI components
+                    </p>
+                </div>
+            </div>
 
-            <h2 style={{
-                fontSize: 20,
-                fontWeight: 600,
-                margin: "0 0 16px 0",
-                color: "hsl(var(--foreground))",
+            {/* Content */}
+            <div style={{
+                flex: 1,
+                overflow: "auto",
+                padding: "32px 24px",
             }}>
-                Projects
-            </h2>
+                <div style={{ maxWidth: 800, margin: "0 auto" }}>
+                    <h2 style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        margin: "0 0 16px 0",
+                        color: "hsl(var(--foreground))",
+                    }}>
+                        Projects
+                    </h2>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {projects.map((project) => (
@@ -212,6 +224,8 @@ export function ProjectsHome({
                         </div>
                     </div>
                 ))}
+            </div>
+                </div>
             </div>
 
             {confirmProject && (
