@@ -278,7 +278,7 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "backgroundColor",
                 value: primitives.backgroundColor.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "backgroundColor"),
                 sources,
                 captureUrl: capture.url,
             });
@@ -287,7 +287,7 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "color",
                 value: primitives.color.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "color"),
                 sources,
                 captureUrl: capture.url,
             });
@@ -297,28 +297,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "borderTopColor",
                 value: bc.top.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderTopColor"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderRightColor",
                 value: bc.right.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderRightColor"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderBottomColor",
                 value: bc.bottom.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderBottomColor"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderLeftColor",
                 value: bc.left.raw,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderLeftColor"),
                 sources,
                 captureUrl: capture.url,
             });
@@ -328,57 +328,57 @@ export function deriveStyleInventory(
         styleRecords.push({
             kind: "paddingTop",
             value: primitives.spacing.paddingTop,
-            token: extractToken(sources),
+            token: extractToken(sources, "paddingTop"),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingRight",
             value: primitives.spacing.paddingRight,
-            token: extractToken(sources),
+            token: extractToken(sources, "paddingRight"),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingBottom",
             value: primitives.spacing.paddingBottom,
-            token: extractToken(sources),
+            token: extractToken(sources, "paddingBottom"),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingLeft",
             value: primitives.spacing.paddingLeft,
-            token: extractToken(sources),
+            token: extractToken(sources, "paddingLeft"),
             sources,
             captureUrl: capture.url,
         });
 
         // Phase 2: Margin (optional)
         if (primitives.margin) {
-            styleRecords.push({ kind: "marginTop", value: primitives.margin.marginTop, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginRight", value: primitives.margin.marginRight, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginBottom", value: primitives.margin.marginBottom, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginLeft", value: primitives.margin.marginLeft, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginTop", value: primitives.margin.marginTop, token: extractToken(sources, "marginTop"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginRight", value: primitives.margin.marginRight, token: extractToken(sources, "marginRight"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginBottom", value: primitives.margin.marginBottom, token: extractToken(sources, "marginBottom"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginLeft", value: primitives.margin.marginLeft, token: extractToken(sources, "marginLeft"), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Border widths (optional)
         if (primitives.borderWidth) {
-            styleRecords.push({ kind: "borderTopWidth", value: primitives.borderWidth.top, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderRightWidth", value: primitives.borderWidth.right, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderBottomWidth", value: primitives.borderWidth.bottom, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderLeftWidth", value: primitives.borderWidth.left, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderTopWidth", value: primitives.borderWidth.top, token: extractToken(sources, "borderTopWidth"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderRightWidth", value: primitives.borderWidth.right, token: extractToken(sources, "borderRightWidth"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderBottomWidth", value: primitives.borderWidth.bottom, token: extractToken(sources, "borderBottomWidth"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderLeftWidth", value: primitives.borderWidth.left, token: extractToken(sources, "borderLeftWidth"), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Gap (optional)
         if (primitives.gap) {
-            styleRecords.push({ kind: "rowGap", value: primitives.gap.rowGap, token: extractToken(sources), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "columnGap", value: primitives.gap.columnGap, token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "rowGap", value: primitives.gap.rowGap, token: extractToken(sources, "rowGap"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "columnGap", value: primitives.gap.columnGap, token: extractToken(sources, "columnGap"), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Opacity (optional)
         if (typeof primitives.opacity === "number") {
-            styleRecords.push({ kind: "opacity", value: String(primitives.opacity), token: extractToken(sources), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "opacity", value: String(primitives.opacity), token: extractToken(sources, "opacity"), sources, captureUrl: capture.url });
         }
 
         // Typography (optional fields)
@@ -386,28 +386,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "fontSize",
                 value: primitives.typography.fontSize,
-                token: extractToken(sources),
+                token: extractToken(sources, "fontSize"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "fontWeight",
                 value: primitives.typography.fontWeight,
-                token: extractToken(sources),
+                token: extractToken(sources, "fontWeight"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "fontFamily",
                 value: primitives.typography.fontFamily,
-                token: extractToken(sources),
+                token: extractToken(sources, "fontFamily"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "lineHeight",
                 value: primitives.typography.lineHeight,
-                token: extractToken(sources),
+                token: extractToken(sources, "lineHeight"),
                 sources,
                 captureUrl: capture.url,
             });
@@ -417,7 +417,7 @@ export function deriveStyleInventory(
         styleRecords.push({
             kind: "boxShadow",
             value: primitives.shadow.boxShadowRaw,
-            token: extractToken(sources),
+            token: extractToken(sources, "boxShadow"),
             sources,
             captureUrl: capture.url,
         });
@@ -427,28 +427,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "radiusTopLeft",
                 value: primitives.radius.topLeft,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderTopLeftRadius"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusTopRight",
                 value: primitives.radius.topRight,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderTopRightRadius"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusBottomRight",
                 value: primitives.radius.bottomRight,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderBottomRightRadius"),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusBottomLeft",
                 value: primitives.radius.bottomLeft,
-                token: extractToken(sources),
+                token: extractToken(sources, "borderBottomLeftRadius"),
                 sources,
                 captureUrl: capture.url,
             });
@@ -664,7 +664,7 @@ export function inferStatus(
  * Extract CSS variable token from style sources
  *
  * TODO (7.4.x): Implement according to SCHEMA_DELTA.md §6.3
- * Strategy: Find first CSS variable reference in sources
+ * Strategy: Find CSS variable reference for specific property
  * - sources.backgroundColor = "var(--color-primary)" → "--color-primary"
  * - sources.spacing = "var(--spacing-md)" → "--spacing-md"
  * - No CSS var → return "—"
@@ -674,17 +674,31 @@ export function inferStatus(
  * - Do NOT return null, undefined, or empty string
  *
  * @param sources - Style sources object from primitives
+ * @param propertyKey - Optional property to extract token for (e.g., "backgroundColor")
  * @returns CSS variable name (without "var()") or "—" if no token
  */
 export function extractToken(
-    sources?: CaptureRecordV2["styles"]["primitives"]["sources"]
+    sources?: CaptureRecordV2["styles"]["primitives"]["sources"],
+    propertyKey?: string
 ): string {
     // 7.4.2: Extract CSS variable token from sources (CONTRACT §5.3)
     if (!sources) {
         return "—";
     }
 
-    // Check all source properties for CSS variable references
+    // If propertyKey specified, check only that property
+    if (propertyKey) {
+        const value = (sources as Record<string, string | undefined>)[propertyKey];
+        if (typeof value === "string") {
+            const match = value.match(/var\((--[^)]+)\)/);
+            if (match) {
+                return match[1];
+            }
+        }
+        return "—";
+    }
+
+    // Fallback: check all sources (legacy behavior for backwards compatibility)
     for (const value of Object.values(sources)) {
         if (typeof value === "string") {
             // Match var(--token-name) pattern
