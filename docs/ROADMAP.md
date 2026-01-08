@@ -76,7 +76,13 @@ Viewer must look polished and consistent before shipping MVP.
 - Fix: Update `extractDeclarationValue` and `extractValueFromCssProperties` to return the last match
 - This affects `authoredValue` in `capture.styles.author.properties` and token detection
 
-**Exit criteria:** CDP correctly captures the cascade-winning value for all properties (tokens appear in Viewer).
+### 0.6 Hide default transparent backgrounds
+- Visual Essentials shows `#00000000` for all elements with no background set
+- This is browser default, not a design decision — creates noise
+- Fix: If background is transparent AND no token → show "—"
+- If background is transparent AND has token → show "transparent" + token (intentional)
+
+**Exit criteria:** CDP correctly captures the cascade-winning value for all properties. Visual Essentials only shows meaningful background values.
 
 **Estimated effort:** 0.5 days (total Phase 0: ~2.5 weeks)
 
