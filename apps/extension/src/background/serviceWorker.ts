@@ -1239,17 +1239,20 @@ async function disableAuditForTab(tabId: number, reason: string): Promise<void> 
         auditEnabledByTab.set(tabId, false);
         await setEnabledPersisted(tabId, false);
 
-        // Clear session pointer for this tab when audit is disabled
         await clearSessionIdForTab(tabId);
         activeSessionIdByTab.delete(tabId);
 
         // Best-effort: tell content script to stop capture/highlight mode
-        chrome.tabs.sendMessage(tabId, { type: "AUDIT/TOGGLE", enabled: false }, () => {
-            const err = chrome.runtime.lastError;
-            if (err) {
-                console.warn("[UI Inventory] disableAuditForTab sendMessage failed:", err.message);
-            }
-        });
+        // This may fail if tab was closed/navigated - that's OK
+        try {
+            await chrome.tabs.get(tabId); // Check if tab exists
+            chrome.tabs.sendMessage(tabId, { type: "AUDIT/TOGGLE", enabled: false }, () => {
+                // Silently ignore errors - tab may not have content script
+                void chrome.runtime.lastError;
+            });
+        } catch {
+            // Tab doesn't exist - that's fine, nothing to disable
+        }
 
         console.log("[UI Inventory] Disabled audit for tab", tabId, "reason:", reason);
     } catch (err) {
@@ -1579,11 +1582,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             chrome.tabs.sendMessage(tabId, { type: "AUDIT/TOGGLE", enabled }, () => {
                 const err = chrome.runtime.lastError;
                 if (err) {
-                    console.warn("[UI Inventory] Toggle sendMessage error:", err.message);
-                    sendResponse({ ok: false, error: err.message });
-                } else {
-                    sendResponse({ ok: true });
+                    // Log but don't fail - state was updated successfully
+                    console.log("[UI Inventory] Toggle: content script unavailable (expected for inactive tabs):", err.message);
                 }
+                // Always respond OK if we updated state successfully
+                sendResponse({ ok: true, contentScriptAvailable: !err });
             });
         })();
 
@@ -1689,7 +1692,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
             // If switching owners, ensure capture is disabled in the previous owner tab.
             if (previous !== null && previous !== tabId) {
-                await disableAuditForTab(previous, "owner_switched_via_claim");
+                // Check if previous tab still exists before trying to disable
+                try {
+                    await chrome.tabs.get(previous);
+                    await disableAuditForTab(previous, "owner_switched_via_claim");
+                } catch {
+                    // Previous tab no longer exists - just clear state
+                    auditEnabledByTab.delete(previous);
+                    console.log("[UI Inventory] Previous tab", previous, "no longer exists, skipping disable");
+                }
             }
 
             activeAuditTabId = tabId;

@@ -241,23 +241,7 @@ export default function App() {
       return;
     }
 
-    // First, disable capture mode to avoid confusion during reload
-    // This is non-critical - if it fails (e.g., service worker unavailable), continue anyway
-    try {
-      const toggleResp = await sendMessageAsync<{ type: string; enabled: boolean; tabId: number }, any>({
-        type: 'AUDIT/TOGGLE',
-        enabled: false,
-        tabId,
-      });
-
-      if (!toggleResp?.ok) {
-        console.warn('[App] Failed to disable capture before activation:', toggleResp?.error);
-      }
-    } catch (err) {
-      // Service worker might be unavailable - this is non-fatal
-      console.warn('[App] Could not disable capture before activation (service worker unavailable):', err);
-    }
-
+    // AUDIT/CLAIM_TAB will disable capture on the previous tab if needed
     const resp = await sendMessageAsync<{ type: string; tabId: number }, any>({
       type: 'AUDIT/CLAIM_TAB',
       tabId,
@@ -269,7 +253,7 @@ export default function App() {
     }
 
     setActiveAuditTabId(tabId);
-    
+
     // If we're already in a project, keep it and set the project mapping for the new tab
     if (currentProject) {
       const setResp = await sendMessageAsync<
