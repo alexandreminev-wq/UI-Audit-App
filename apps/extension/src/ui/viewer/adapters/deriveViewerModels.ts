@@ -1205,6 +1205,17 @@ export function deriveVisualEssentialsFromCapture(
     const primitives = capture.styles.primitives;
     const rows: ViewerVisualEssentialsRow[] = [];
 
+    const isTransparent = (color: string | undefined): boolean => {
+        if (!color) return true;
+        // Check for fully transparent: #00000000, rgba(0,0,0,0), transparent
+        const normalized = color.toLowerCase().replace(/\s/g, '');
+        return (
+            normalized === '#00000000' ||
+            normalized === 'rgba(0,0,0,0)' ||
+            normalized === 'transparent'
+        );
+    };
+
     const pxToNumber = (v: string | undefined | null) => {
         const s = String(v ?? "").trim();
         const m = s.match(/^(-?\d+(?:\.\d+)?)px$/);
@@ -1265,11 +1276,32 @@ export function deriveVisualEssentialsFromCapture(
 
     // Surface section
     if (primitives.backgroundColor) {
-        rows.push({
-            section: "Surface",
-            label: "Background",
-            value: primitives.backgroundColor.raw || "—",
-        });
+        const bgValue = primitives.backgroundColor.raw;
+        const bgToken = extractToken(
+            primitives.sources,
+            "backgroundColor",
+            capture.styles.tokens
+        );
+
+        // Only show background if it's not a default transparent
+        if (isTransparent(bgValue)) {
+            // If there's a token, it's intentionally transparent
+            if (bgToken && bgToken !== "—") {
+                rows.push({
+                    section: "Surface",
+                    label: "Background",
+                    value: "transparent",
+                });
+            }
+            // Otherwise, skip it (browser default transparent)
+        } else {
+            // Normal color - always show
+            rows.push({
+                section: "Surface",
+                label: "Background",
+                value: bgValue || "—",
+            });
+        }
     }
 
     if (borderIsPresent && primitives.borderWidth) {
