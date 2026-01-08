@@ -22,8 +22,8 @@ interface VisiblePropertiesPopoverProps {
     };
     setVisibleComponentProps: React.Dispatch<React.SetStateAction<typeof visibleComponentProps>>;
     setVisibleStyleProps: React.Dispatch<React.SetStateAction<typeof visibleStyleProps>>;
-    openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties";
-    setOpenMenu: (menu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties") => void;
+    openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties" | "export";
+    setOpenMenu: (menu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties" | "export") => void;
     filterButtonStyle: React.CSSProperties;
     allStyleEvidenceKeys: readonly string[];
 }

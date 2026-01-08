@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Download, Layers, Palette } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
 import { CheckboxList, type CheckboxItem } from "./CheckboxList";
@@ -29,7 +30,7 @@ type ViewerUiState = {
         activeTab: "components" | "styles";
     };
     popovers: {
-        openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties";
+        openMenu: null | "category" | "type" | "status" | "source" | "kind" | "style-source" | "properties" | "export";
     };
     filters: {
         searchQuery: string;
@@ -839,7 +840,7 @@ export function ProjectViewShell({
                         </div>
                     </div>
 
-                    {/* Right side: Search */}
+                    {/* Right side: Search + Export */}
                     <div style={inlineStyles.topSearchGroup}>
                         <input
                             type="text"
@@ -848,10 +849,127 @@ export function ProjectViewShell({
                             onChange={(e) => setUi(prev => ({ ...prev, filters: { ...prev.filters, searchQuery: e.target.value } }))}
                             style={inlineStyles.searchInput}
                         />
+
+                        {/* Export dropdown */}
+                        <Popover.Root open={ui.popovers.openMenu === "export"} onOpenChange={(open) => setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: open ? "export" : null } }))}>
+                            <Popover.Trigger asChild>
+                                <button
+                                    type="button"
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "6px 12px",
+                                        borderRadius: "var(--radius)",
+                                        border: "1px solid hsl(var(--border))",
+                                        background: "hsl(var(--background))",
+                                        color: "hsl(var(--foreground))",
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        cursor: "pointer",
+                                        transition: "all 0.15s ease",
+                                        flexShrink: 0,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "hsl(var(--muted))";
+                                        e.currentTarget.style.borderColor = "hsl(var(--primary))";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "hsl(var(--background))";
+                                        e.currentTarget.style.borderColor = "hsl(var(--border))";
+                                    }}
+                                >
+                                    <Download size={16} />
+                                    Export
+                                </button>
+                            </Popover.Trigger>
+                            <Popover.Portal>
+                                <Popover.Content
+                                    sideOffset={8}
+                                    align="end"
+                                    style={{
+                                        minWidth: 180,
+                                        background: "hsl(var(--popover))",
+                                        border: "1px solid hsl(var(--border))",
+                                        borderRadius: "var(--radius)",
+                                        boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+                                        padding: 6,
+                                        zIndex: 100,
+                                    }}
+                                >
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={async () => {
+                                            setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: null } }));
+                                            try {
+                                                await exportProject(projectId);
+                                            } catch (err) {
+                                                console.error("[Viewer] Export failed:", err);
+                                                alert("Failed to export project. Check console for details.");
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                e.currentTarget.click();
+                                            }
+                                        }}
+                                        style={{
+                                            padding: "8px 10px",
+                                            borderRadius: "calc(var(--radius) - 2px)",
+                                            cursor: "pointer",
+                                            fontSize: 13,
+                                            color: "hsl(var(--foreground))",
+                                            outline: "none",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = "transparent";
+                                        }}
+                                    >
+                                        Export to Figma
+                                    </div>
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => {
+                                            setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: null } }));
+                                            console.log("[Viewer] JSON export placeholder - not yet implemented");
+                                            alert("JSON export coming soon!");
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                e.currentTarget.click();
+                                            }
+                                        }}
+                                        style={{
+                                            padding: "8px 10px",
+                                            borderRadius: "calc(var(--radius) - 2px)",
+                                            cursor: "pointer",
+                                            fontSize: 13,
+                                            color: "hsl(var(--foreground))",
+                                            outline: "none",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = "transparent";
+                                        }}
+                                    >
+                                        Export JSON
+                                    </div>
+                                </Popover.Content>
+                            </Popover.Portal>
+                        </Popover.Root>
                     </div>
                 </div>
 
-                {/* Second row: Tab selector (Components/Styles) + Export button */}
+                {/* Second row: Tab selector (Components/Styles) */}
                 <div style={inlineStyles.secondRow}>
                     {/* Left: Components/Styles tabs */}
                     <div style={inlineStyles.segmentedContainer}>
@@ -906,47 +1024,6 @@ export function ProjectViewShell({
                         >
                             <Palette size={16} />
                             Styles
-                        </button>
-                    </div>
-
-                    {/* Right: Export button */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        {/* Export to Figma button */}
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                try {
-                                    await exportProject(projectId);
-                                } catch (err) {
-                                    console.error("[Viewer] Export failed:", err);
-                                    alert("Failed to export project. Check console for details.");
-                                }
-                            }}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "6px 12px",
-                                borderRadius: "var(--radius)",
-                                border: "1px solid hsl(var(--border))",
-                                background: "hsl(var(--background))",
-                                color: "hsl(var(--foreground))",
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "hsl(var(--muted))";
-                                e.currentTarget.style.borderColor = "hsl(var(--primary))";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "hsl(var(--background))";
-                                e.currentTarget.style.borderColor = "hsl(var(--border))";
-                            }}
-                        >
-                            <Download size={16} />
-                            Export to Figma
                         </button>
                     </div>
                 </div>
