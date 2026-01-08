@@ -765,6 +765,7 @@ export function ProjectViewShell({
             border: "none",
             borderRadius: "calc(var(--radius) - 2px)",
             cursor: "pointer",
+            transition: "all 0.15s ease",
         },
         filterRow: {
             display: "flex",
@@ -789,6 +790,7 @@ export function ProjectViewShell({
             border: "1px solid hsl(var(--border))",
             borderRadius: "var(--radius)",
             cursor: "pointer",
+            transition: "all 0.15s ease",
         },
         filterSeparator: {
             width: 1,
@@ -802,6 +804,7 @@ export function ProjectViewShell({
             border: "1px solid hsl(var(--border))",
             borderRadius: "var(--radius)",
             cursor: "pointer",
+            transition: "all 0.15s ease",
         },
         filterSpacer: {
             flex: 1,
@@ -831,7 +834,7 @@ export function ProjectViewShell({
                                 {projectName}
                             </h1>
                             <div style={inlineStyles.projectMeta}>
-                                6 captures • 30 unique styles
+                                {rawCaptures.length} {rawCaptures.length === 1 ? 'capture' : 'captures'} • {styleItems.length} unique {styleItems.length === 1 ? 'style' : 'styles'}
                             </div>
                         </div>
                     </div>
@@ -864,6 +867,16 @@ export function ProjectViewShell({
                                 color: ui.route.activeTab === "components" ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "components" ? 600 : 500,
                             }}
+                            onMouseEnter={(e) => {
+                                if (ui.route.activeTab !== "components") {
+                                    e.currentTarget.style.background = "hsl(var(--muted))";
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (ui.route.activeTab !== "components") {
+                                    e.currentTarget.style.background = "transparent";
+                                }
+                            }}
                         >
                             <Layers size={16} />
                             Components
@@ -879,6 +892,16 @@ export function ProjectViewShell({
                                 background: ui.route.activeTab === "styles" ? "hsl(var(--primary))" : "transparent",
                                 color: ui.route.activeTab === "styles" ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "styles" ? 600 : 500,
+                            }}
+                            onMouseEnter={(e) => {
+                                if (ui.route.activeTab !== "styles") {
+                                    e.currentTarget.style.background = "hsl(var(--muted))";
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (ui.route.activeTab !== "styles") {
+                                    e.currentTarget.style.background = "transparent";
+                                }
                             }}
                         >
                             <Palette size={16} />
@@ -943,13 +966,22 @@ export function ProjectViewShell({
                                         <button type="button"
                                             style={{
                                                 ...inlineStyles.filterButton,
-                                                ...(ui.popovers.openMenu === "category" ? {
-                                                    background: "hsl(var(--muted))",
-                                                    fontWeight: 600,
-                                                } : {}),
+                                                fontWeight: 500,
+                                                background: ui.popovers.openMenu === "category" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                                borderColor: selectedCategories.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (ui.popovers.openMenu !== "category") {
+                                                    e.currentTarget.style.background = "hsl(var(--muted))";
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (ui.popovers.openMenu !== "category") {
+                                                    e.currentTarget.style.background = "hsl(var(--background))";
+                                                }
                                             }}
                                         >
-                                            Category ▾
+                                            Category{selectedCategories.size > 0 ? ` (${selectedCategories.size})` : ""} ▾
                                         </button>
                                     }
                                 >
@@ -970,13 +1002,22 @@ export function ProjectViewShell({
                                 <button type="button"
                                     style={{
                                         ...inlineStyles.filterButton,
-                                        ...(ui.popovers.openMenu === "type" ? {
-                                            background: "hsl(var(--muted))",
-                                            fontWeight: 600,
-                                        } : {}),
+                                        fontWeight: 500,
+                                        background: ui.popovers.openMenu === "type" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                        borderColor: selectedTypes.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (ui.popovers.openMenu !== "type") {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (ui.popovers.openMenu !== "type") {
+                                            e.currentTarget.style.background = "hsl(var(--background))";
+                                        }
                                     }}
                                 >
-                                    Type ▾
+                                    Type{selectedTypes.size > 0 ? ` (${selectedTypes.size})` : ""} ▾
                                 </button>
                             }
                         >
@@ -997,13 +1038,22 @@ export function ProjectViewShell({
                                 <button type="button"
                                     style={{
                                         ...inlineStyles.filterButton,
-                                        ...(ui.popovers.openMenu === "status" ? {
-                                            background: "hsl(var(--muted))",
-                                            fontWeight: 600,
-                                        } : {}),
+                                        fontWeight: 500,
+                                        background: ui.popovers.openMenu === "status" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                        borderColor: selectedStatuses.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (ui.popovers.openMenu !== "status") {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (ui.popovers.openMenu !== "status") {
+                                            e.currentTarget.style.background = "hsl(var(--background))";
+                                        }
                                     }}
                                 >
-                                    Status ▾
+                                    Status{selectedStatuses.size > 0 ? ` (${selectedStatuses.size})` : ""} ▾
                                 </button>
                             }
                         >
@@ -1024,13 +1074,22 @@ export function ProjectViewShell({
                                 <button type="button"
                                     style={{
                                         ...inlineStyles.filterButton,
-                                        ...(ui.popovers.openMenu === "source" ? {
-                                            background: "hsl(var(--muted))",
-                                            fontWeight: 600,
-                                        } : {}),
+                                        fontWeight: 500,
+                                        background: ui.popovers.openMenu === "source" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                        borderColor: selectedSources.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (ui.popovers.openMenu !== "source") {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (ui.popovers.openMenu !== "source") {
+                                            e.currentTarget.style.background = "hsl(var(--background))";
+                                        }
                                     }}
                                 >
-                                    Source ▾
+                                    Source{selectedSources.size > 0 ? ` (${selectedSources.size})` : ""} ▾
                                 </button>
                             }
                         >
@@ -1048,9 +1107,19 @@ export function ProjectViewShell({
                                     onClick={() => setUi(prev => ({ ...prev, filters: { ...prev.filters, unknownOnly: !prev.filters.unknownOnly } }))}
                                     style={{
                                         ...inlineStyles.utilityButtonBase,
+                                        fontWeight: 500,
                                         background: ui.filters.unknownOnly ? "hsl(var(--primary))" : "hsl(var(--background))",
                                         color: ui.filters.unknownOnly ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
-                                        fontWeight: ui.filters.unknownOnly ? 600 : 500,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!ui.filters.unknownOnly) {
+                                            e.currentTarget.style.background = "hsl(var(--muted))";
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!ui.filters.unknownOnly) {
+                                            e.currentTarget.style.background = "hsl(var(--background))";
+                                        }
                                     }}
                                 >
                                     Unknown only
@@ -1070,13 +1139,22 @@ export function ProjectViewShell({
                                         <button type="button"
                                             style={{
                                                 ...inlineStyles.filterButton,
-                                                ...(ui.popovers.openMenu === "kind" ? {
-                                                    background: "hsl(var(--muted))",
-                                                    fontWeight: 600,
-                                                } : {}),
+                                                fontWeight: 500,
+                                                background: ui.popovers.openMenu === "kind" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                                borderColor: selectedKinds.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (ui.popovers.openMenu !== "kind") {
+                                                    e.currentTarget.style.background = "hsl(var(--muted))";
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (ui.popovers.openMenu !== "kind") {
+                                                    e.currentTarget.style.background = "hsl(var(--background))";
+                                                }
                                             }}
                                         >
-                                            Kind ▾
+                                            Kind{selectedKinds.size > 0 ? ` (${selectedKinds.size})` : ""} ▾
                                         </button>
                                     }
                                 >
@@ -1097,13 +1175,22 @@ export function ProjectViewShell({
                                         <button type="button"
                                             style={{
                                                 ...inlineStyles.filterButton,
-                                                ...(ui.popovers.openMenu === "style-source" ? {
-                                                    background: "hsl(var(--muted))",
-                                                    fontWeight: 600,
-                                                } : {}),
+                                                fontWeight: 500,
+                                                background: ui.popovers.openMenu === "style-source" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                                                borderColor: selectedStyleSources.size > 0 ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (ui.popovers.openMenu !== "style-source") {
+                                                    e.currentTarget.style.background = "hsl(var(--muted))";
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (ui.popovers.openMenu !== "style-source") {
+                                                    e.currentTarget.style.background = "hsl(var(--background))";
+                                                }
                                             }}
                                         >
-                                            Source ▾
+                                            Source{selectedStyleSources.size > 0 ? ` (${selectedStyleSources.size})` : ""} ▾
                                         </button>
                                     }
                                 >

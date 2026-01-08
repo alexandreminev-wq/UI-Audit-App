@@ -93,10 +93,18 @@ export function VisiblePropertiesPopover({
                 <button type="button"
                     style={{
                         ...filterButtonStyle,
-                        ...(openMenu === "properties" ? {
-                            background: "hsl(var(--muted))",
-                            fontWeight: 600,
-                        } : {}),
+                        fontWeight: 500,
+                        background: openMenu === "properties" ? "hsl(var(--accent))" : "hsl(var(--background))",
+                    }}
+                    onMouseEnter={(e) => {
+                        if (openMenu !== "properties") {
+                            e.currentTarget.style.background = "hsl(var(--muted))";
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (openMenu !== "properties") {
+                            e.currentTarget.style.background = "hsl(var(--background))";
+                        }
                     }}
                 >
                     Visible properties
