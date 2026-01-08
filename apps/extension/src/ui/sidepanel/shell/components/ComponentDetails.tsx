@@ -725,12 +725,15 @@ export function ComponentDetails({
                       : "borderColor";
 
                 const primitives: any = component.stylePrimitives;
+                // Don't pass hex8 when the value is "transparent" (intentionally set via token)
                 const hex8 =
-                  prop === "color"
-                    ? primitives?.color?.hex8
-                    : prop === "backgroundColor"
-                      ? primitives?.backgroundColor?.hex8
-                      : primitives?.borderColor?.hex8;
+                  row.value === 'transparent'
+                    ? null
+                    : prop === "color"
+                      ? primitives?.color?.hex8
+                      : prop === "backgroundColor"
+                        ? primitives?.backgroundColor?.hex8
+                        : primitives?.borderColor?.hex8;
 
                 const authoredValue =
                   (component.styleEvidence?.author?.properties as any)?.[prop]?.authoredValue ?? null;
