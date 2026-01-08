@@ -96,7 +96,7 @@ Viewer must look polished and consistent before shipping MVP.
   - `backgroundColor` → `["background"]`
   - `borderColor` → `["border"]`
 
-### 0.9 Fix tab lifecycle handling
+### 0.9 Fix tab lifecycle handling ✅
 - Error: "Could not establish connection. Receiving end does not exist"
 - Happens when switching tabs and content script is unavailable
 - Root cause: Service worker sends messages to closed/refreshed tabs
