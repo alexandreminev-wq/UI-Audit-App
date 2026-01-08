@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FolderOpen } from "lucide-react";
 import { ProjectsHome } from "./ProjectsHome";
 import { ProjectViewShell } from "./ProjectViewShell";
 import { LegacySessionsViewer } from "./LegacySessionsViewer";
@@ -551,8 +552,49 @@ export function ViewerApp() {
     // Milestone 7.4.0: Empty state
     if (projects.length === 0) {
         return (
-            <div style={{ padding: "2rem", textAlign: "center", color: "hsl(var(--muted-foreground))" }}>
-                No projects found. Create a project to get started.
+            <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "100vh",
+                padding: "2rem",
+            }}>
+                <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "1.5rem",
+                    maxWidth: "400px",
+                    padding: "3rem 2rem",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                    background: "hsl(var(--background))",
+                    textAlign: "center",
+                }}>
+                    <FolderOpen
+                        size={48}
+                        strokeWidth={1.5}
+                        style={{ color: "hsl(var(--muted-foreground))" }}
+                    />
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        <h2 style={{
+                            margin: 0,
+                            fontSize: "1.25rem",
+                            fontWeight: 600,
+                            color: "hsl(var(--foreground))",
+                        }}>
+                            No projects yet
+                        </h2>
+                        <p style={{
+                            margin: 0,
+                            fontSize: "0.875rem",
+                            color: "hsl(var(--muted-foreground))",
+                            lineHeight: 1.5,
+                        }}>
+                            Create a project in the sidepanel to start capturing UI elements.
+                        </p>
+                    </div>
+                </div>
             </div>
         );
     }
