@@ -133,7 +133,7 @@ export function ProjectsHome({
                             textAlign: "left",
                         }}
                     >
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <div data-project-menu-root="true" style={{ position: "relative", display: "flex", alignItems: "center" }}>
                                 <button
                                     type="button"
@@ -148,7 +148,7 @@ export function ProjectsHome({
                                         height: 28,
                                         borderRadius: 8,
                                         border: "1px solid hsl(var(--border))",
-                                        background: "hsl(var(--background))",
+                                        background: openMenuProjectId === project.id ? "hsl(var(--muted))" : "hsl(var(--background))",
                                         color: "hsl(var(--muted-foreground))",
                                         cursor: "pointer",
                                         display: "flex",
@@ -158,7 +158,7 @@ export function ProjectsHome({
                                         lineHeight: "18px",
                                     }}
                                 >
-                                    ⋯
+                                    ⋮
                                 </button>
 
                                 {openMenuProjectId === project.id && (
