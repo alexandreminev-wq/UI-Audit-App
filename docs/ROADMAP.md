@@ -88,7 +88,7 @@ Viewer must look polished and consistent before shipping MVP.
 - Bug: Elements show background tokens from ancestor elements (wrong)
 - Fix: Only scan matched rules (not inherited) for non-inherited CSS properties
 
-### 0.8 Handle CSS shorthand properties
+### 0.8 Handle CSS shorthand properties ✅
 - CDP looks for specific longhand properties (e.g., `background-color`)
 - But CSS allows shorthand (e.g., `background: var(--token)`)
 - Bug: Tokens set via shorthand are not extracted
@@ -96,7 +96,17 @@ Viewer must look polished and consistent before shipping MVP.
   - `backgroundColor` → `["background"]`
   - `borderColor` → `["border"]`
 
-**Exit criteria:** CDP correctly captures tokens from both longhand and shorthand CSS properties. Non-inherited properties only show values from directly matched rules. Visual Essentials only shows meaningful background values.
+### 0.9 Fix tab lifecycle handling
+- Error: "Could not establish connection. Receiving end does not exist"
+- Happens when switching tabs and content script is unavailable
+- Root cause: Service worker sends messages to closed/refreshed tabs
+- Fix:
+  - Check tab existence before sending messages
+  - Return success from AUDIT/TOGGLE even if content script unavailable
+  - Remove unnecessary pre-disable step in handleActivateInThisTab
+  - Wrap disableAuditForTab calls with tab existence checks
+
+**Exit criteria:** CDP correctly captures tokens from both longhand and shorthand CSS properties. Non-inherited properties only show values from directly matched rules. Visual Essentials only shows meaningful background values. No error messages when switching tabs.
 
 **Estimated effort:** 0.5 days (total Phase 0: ~3 weeks)
 
