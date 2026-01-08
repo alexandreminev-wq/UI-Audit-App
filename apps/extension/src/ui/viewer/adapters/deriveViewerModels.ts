@@ -14,7 +14,7 @@
  * See VIEWER_DATA_CONTRACT.md §9.3 (Project Scoping Rules).
  */
 
-import type { CaptureRecordV2 } from "../../../types/capture";
+import type { CaptureRecordV2, TokenEvidence } from "../../../types/capture";
 import type { ProjectRecord } from "../../../background/capturesDb";
 import { buildComponentSignature, hashSignature } from "../../shared/componentKey";
 import type {
@@ -48,6 +48,40 @@ export interface ProjectsIndexStorageData {
 export interface ProjectDetailStorageData {
     projectId: string;
     captures: CaptureRecordV2[]; // All captures across project's linked sessions
+}
+
+// ─────────────────────────────────────────────────────────────
+// Token Extraction Helpers
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Map property keys used in extractToken() to keys used in tokens.used[].property
+ * CDP uses shorthand keys (borderColor) while Viewer uses per-side (borderTopColor)
+ */
+const TOKEN_PROPERTY_MAP: Record<string, string> = {
+    // Border colors: per-side → shorthand
+    borderTopColor: "borderColor",
+    borderRightColor: "borderColor",
+    borderBottomColor: "borderColor",
+    borderLeftColor: "borderColor",
+    // Radius: CSS property names → internal names
+    borderTopLeftRadius: "radiusTopLeft",
+    borderTopRightRadius: "radiusTopRight",
+    borderBottomRightRadius: "radiusBottomRight",
+    borderBottomLeftRadius: "radiusBottomLeft",
+};
+
+/**
+ * Find token for a property from CDP token evidence
+ */
+function findTokenFromEvidence(
+    tokens: TokenEvidence | undefined,
+    propertyKey: string
+): string | null {
+    if (!tokens?.used?.length) return null;
+    const lookupKey = TOKEN_PROPERTY_MAP[propertyKey] ?? propertyKey;
+    const match = tokens.used.find(t => t.property === lookupKey);
+    return match?.token ?? null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -272,13 +306,14 @@ export function deriveStyleInventory(
     for (const capture of captures) {
         const primitives = capture.styles.primitives;
         const sources = primitives.sources;
+        const tokens = capture.styles.tokens;
 
         // Colors
         if (primitives.backgroundColor) {
             styleRecords.push({
                 kind: "backgroundColor",
                 value: primitives.backgroundColor.raw,
-                token: extractToken(sources, "backgroundColor"),
+                token: extractToken(sources, "backgroundColor", tokens),
                 sources,
                 captureUrl: capture.url,
             });
@@ -287,7 +322,7 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "color",
                 value: primitives.color.raw,
-                token: extractToken(sources, "color"),
+                token: extractToken(sources, "color", tokens),
                 sources,
                 captureUrl: capture.url,
             });
@@ -297,28 +332,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "borderTopColor",
                 value: bc.top.raw,
-                token: extractToken(sources, "borderTopColor"),
+                token: extractToken(sources, "borderTopColor", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderRightColor",
                 value: bc.right.raw,
-                token: extractToken(sources, "borderRightColor"),
+                token: extractToken(sources, "borderRightColor", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderBottomColor",
                 value: bc.bottom.raw,
-                token: extractToken(sources, "borderBottomColor"),
+                token: extractToken(sources, "borderBottomColor", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "borderLeftColor",
                 value: bc.left.raw,
-                token: extractToken(sources, "borderLeftColor"),
+                token: extractToken(sources, "borderLeftColor", tokens),
                 sources,
                 captureUrl: capture.url,
             });
@@ -328,57 +363,57 @@ export function deriveStyleInventory(
         styleRecords.push({
             kind: "paddingTop",
             value: primitives.spacing.paddingTop,
-            token: extractToken(sources, "paddingTop"),
+            token: extractToken(sources, "paddingTop", tokens),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingRight",
             value: primitives.spacing.paddingRight,
-            token: extractToken(sources, "paddingRight"),
+            token: extractToken(sources, "paddingRight", tokens),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingBottom",
             value: primitives.spacing.paddingBottom,
-            token: extractToken(sources, "paddingBottom"),
+            token: extractToken(sources, "paddingBottom", tokens),
             sources,
             captureUrl: capture.url,
         });
         styleRecords.push({
             kind: "paddingLeft",
             value: primitives.spacing.paddingLeft,
-            token: extractToken(sources, "paddingLeft"),
+            token: extractToken(sources, "paddingLeft", tokens),
             sources,
             captureUrl: capture.url,
         });
 
         // Phase 2: Margin (optional)
         if (primitives.margin) {
-            styleRecords.push({ kind: "marginTop", value: primitives.margin.marginTop, token: extractToken(sources, "marginTop"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginRight", value: primitives.margin.marginRight, token: extractToken(sources, "marginRight"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginBottom", value: primitives.margin.marginBottom, token: extractToken(sources, "marginBottom"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "marginLeft", value: primitives.margin.marginLeft, token: extractToken(sources, "marginLeft"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginTop", value: primitives.margin.marginTop, token: extractToken(sources, "marginTop", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginRight", value: primitives.margin.marginRight, token: extractToken(sources, "marginRight", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginBottom", value: primitives.margin.marginBottom, token: extractToken(sources, "marginBottom", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "marginLeft", value: primitives.margin.marginLeft, token: extractToken(sources, "marginLeft", tokens), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Border widths (optional)
         if (primitives.borderWidth) {
-            styleRecords.push({ kind: "borderTopWidth", value: primitives.borderWidth.top, token: extractToken(sources, "borderTopWidth"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderRightWidth", value: primitives.borderWidth.right, token: extractToken(sources, "borderRightWidth"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderBottomWidth", value: primitives.borderWidth.bottom, token: extractToken(sources, "borderBottomWidth"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "borderLeftWidth", value: primitives.borderWidth.left, token: extractToken(sources, "borderLeftWidth"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderTopWidth", value: primitives.borderWidth.top, token: extractToken(sources, "borderTopWidth", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderRightWidth", value: primitives.borderWidth.right, token: extractToken(sources, "borderRightWidth", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderBottomWidth", value: primitives.borderWidth.bottom, token: extractToken(sources, "borderBottomWidth", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "borderLeftWidth", value: primitives.borderWidth.left, token: extractToken(sources, "borderLeftWidth", tokens), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Gap (optional)
         if (primitives.gap) {
-            styleRecords.push({ kind: "rowGap", value: primitives.gap.rowGap, token: extractToken(sources, "rowGap"), sources, captureUrl: capture.url });
-            styleRecords.push({ kind: "columnGap", value: primitives.gap.columnGap, token: extractToken(sources, "columnGap"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "rowGap", value: primitives.gap.rowGap, token: extractToken(sources, "rowGap", tokens), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "columnGap", value: primitives.gap.columnGap, token: extractToken(sources, "columnGap", tokens), sources, captureUrl: capture.url });
         }
 
         // Phase 2: Opacity (optional)
         if (typeof primitives.opacity === "number") {
-            styleRecords.push({ kind: "opacity", value: String(primitives.opacity), token: extractToken(sources, "opacity"), sources, captureUrl: capture.url });
+            styleRecords.push({ kind: "opacity", value: String(primitives.opacity), token: extractToken(sources, "opacity", tokens), sources, captureUrl: capture.url });
         }
 
         // Typography (optional fields)
@@ -386,28 +421,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "fontSize",
                 value: primitives.typography.fontSize,
-                token: extractToken(sources, "fontSize"),
+                token: extractToken(sources, "fontSize", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "fontWeight",
                 value: primitives.typography.fontWeight,
-                token: extractToken(sources, "fontWeight"),
+                token: extractToken(sources, "fontWeight", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "fontFamily",
                 value: primitives.typography.fontFamily,
-                token: extractToken(sources, "fontFamily"),
+                token: extractToken(sources, "fontFamily", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "lineHeight",
                 value: primitives.typography.lineHeight,
-                token: extractToken(sources, "lineHeight"),
+                token: extractToken(sources, "lineHeight", tokens),
                 sources,
                 captureUrl: capture.url,
             });
@@ -417,7 +452,7 @@ export function deriveStyleInventory(
         styleRecords.push({
             kind: "boxShadow",
             value: primitives.shadow.boxShadowRaw,
-            token: extractToken(sources, "boxShadow"),
+            token: extractToken(sources, "boxShadow", tokens),
             sources,
             captureUrl: capture.url,
         });
@@ -427,28 +462,28 @@ export function deriveStyleInventory(
             styleRecords.push({
                 kind: "radiusTopLeft",
                 value: primitives.radius.topLeft,
-                token: extractToken(sources, "borderTopLeftRadius"),
+                token: extractToken(sources, "borderTopLeftRadius", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusTopRight",
                 value: primitives.radius.topRight,
-                token: extractToken(sources, "borderTopRightRadius"),
+                token: extractToken(sources, "borderTopRightRadius", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusBottomRight",
                 value: primitives.radius.bottomRight,
-                token: extractToken(sources, "borderBottomRightRadius"),
+                token: extractToken(sources, "borderBottomRightRadius", tokens),
                 sources,
                 captureUrl: capture.url,
             });
             styleRecords.push({
                 kind: "radiusBottomLeft",
                 value: primitives.radius.bottomLeft,
-                token: extractToken(sources, "borderBottomLeftRadius"),
+                token: extractToken(sources, "borderBottomLeftRadius", tokens),
                 sources,
                 captureUrl: capture.url,
             });
@@ -661,32 +696,40 @@ export function inferStatus(
 }
 
 /**
- * Extract CSS variable token from style sources
+ * Extract CSS variable token for a specific property
  *
- * TODO (7.4.x): Implement according to SCHEMA_DELTA.md §6.3
- * Strategy: Find CSS variable reference for specific property
- * - sources.backgroundColor = "var(--color-primary)" → "--color-primary"
- * - sources.spacing = "var(--spacing-md)" → "--spacing-md"
- * - No CSS var → return "—"
+ * Priority:
+ * 1. CDP token evidence (most reliable, from stylesheets)
+ * 2. Inline style sources (fallback)
+ * 3. Legacy: first token found in any source
  *
  * CONTRACT: VIEWER_DATA_CONTRACT.md §5.3
  * - If no real token reference exists, token MUST be "—"
  * - Do NOT return null, undefined, or empty string
  *
- * @param sources - Style sources object from primitives
+ * @param sources - Style sources object from primitives (inline styles)
  * @param propertyKey - Optional property to extract token for (e.g., "backgroundColor")
+ * @param tokens - Optional CDP token evidence
  * @returns CSS variable name (without "var()") or "—" if no token
  */
 export function extractToken(
     sources?: CaptureRecordV2["styles"]["primitives"]["sources"],
-    propertyKey?: string
+    propertyKey?: string,
+    tokens?: TokenEvidence
 ): string {
-    // 7.4.2: Extract CSS variable token from sources (CONTRACT §5.3)
+    // 1. First, check CDP token evidence (most reliable)
+    if (propertyKey && tokens) {
+        const tokenFromEvidence = findTokenFromEvidence(tokens, propertyKey);
+        if (tokenFromEvidence) {
+            return tokenFromEvidence;
+        }
+    }
+
+    // 2. Fallback: check inline style sources
     if (!sources) {
         return "—";
     }
 
-    // If propertyKey specified, check only that property
     if (propertyKey) {
         const value = (sources as Record<string, string | undefined>)[propertyKey];
         if (typeof value === "string") {
@@ -698,7 +741,7 @@ export function extractToken(
         return "—";
     }
 
-    // Fallback: check all sources (legacy behavior for backwards compatibility)
+    // 3. Legacy fallback: check all sources (backwards compatibility)
     for (const value of Object.values(sources)) {
         if (typeof value === "string") {
             // Match var(--token-name) pattern
