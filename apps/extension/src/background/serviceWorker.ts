@@ -128,6 +128,9 @@ const AUTHOR_PROP_SHORTHAND_FALLBACKS: Partial<Record<AuthorStylePropertyKey, st
     radiusBottomLeft: ["border-radius"],
     rowGap: ["gap"],
     columnGap: ["gap"],
+    // Shorthand fallbacks for background and border colors
+    backgroundColor: ["background"],
+    borderColor: ["border"],
 };
 
 /**
