@@ -47,11 +47,10 @@ type ViewerUiState = {
     };
     visibleProps: {
         components: {
-            name: boolean;
+            description: boolean;
             category: boolean;
             type: boolean;
             source: boolean;
-            captures: boolean;
             styleEvidence: boolean;
             styleEvidenceKeys: string[];
         };
@@ -191,11 +190,10 @@ export function ProjectViewShell({
             },
             visibleProps: {
                 components: {
-                    name: savedVisibleProps?.components?.name ?? true,
+                    description: savedVisibleProps?.components?.description ?? true,
                     category: savedVisibleProps?.components?.category ?? true,
                     type: savedVisibleProps?.components?.type ?? true,
                     source: savedVisibleProps?.components?.source ?? true,
-                    captures: savedVisibleProps?.components?.captures ?? true,
                     styleEvidence: savedVisibleProps?.components?.styleEvidence ?? false,
                     styleEvidenceKeys: savedVisibleProps?.components?.styleEvidenceKeys ?? DEFAULT_STYLE_EVIDENCE_KEYS,
                 },

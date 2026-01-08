@@ -7,11 +7,10 @@ import * as Popover from "@radix-ui/react-popover";
 interface VisiblePropertiesPopoverProps {
     activeTab: "components" | "styles";
     visibleComponentProps: {
-        name: boolean;
+        description: boolean;
         category: boolean;
         type: boolean;
         source: boolean;
-        captures: boolean;
         styleEvidence: boolean;
         styleEvidenceKeys: string[];
     };
@@ -45,11 +44,10 @@ export function VisiblePropertiesPopover({
     allStyleEvidenceKeys,
 }: VisiblePropertiesPopoverProps) {
     const componentsProperties = [
-        { key: "name", label: "Name" },
+        { key: "description", label: "Description" },
         { key: "category", label: "Category" },
         { key: "type", label: "Type" },
         { key: "source", label: "Source" },
-        { key: "captures", label: "Captures" },
         { key: "styleEvidence", label: "Style evidence" },
     ] as const;
 
