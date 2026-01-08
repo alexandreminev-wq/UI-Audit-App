@@ -293,9 +293,31 @@ export function deriveStyleInventory(
             });
         }
         if (primitives.borderColor) {
+            const bc = primitives.borderColor;
             styleRecords.push({
-                kind: "borderColor",
-                value: primitives.borderColor.raw,
+                kind: "borderTopColor",
+                value: bc.top.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "borderRightColor",
+                value: bc.right.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "borderBottomColor",
+                value: bc.bottom.raw,
+                token: extractToken(sources),
+                sources,
+                captureUrl: capture.url,
+            });
+            styleRecords.push({
+                kind: "borderLeftColor",
+                value: bc.left.raw,
                 token: extractToken(sources),
                 sources,
                 captureUrl: capture.url,
@@ -698,7 +720,9 @@ export function inferStyleKind(
     const key = primitiveKey.toLowerCase();
 
     // Colors
-    if (key === "backgroundcolor" || key === "color" || key === "bordercolor") {
+    if (key === "backgroundcolor" || key === "color" || key === "bordercolor" ||
+        key === "bordertopcolor" || key === "borderrightcolor" ||
+        key === "borderbottomcolor" || key === "borderleftcolor") {
         return "color";
     }
 
@@ -925,14 +949,13 @@ export function deriveStyleLocations(
         if (selectedStyle.kind === "color") {
             if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
             if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
-            // Check borderColor - handle both old ColorPrimitive and new BorderColorPrimitive
+            // Check borderColor - per-side format
             if (primitives.borderColor) {
-                const bc = primitives.borderColor as any;
-                if (bc.raw === selectedStyle.value) hasStyle = true; // Old format
-                if (bc.top?.raw === selectedStyle.value) hasStyle = true; // New format
-                if (bc.right?.raw === selectedStyle.value) hasStyle = true;
-                if (bc.bottom?.raw === selectedStyle.value) hasStyle = true;
-                if (bc.left?.raw === selectedStyle.value) hasStyle = true;
+                const bc = primitives.borderColor;
+                if (bc.top.raw === selectedStyle.value) hasStyle = true;
+                if (bc.right.raw === selectedStyle.value) hasStyle = true;
+                if (bc.bottom.raw === selectedStyle.value) hasStyle = true;
+                if (bc.left.raw === selectedStyle.value) hasStyle = true;
             }
         } else if (selectedStyle.kind === "spacing") {
             if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
@@ -1031,14 +1054,13 @@ export function deriveRelatedComponentsForStyle(
         if (selectedStyle.kind === "color") {
             if (primitives.backgroundColor?.raw === selectedStyle.value) hasStyle = true;
             if (primitives.color?.raw === selectedStyle.value) hasStyle = true;
-            // Check borderColor - handle both old ColorPrimitive and new BorderColorPrimitive
+            // Check borderColor - per-side format
             if (primitives.borderColor) {
-                const bc = primitives.borderColor as any;
-                if (bc.raw === selectedStyle.value) hasStyle = true; // Old format
-                if (bc.top?.raw === selectedStyle.value) hasStyle = true; // New format
-                if (bc.right?.raw === selectedStyle.value) hasStyle = true;
-                if (bc.bottom?.raw === selectedStyle.value) hasStyle = true;
-                if (bc.left?.raw === selectedStyle.value) hasStyle = true;
+                const bc = primitives.borderColor;
+                if (bc.top.raw === selectedStyle.value) hasStyle = true;
+                if (bc.right.raw === selectedStyle.value) hasStyle = true;
+                if (bc.bottom.raw === selectedStyle.value) hasStyle = true;
+                if (bc.left.raw === selectedStyle.value) hasStyle = true;
             }
         } else if (selectedStyle.kind === "spacing") {
             if (primitives.spacing.paddingTop === selectedStyle.value) hasStyle = true;
@@ -1202,10 +1224,16 @@ export function deriveVisualEssentialsFromCapture(
     }
 
     if (borderIsPresent && primitives.borderColor) {
+        const bc = primitives.borderColor;
+        const t = bc.top.raw || "—";
+        const r = bc.right.raw || "—";
+        const b = bc.bottom.raw || "—";
+        const l = bc.left.raw || "—";
+        const value = (t === r && r === b && b === l) ? t : `${t} ${r} ${b} ${l}`;
         rows.push({
             section: "Surface",
             label: "Border color",
-            value: primitives.borderColor.raw || "—",
+            value,
         });
     }
 
