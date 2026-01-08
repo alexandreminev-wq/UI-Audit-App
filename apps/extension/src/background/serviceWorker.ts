@@ -299,23 +299,34 @@ function derivePrimitivesFromCdpComputedMap(computed: Record<string, string>): S
 
 function extractDeclarationValue(cssText: string, propertyName: string): string | null {
     // Best-effort parse of "prop: value;" from rule style.cssText
+    // Returns the LAST declaration (CSS cascade winner)
     if (!cssText) return null;
     const escaped = propertyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, "i");
-    const match = cssText.match(re);
-    return match ? normalizeWhitespace(match[1]) : null;
+    const re = new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, "gi");
+
+    // Find ALL matches and take the LAST one
+    let lastMatch: string | null = null;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(cssText)) !== null) {
+        lastMatch = normalizeWhitespace(match[1]);
+    }
+    return lastMatch;
 }
 
 function extractValueFromCssProperties(cssProperties: any, propertyName: string): string | null {
+    // Returns the LAST matching property (CSS cascade winner)
     const list: any[] = Array.isArray(cssProperties) ? cssProperties : [];
+    let lastValue: string | null = null;
+
     for (const p of list) {
         if (!p || typeof p.name !== "string") continue;
         if (p.name.toLowerCase() === propertyName.toLowerCase()) {
             const v = typeof p.value === "string" ? p.value : "";
-            return normalizeWhitespace(v);
+            lastValue = normalizeWhitespace(v);
+            // Don't return early - continue to find the LAST match
         }
     }
-    return null;
+    return lastValue;
 }
 function extractVarTokensFromValue(value: string): string[] {
     const tokens = new Set<string>();
