@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Download, Layers, Palette } from "lucide-react";
+import { Download, Layers, Palette, Search } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
@@ -695,10 +695,8 @@ export function ProjectViewShell({
             display: "flex",
             alignItems: "center",
             gap: 12,
-            flex: "3 1 420px",
-            minWidth: 260,
-            maxWidth: 720,
-            width: "100%",
+            flexShrink: 0,
+            minWidth: "fit-content",
         },
         backButton: {
             padding: "6px 0",
@@ -725,13 +723,14 @@ export function ProjectViewShell({
         },
         searchInput: {
             padding: "6px 12px",
+            paddingLeft: 36,
             fontSize: 14,
             border: "1px solid hsl(var(--border))",
             borderRadius: "var(--radius)",
             background: "hsl(var(--background))",
             color: "hsl(var(--foreground))",
-            flex: 1,
-            minWidth: 180,
+            width: "100%",
+            boxSizing: "border-box",
         },
         exportButton: {
             padding: "6px 16px",
@@ -842,13 +841,26 @@ export function ProjectViewShell({
 
                     {/* Right side: Search + Export */}
                     <div style={inlineStyles.topSearchGroup}>
-                        <input
-                            type="text"
-                            placeholder="Search components and styles"
-                            value={ui.filters.searchQuery}
-                            onChange={(e) => setUi(prev => ({ ...prev, filters: { ...prev.filters, searchQuery: e.target.value } }))}
-                            style={inlineStyles.searchInput}
-                        />
+                        <div style={{ position: "relative", width: 200, flexShrink: 0 }}>
+                            <Search
+                                size={16}
+                                style={{
+                                    position: "absolute",
+                                    left: 10,
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    color: "hsl(var(--muted-foreground))",
+                                    pointerEvents: "none"
+                                }}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                value={ui.filters.searchQuery}
+                                onChange={(e) => setUi(prev => ({ ...prev, filters: { ...prev.filters, searchQuery: e.target.value } }))}
+                                style={inlineStyles.searchInput}
+                            />
+                        </div>
 
                         {/* Export dropdown */}
                         <Popover.Root open={ui.popovers.openMenu === "export"} onOpenChange={(open) => setUi(prev => ({ ...prev, popovers: { ...prev.popovers, openMenu: open ? "export" : null } }))}>
@@ -867,8 +879,10 @@ export function ProjectViewShell({
                                         fontSize: 13,
                                         fontWeight: 500,
                                         cursor: "pointer",
-                                        transition: "all 0.15s ease",
                                         flexShrink: 0,
+                                        minWidth: "fit-content",
+                                        whiteSpace: "nowrap",
+                                        transition: "all 0.15s ease",
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.background = "hsl(var(--muted))";
