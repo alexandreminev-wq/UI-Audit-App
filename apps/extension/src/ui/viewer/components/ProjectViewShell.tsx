@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download, Layers, Palette } from "lucide-react";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { FilterPopover } from "./FilterPopover";
 import { CheckboxList, type CheckboxItem } from "./CheckboxList";
@@ -700,12 +700,11 @@ export function ProjectViewShell({
             width: "100%",
         },
         backButton: {
-            padding: "6px 12px",
+            padding: "6px 0",
             fontSize: 14,
-            background: "hsl(var(--muted))",
-            color: "hsl(var(--foreground))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "var(--radius)",
+            background: "transparent",
+            color: "hsl(var(--muted-foreground))",
+            border: "none",
             cursor: "pointer",
             flexShrink: 0,
         },
@@ -825,7 +824,7 @@ export function ProjectViewShell({
                     {/* Left side: Back button + Project info */}
                     <div style={inlineStyles.topLeftGroup}>
                         <button type="button" onClick={onBack} style={inlineStyles.backButton}>
-                            ← Back
+                            ←
                         </button>
                         <div style={inlineStyles.projectTitleContainer}>
                             <h1 style={inlineStyles.projectTitle}>
@@ -837,7 +836,7 @@ export function ProjectViewShell({
                         </div>
                     </div>
 
-                    {/* Right side: Search + Export */}
+                    {/* Right side: Search */}
                     <div style={inlineStyles.topSearchGroup}>
                         <input
                             type="text"
@@ -846,9 +845,6 @@ export function ProjectViewShell({
                             onChange={(e) => setUi(prev => ({ ...prev, filters: { ...prev.filters, searchQuery: e.target.value } }))}
                             style={inlineStyles.searchInput}
                         />
-                        <button type="button" style={inlineStyles.exportButton}>
-                            Export
-                        </button>
                     </div>
                 </div>
 
@@ -861,11 +857,15 @@ export function ProjectViewShell({
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeTab: "components" } }))}
                             style={{
                                 ...inlineStyles.segmentedButtonBase,
-                                background: ui.route.activeTab === "components" ? "hsl(var(--background))" : "transparent",
-                                color: ui.route.activeTab === "components" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                background: ui.route.activeTab === "components" ? "hsl(var(--primary))" : "transparent",
+                                color: ui.route.activeTab === "components" ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "components" ? 600 : 500,
                             }}
                         >
+                            <Layers size={16} />
                             Components
                         </button>
                         <button
@@ -873,11 +873,15 @@ export function ProjectViewShell({
                             onClick={() => setUi(prev => ({ ...prev, route: { ...prev.route, activeTab: "styles" } }))}
                             style={{
                                 ...inlineStyles.segmentedButtonBase,
-                                background: ui.route.activeTab === "styles" ? "hsl(var(--background))" : "transparent",
-                                color: ui.route.activeTab === "styles" ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                background: ui.route.activeTab === "styles" ? "hsl(var(--primary))" : "transparent",
+                                color: ui.route.activeTab === "styles" ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
                                 fontWeight: ui.route.activeTab === "styles" ? 600 : 500,
                             }}
                         >
+                            <Palette size={16} />
                             Styles
                         </button>
                     </div>
