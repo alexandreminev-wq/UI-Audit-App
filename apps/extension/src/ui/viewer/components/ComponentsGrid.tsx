@@ -266,7 +266,7 @@ export function ComponentsGrid({
                                         const primitives = capture.styles?.primitives;
                                         if (!primitives) return null;
 
-                                        const visualEssentials = deriveVisualEssentialsFromPrimitives(primitives);
+                                        const visualEssentials = deriveVisualEssentialsFromPrimitives(primitives, capture.styles.tokens);
                                         if (visualEssentials.rows.length === 0) return null;
 
                                         // Get sources and author data for variable display

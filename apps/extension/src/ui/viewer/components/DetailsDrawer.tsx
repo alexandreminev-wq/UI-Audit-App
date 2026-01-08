@@ -404,7 +404,7 @@ export function DetailsDrawer({
                 if (resp?.ok && resp.capture) {
                     const capture = resp.capture;
                     
-                    const derivedEssentials = capture.styles?.primitives ? deriveVisualEssentialsFromPrimitives(capture.styles.primitives) : null;
+                    const derivedEssentials = capture.styles?.primitives ? deriveVisualEssentialsFromPrimitives(capture.styles.primitives, capture.styles.tokens) : null;
                     
                     setCurrentStateData({
                         capture: {

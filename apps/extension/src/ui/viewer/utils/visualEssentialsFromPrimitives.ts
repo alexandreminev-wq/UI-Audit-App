@@ -1,4 +1,5 @@
 import type { ViewerVisualEssentials, ViewerVisualEssentialsRow } from "../types/projectViewerTypes";
+import type { TokenEvidence } from "../../../types/capture";
 
 /**
  * Format a 4-sided CSS value (padding, margin, border, etc.)
@@ -20,11 +21,24 @@ function format4SidedValue(top: string, right: string, bottom: string, left: str
 }
 
 /**
+ * Check if a color value is transparent
+ */
+function isTransparent(color: string | undefined): boolean {
+    if (!color) return true;
+    const normalized = color.toLowerCase().replace(/\s/g, '');
+    return (
+        normalized === '#00000000' ||
+        normalized === 'rgba(0,0,0,0)' ||
+        normalized === 'transparent'
+    );
+}
+
+/**
  * Derive visual essentials from style primitives.
  * Returns HEX-first values (hex8 || raw) and sections: Text / Surface / Spacing / State.
  * Includes Margin and Gap.
  */
-export function deriveVisualEssentialsFromPrimitives(primitives: any): ViewerVisualEssentials {
+export function deriveVisualEssentialsFromPrimitives(primitives: any, tokens?: TokenEvidence): ViewerVisualEssentials {
     const rows: ViewerVisualEssentialsRow[] = [];
 
     // Text section
@@ -48,7 +62,18 @@ export function deriveVisualEssentialsFromPrimitives(primitives: any): ViewerVis
     // Surface section
     const bgColor = primitives.backgroundColor?.hex8 || primitives.backgroundColor?.raw;
     if (bgColor) {
-        rows.push({ label: "Background", value: bgColor, section: "Surface", hex8: primitives.backgroundColor?.hex8 });
+        if (isTransparent(bgColor)) {
+            // Check if there's a token for background
+            const hasBgToken = tokens?.used?.some(t => t.property === 'backgroundColor');
+            if (hasBgToken) {
+                // Intentionally transparent - show "transparent"
+                rows.push({ label: "Background", value: "transparent", section: "Surface", hex8: primitives.backgroundColor?.hex8 });
+            }
+            // Otherwise: browser default transparent - skip it
+        } else {
+            // Normal color - always show
+            rows.push({ label: "Background", value: bgColor, section: "Surface", hex8: primitives.backgroundColor?.hex8 });
+        }
     }
     const hasBorder = primitives.borderWidth && Object.values(primitives.borderWidth).some((w: any) => parseFloat(String(w)) > 0);
     if (hasBorder && primitives.borderWidth) {
