@@ -702,7 +702,7 @@ export function ComponentDetails({
         }}>Styles</h3>
         {component.stylePrimitives ? (
           <StylePropertiesTable
-            sections={formatVisualEssentials(component.stylePrimitives).map((section) => ({
+            sections={formatVisualEssentials(component.stylePrimitives, component.styleEvidence?.tokens).map((section) => ({
               title: section.title,
               rows: section.rows.map((row) => {
                 const isColorRow =

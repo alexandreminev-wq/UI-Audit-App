@@ -1,4 +1,4 @@
-import type { StylePrimitives } from '../../../../types/capture';
+import type { StylePrimitives, TokenEvidence } from '../../../../types/capture';
 
 export type VisualEssentialsRow = {
   label: string;
@@ -117,9 +117,26 @@ function formatRadius(radius: StylePrimitives['radius']): string {
 }
 
 /**
+ * Check if a color value is transparent
+ */
+function isTransparent(color: string | undefined): boolean {
+    if (!color) return true;
+    const normalized = color.toLowerCase().replace(/\s/g, '');
+    return (
+        normalized === '#00000000' ||
+        normalized === 'rgba(0,0,0,0)' ||
+        normalized === 'transparent' ||
+        normalized === '—'
+    );
+}
+
+/**
  * Format StylePrimitives into designer-friendly Visual Essentials sections
  */
-export function formatVisualEssentials(styles: StylePrimitives): VisualEssentialsSection[] {
+export function formatVisualEssentials(
+    styles: StylePrimitives,
+    tokens?: TokenEvidence
+): VisualEssentialsSection[] {
   const sections: VisualEssentialsSection[] = [];
 
   // Text section
@@ -180,11 +197,26 @@ export function formatVisualEssentials(styles: StylePrimitives): VisualEssential
   const surfaceRows: VisualEssentialsRow[] = [];
   const bgColor = normalizeCssValue(styles.backgroundColor?.raw);
   if (bgColor !== '—') {
-    surfaceRows.push({
-      label: 'Background',
-      value: bgColor,
-      evidence: styles.sources?.backgroundColor
-    });
+    if (isTransparent(bgColor)) {
+      // Check if there's a token for background
+      const hasBgToken = tokens?.used?.some(t => t.property === 'backgroundColor');
+      if (hasBgToken) {
+        // Intentionally transparent - show "transparent"
+        surfaceRows.push({
+          label: 'Background',
+          value: 'transparent',
+          evidence: styles.sources?.backgroundColor
+        });
+      }
+      // Otherwise: browser default transparent - skip it
+    } else {
+      // Normal color - always show
+      surfaceRows.push({
+        label: 'Background',
+        value: bgColor,
+        evidence: styles.sources?.backgroundColor
+      });
+    }
   }
 
   const borderIsPresent = hasBorder(styles);
