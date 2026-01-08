@@ -70,7 +70,13 @@ Viewer must look polished and consistent before shipping MVP.
 - Fix: Update `extractToken` to check `tokens.used` first, then fall back to inline sources
 - This ensures CSS variables from MUI, design systems, and stylesheets appear in the Viewer
 
-**Exit criteria:** Tokens appear correctly for all captured elements using CSS variables (not just inline).
+### 0.5 Fix CDP extraction (last-declaration-wins)
+- CDP's `extractDeclarationValue` returns the **first** CSS declaration for a property
+- CSS cascade requires the **last** declaration to win (e.g., `color: inherit; color: var(--token);`)
+- Fix: Update `extractDeclarationValue` and `extractValueFromCssProperties` to return the last match
+- This affects `authoredValue` in `capture.styles.author.properties` and token detection
+
+**Exit criteria:** CDP correctly captures the cascade-winning value for all properties (tokens appear in Viewer).
 
 **Estimated effort:** 0.5 days (total Phase 0: ~2.5 weeks)
 
