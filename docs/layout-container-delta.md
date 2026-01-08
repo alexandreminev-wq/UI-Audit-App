@@ -485,3 +485,4 @@ More explicit z-index management in Viewer.
 
 - **2026-01-03**: Initial layout delta analysis (post button standardization work)
 
+

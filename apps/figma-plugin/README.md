@@ -29,3 +29,4 @@ Then in Figma:
 The plugin will create a new page with component sheets organized by category.
 
 
+
