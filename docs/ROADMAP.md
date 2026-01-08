@@ -82,9 +82,15 @@ Viewer must look polished and consistent before shipping MVP.
 - Fix: If background is transparent AND no token → show "—"
 - If background is transparent AND has token → show "transparent" + token (intentional)
 
-**Exit criteria:** CDP correctly captures the cascade-winning value for all properties. Visual Essentials only shows meaningful background values.
+### 0.7 Fix non-inherited property extraction
+- CDP scans both `matchedCSSRules` and `inheritedRuleMatches` for ALL properties
+- But `background-color`, `border-*`, `padding`, `margin` do NOT inherit
+- Bug: Elements show background tokens from ancestor elements (wrong)
+- Fix: Only scan matched rules (not inherited) for non-inherited CSS properties
 
-**Estimated effort:** 0.5 days (total Phase 0: ~2.5 weeks)
+**Exit criteria:** CDP correctly captures the cascade-winning value for all properties. Non-inherited properties only show values from directly matched rules. Visual Essentials only shows meaningful background values.
+
+**Estimated effort:** 0.5 days (total Phase 0: ~3 weeks)
 
 ---
 
